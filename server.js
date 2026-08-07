@@ -31,26 +31,23 @@ app.post('/api/webhook/zapi', async (req, res) => {
     const mensagemRecebida = req.body.text?.message || '';
     const nome = req.body.senderName || req.body.chatName || 'Cliente WhatsApp';
 
-    // --- Lógica de Tratamento do Telefone ---
-    let telefoneLimpo = telefoneBruto.replace(/\D/g, ''); // Garante apenas dígitos
+    let telefoneLimpo = telefoneBruto.replace(/\D/g, '');
     if (!telefoneLimpo.startsWith('55')) {
-      telefoneLimpo = '55' + telefoneLimpo; // Adiciona 55 se não tiver (para Z-API)
+      telefoneLimpo = '55' + telefoneLimpo;
     }
 
     const telefoneParaSupabase = telefoneLimpo.startsWith('55')
-      ? telefoneLimpo.substring(2) // Remove o 55 para Supabase
-      : telefoneLimpo; // Se não tinha 55, mantém como está
+      ? telefoneLimpo.substring(2)
+      : telefoneLimpo;
 
     console.log(`📝 Mensagem bruta: "${mensagemRecebida}"`);
     console.log(`📱 Telefone bruto: "${telefoneBruto}"`);
-    console.log(`📱 Telefone para Z-API: ${telefoneLimpo}`); // NOVO LOG: Telefone com 55 para Z-API
-    console.log(`📱 Telefone para Supabase: ${telefoneParaSupabase}`); // Telefone sem 55 para Supabase
+    console.log(`📱 Telefone para Z-API: ${telefoneLimpo}`);
+    console.log(`📱 Telefone para Supabase: ${telefoneParaSupabase}`);
     console.log(`💬 Mensagem: "${mensagemRecebida}"`);
-    // --- Fim da Lógica de Tratamento do Telefone ---
 
     console.log('🔍 ===== INICIANDO VERIFICAÇÃO =====');
     console.log(`📱 Telefone: ${telefoneParaSupabase}`);
-    console.log('🔍 Verificando NOVO...');
 
     const agora = new Date().toISOString();
 
@@ -64,7 +61,7 @@ app.post('/api/webhook/zapi', async (req, res) => {
       console.error('❌ Erro ao consultar cliente:', selectError);
     }
 
-    // --- Lógica de Insert/Update no Supabase ---
+    // --- SEM updated_at! ---
     if (existente) {
       console.log('✅ Cliente já existe. Atualizando...');
       const { error: updateError } = await supabase
@@ -73,8 +70,8 @@ app.post('/api/webhook/zapi', async (req, res) => {
           nome,
           data_contato: agora,
           status: 'novo',
-          onboarding_completo: false,
-          updated_at: agora // <--- MODIFICAÇÃO: Incluindo updated_at explicitamente
+          onboarding_completo: false
+          // updated_at REMOVIDO - o banco gerencia automaticamente
         })
         .eq('telefone', telefoneParaSupabase);
 
@@ -92,8 +89,8 @@ app.post('/api/webhook/zapi', async (req, res) => {
           nome,
           data_contato: agora,
           status: 'novo',
-          onboarding_completo: false,
-          updated_at: agora // <--- MODIFICAÇÃO: Incluindo updated_at explicitamente
+          onboarding_completo: false
+          // updated_at REMOVIDO - o banco gerencia automaticamente
         });
 
       if (insertError) {
@@ -102,15 +99,14 @@ app.post('/api/webhook/zapi', async (req, res) => {
         console.log('✅ Cliente inserido com sucesso');
       }
     }
-    // --- Fim da Lógica de Insert/Update no Supabase ---
 
-    // --- Lógica para Enviar Resposta via Z-API ---
+    // --- Enviar Resposta via Z-API ---
     const ZAPI_TOKEN = process.env.ZAPI_TOKEN;
     const ZAPI_CLIENT_ID = process.env.ZAPI_CLIENT_ID;
     const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN;
 
     console.log('📨 ===== ENVIO Z-API =====');
-    console.log(`📨 Telefone: ${telefoneLimpo}`); // Usando telefoneLimpo (com 55)
+    console.log(`📨 Telefone: ${telefoneLimpo}`);
     console.log(`📨 Instância configurada: ${ZAPI_CLIENT_ID}`);
     console.log(`📨 Token configurado: ${!!ZAPI_TOKEN}`);
     console.log(`📨 Client-Token configurado: ${!!ZAPI_CLIENT_TOKEN}`);
@@ -135,7 +131,7 @@ app.post('/api/webhook/zapi', async (req, res) => {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        phone: telefoneLimpo, // Usando telefoneLimpo (com 55)
+        phone: telefoneLimpo,
         message: mensagemResposta
       })
     });
@@ -148,7 +144,6 @@ app.post('/api/webhook/zapi', async (req, res) => {
     if (!responseZapi.ok) {
       console.error('❌ Falha ao enviar resposta via Z-API');
     }
-    // --- Fim da Lógica para Enviar Resposta via Z-API ---
 
     console.log('📨 POST /api/webhook');
     return res.status(200).send('OK');
