@@ -71,7 +71,7 @@ app.post('/api/webhook/zapi', async (req, res) => {
           data_contato: agora,
           status: 'novo',
           onboarding_completo: false
-          // updated_at REMOVIDO - o banco gerencia automaticamente
+
         })
         .eq('telefone', telefoneParaSupabase);
 
@@ -90,7 +90,7 @@ app.post('/api/webhook/zapi', async (req, res) => {
           data_contato: agora,
           status: 'novo',
           onboarding_completo: false
-          // updated_at REMOVIDO - o banco gerencia automaticamente
+   
         });
 
       if (insertError) {
