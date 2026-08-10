@@ -35,6 +35,12 @@
             padding-bottom: 10px;
         }
 
+        h2 {
+            color: #2c3e50;
+            font-size: 20px;
+            margin: 30px 0 15px;
+        }
+
         .cards {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -62,6 +68,11 @@
             color: #2c3e50;
         }
 
+        .numero.data {
+            font-size: 16px;
+            line-height: 1.4;
+        }
+
         .status {
             padding: 12px 16px;
             border-radius: 6px;
@@ -79,6 +90,66 @@
         .status.error {
             background: #f8d7da;
             color: #721c24;
+        }
+
+        .distribuicoes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .distribuicao {
+            border: 1px solid #ecf0f1;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .distribuicao h3 {
+            background: #34495e;
+            color: #fff;
+            padding: 12px 16px;
+            font-size: 16px;
+        }
+
+        .distribuicao-lista {
+            list-style: none;
+            padding: 8px 0;
+        }
+
+        .distribuicao-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 16px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .distribuicao-item:last-child {
+            border-bottom: none;
+        }
+
+        .distribuicao-nome {
+            color: #34495e;
+            word-break: break-word;
+        }
+
+        .distribuicao-quantidade {
+            min-width: 32px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            background: #3498db;
+            color: #fff;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .distribuicao-vazia {
+            color: #95a5a6;
+            padding: 18px 16px;
+            text-align: center;
         }
 
         .tabela-container {
@@ -122,6 +193,10 @@
             td {
                 white-space: nowrap;
             }
+
+            .numero.data {
+                font-size: 14px;
+            }
         }
     </style>
 </head>
@@ -149,7 +224,43 @@
                 <h3>Onboarding Completos</h3>
                 <div class="numero" id="onboarding-completos">0</div>
             </div>
+
+            <div class="card">
+                <h3>Clientes com Etapa</h3>
+                <div class="numero" id="total-etapas">0</div>
+            </div>
+
+            <div class="card">
+                <h3>Última Atualização</h3>
+                <div class="numero data" id="ultima-atualizacao">
+                    Não informado
+                </div>
+            </div>
         </div>
+
+        <h2>Resumo dos processos</h2>
+
+        <div class="distribuicoes">
+            <div class="distribuicao">
+                <h3>Clientes por status</h3>
+                <div id="status-distribuicao">
+                    <div class="distribuicao-vazia">
+                        Carregando...
+                    </div>
+                </div>
+            </div>
+
+            <div class="distribuicao">
+                <h3>Clientes por etapa</h3>
+                <div id="etapas-distribuicao">
+                    <div class="distribuicao-vazia">
+                        Carregando...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h2>Clientes recentes</h2>
 
         <div class="tabela-container">
             <table>
@@ -176,14 +287,12 @@
 
     <script>
         function escaparHtml(valor) {
-            const amp = String.fromCharCode(38);
-
             return String(valor ?? "")
-                .replaceAll(amp, amp + "amp;")
-                .replaceAll("<", amp + "lt;")
-                .replaceAll(">", amp + "gt;")
-                .replaceAll('"', amp + "quot;")
-                .replaceAll("'", amp + "#39;");
+                .replaceAll("&", "&")
+                .replaceAll("<", "<")
+                .replaceAll(">", ">")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
         }
 
         function formatarData(data) {
@@ -210,9 +319,65 @@
             `;
         }
 
+        function normalizarDistribuicao(distribuicao) {
+            if (
+                !distribuicao ||
+                typeof distribuicao !== "object" ||
+                Array.isArray(distribuicao)
+            ) {
+                return [];
+            }
+
+            return Object.entries(distribuicao)
+                .map(([nome, quantidade]) => ({
+                    nome,
+                    quantidade: Number(quantidade)
+                }))
+                .filter((item) => (
+                    Number.isFinite(item.quantidade) &&
+                    item.quantidade >= 0
+                ))
+                .sort((a, b) => (
+                    b.quantidade - a.quantidade ||
+                    a.nome.localeCompare(b.nome, "pt-BR")
+                ));
+        }
+
+        function renderizarDistribuicao(elemento, distribuicao) {
+            const itens = normalizarDistribuicao(distribuicao);
+
+            if (itens.length === 0) {
+                elemento.innerHTML = `
+                    <div class="distribuicao-vazia">
+                        Nenhum dado disponível.
+                    </div>
+                `;
+                return;
+            }
+
+            elemento.innerHTML = `
+                <ul class="distribuicao-lista">
+                    ${itens.map((item) => `
+                        <li class="distribuicao-item">
+                            <span class="distribuicao-nome">
+                                ${escaparHtml(item.nome)}
+                            </span>
+                            <span class="distribuicao-quantidade">
+                                ${item.quantidade}
+                            </span>
+                        </li>
+                    `).join("")}
+                </ul>
+            `;
+        }
+
         async function carregarDashboard() {
             const status = document.getElementById("status");
             const tabela = document.getElementById("clientes-tabela");
+            const statusDistribuicao =
+                document.getElementById("status-distribuicao");
+            const etapasDistribuicao =
+                document.getElementById("etapas-distribuicao");
 
             try {
                 const resposta = await fetch("/api/dashboard-data");
@@ -232,6 +397,35 @@
                 document.getElementById("onboarding-completos").textContent =
                     dados.onboardingCompletos ?? 0;
 
+                const porEtapa =
+                    dados.porEtapa &&
+                    typeof dados.porEtapa === "object"
+                        ? dados.porEtapa
+                        : {};
+
+                const totalEtapas = Object.values(porEtapa)
+                    .reduce(
+                        (total, quantidade) =>
+                            total + Number(quantidade || 0),
+                        0
+                    );
+
+                document.getElementById("total-etapas").textContent =
+                    totalEtapas;
+
+                document.getElementById("ultima-atualizacao").textContent =
+                    formatarData(dados.ultimaAtualizacao);
+
+                renderizarDistribuicao(
+                    statusDistribuicao,
+                    dados.porStatus
+                );
+
+                renderizarDistribuicao(
+                    etapasDistribuicao,
+                    dados.porEtapa
+                );
+
                 const clientes = Array.isArray(dados.clientes)
                     ? dados.clientes
                     : [];
@@ -244,26 +438,63 @@
                 } else {
                     tabela.innerHTML = clientes.map((cliente) => `
                         <tr>
-                            <td>${escaparHtml(cliente.nome || "Não informado")}</td>
-                            <td>${escaparHtml(cliente.telefone || "Não informado")}</td>
-                            <td>${escaparHtml(cliente.status || "Sem status")}</td>
-                            <td>${escaparHtml(cliente.etapa_atual || "Não definida")}</td>
-                            <td>${escaparHtml(formatarData(cliente.data_atualizacao))}</td>
+                            <td>
+                                ${escaparHtml(
+                                    cliente.nome || "Não informado"
+                                )}
+                            </td>
+                            <td>
+                                ${escaparHtml(
+                                    cliente.telefone || "Não informado"
+                                )}
+                            </td>
+                            <td>
+                                ${escaparHtml(
+                                    cliente.status || "Sem status"
+                                )}
+                            </td>
+                            <td>
+                                ${escaparHtml(
+                                    cliente.etapa_atual || "Não definida"
+                                )}
+                            </td>
+                            <td>
+                                ${escaparHtml(
+                                    formatarData(
+                                        cliente.data_atualizacao
+                                    )
+                                )}
+                            </td>
                         </tr>
                     `).join("");
                 }
 
                 status.textContent =
-                    `Servidor online. Dados atualizados em ${new Date().toLocaleString("pt-BR")}.`;
+                    `Servidor online. Dados atualizados em ${
+                        formatarData(new Date())
+                    }.`;
 
                 status.className = "status success";
             } catch (erro) {
-                console.error("Erro ao carregar o dashboard:", erro);
+                console.error(
+                    "Erro ao carregar o dashboard:",
+                    erro
+                );
 
                 status.textContent =
                     `Erro ao carregar dados: ${erro.message}`;
 
                 status.className = "status error";
+
+                renderizarDistribuicao(
+                    statusDistribuicao,
+                    {}
+                );
+
+                renderizarDistribuicao(
+                    etapasDistribuicao,
+                    {}
+                );
 
                 mostrarMensagemTabela(
                     tabela,
