@@ -1,2 +1,5 @@
 .env
-server.js.backup
+node_modules/
+.DS_Store
+*.backup
+*.backup-*
