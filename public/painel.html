@@ -20,66 +20,35 @@
         }
 
         .container {
+            width: 100%;
             max-width: 1200px;
             margin: 0 auto;
+            padding: 30px;
             background: #fff;
             border-radius: 12px;
-            padding: 30px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
         h1 {
-            color: #2c3e50;
             margin-bottom: 30px;
-            border-bottom: 3px solid #3498db;
             padding-bottom: 10px;
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
         }
 
         h2 {
+            margin: 30px 0 15px;
             color: #2c3e50;
             font-size: 20px;
-            margin: 30px 0 15px;
-        }
-
-        .cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            border-left: 4px solid #3498db;
-        }
-
-        .card h3 {
-            font-size: 14px;
-            text-transform: uppercase;
-            color: #7f8c8d;
-            margin-bottom: 8px;
-        }
-
-        .numero {
-            font-size: 28px;
-            font-weight: bold;
-            color: #2c3e50;
-        }
-
-        .numero.data {
-            font-size: 16px;
-            line-height: 1.4;
         }
 
         .status {
+            margin-bottom: 20px;
             padding: 12px 16px;
             border-radius: 6px;
-            margin-bottom: 20px;
-            font-weight: 500;
             background: #fff3cd;
             color: #856404;
+            font-weight: 500;
         }
 
         .status.success {
@@ -92,30 +61,80 @@
             color: #721c24;
         }
 
-        .distribuicoes {
+        .cards {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
 
-        .distribuicao {
+        .card {
+            padding: 20px;
+            border-left: 4px solid #3498db;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+
+        .card h3 {
+            margin-bottom: 8px;
+            color: #7f8c8d;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        .numero {
+            color: #2c3e50;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .numero.data {
+            font-size: 16px;
+            line-height: 1.4;
+        }
+
+        .distribuicoes,
+        .graficos {
+            display: grid;
+            grid-template-columns: repeat(
+                auto-fit,
+                minmax(280px, 1fr)
+            );
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .distribuicao,
+        .grafico {
+            overflow: hidden;
             border: 1px solid #ecf0f1;
             border-radius: 8px;
-            overflow: hidden;
             background: #fff;
         }
 
-        .distribuicao h3 {
-            background: #34495e;
-            color: #fff;
-            padding: 12px 16px;
+        .grafico {
+            padding: 18px;
+        }
+
+        .distribuicao h3,
+        .grafico h3 {
+            color: #34495e;
             font-size: 16px;
         }
 
+        .distribuicao h3 {
+            padding: 12px 16px;
+            background: #34495e;
+            color: #fff;
+        }
+
+        .grafico h3 {
+            margin-bottom: 18px;
+        }
+
         .distribuicao-lista {
-            list-style: none;
             padding: 8px 0;
+            list-style: none;
         }
 
         .distribuicao-item {
@@ -146,10 +165,54 @@
             text-align: center;
         }
 
-        .distribuicao-vazia {
+        .distribuicao-vazia,
+        .grafico-vazio {
+            padding: 20px 16px;
             color: #95a5a6;
-            padding: 18px 16px;
             text-align: center;
+        }
+
+        .barra-item {
+            margin-bottom: 16px;
+        }
+
+        .barra-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .barra-cabecalho {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 6px;
+            color: #34495e;
+            font-size: 14px;
+        }
+
+        .barra-cabecalho strong {
+            color: #2c3e50;
+        }
+
+        .barra-fundo {
+            width: 100%;
+            height: 20px;
+            overflow: hidden;
+            border-radius: 10px;
+            background: #ecf0f1;
+        }
+
+        .barra-preenchimento {
+            width: 0;
+            height: 100%;
+            min-width: 4px;
+            border-radius: 10px;
+            background: #3498db;
+            transition: width 0.4s ease;
+        }
+
+        .barra-preenchimento.etapa {
+            background: #2ecc71;
         }
 
         .tabela-container {
@@ -163,9 +226,9 @@
         }
 
         th {
+            padding: 12px;
             background: #34495e;
             color: #fff;
-            padding: 12px;
             text-align: left;
         }
 
@@ -179,12 +242,16 @@
         }
 
         .empty {
-            text-align: center;
-            color: #95a5a6;
             padding: 40px 0;
+            color: #95a5a6;
+            text-align: center;
         }
 
         @media (max-width: 700px) {
+            body {
+                padding: 10px;
+            }
+
             .container {
                 padding: 20px;
             }
@@ -202,47 +269,71 @@
 </head>
 
 <body>
-    <div class="container">
+    <main class="container">
         <h1>📊 Painel GetVisa</h1>
 
         <div id="status" class="status">
             Carregando dados...
         </div>
 
-        <div class="cards">
+        <section class="cards" aria-label="Resumo geral">
             <div class="card">
                 <h3>Total de Clientes</h3>
-                <div class="numero" id="total-clientes">0</div>
+                <div
+                    class="numero"
+                    id="total-clientes"
+                >
+                    0
+                </div>
             </div>
 
             <div class="card">
                 <h3>Novos Hoje</h3>
-                <div class="numero" id="novos-hoje">0</div>
+                <div
+                    class="numero"
+                    id="novos-hoje"
+                >
+                    0
+                </div>
             </div>
 
             <div class="card">
                 <h3>Onboarding Completos</h3>
-                <div class="numero" id="onboarding-completos">0</div>
+                <div
+                    class="numero"
+                    id="onboarding-completos"
+                >
+                    0
+                </div>
             </div>
 
             <div class="card">
-                <h3>Clientes com Etapa</h3>
-                <div class="numero" id="total-etapas">0</div>
+                <h3>Clientes em Processo</h3>
+                <div
+                    class="numero"
+                    id="total-etapas"
+                >
+                    0
+                </div>
             </div>
 
             <div class="card">
                 <h3>Última Atualização</h3>
-                <div class="numero data" id="ultima-atualizacao">
+                <div
+                    class="numero data"
+                    id="ultima-atualizacao"
+                >
                     Não informado
                 </div>
             </div>
-        </div>
+        </section>
 
         <h2>Resumo dos processos</h2>
 
-        <div class="distribuicoes">
+        <section class="distribuicoes">
             <div class="distribuicao">
                 <h3>Clientes por status</h3>
+
                 <div id="status-distribuicao">
                     <div class="distribuicao-vazia">
                         Carregando...
@@ -252,13 +343,38 @@
 
             <div class="distribuicao">
                 <h3>Clientes por etapa</h3>
+
                 <div id="etapas-distribuicao">
                     <div class="distribuicao-vazia">
                         Carregando...
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
+
+        <h2>Gráficos de progresso</h2>
+
+        <section class="graficos">
+            <div class="grafico">
+                <h3>Distribuição por status</h3>
+
+                <div id="grafico-status">
+                    <div class="grafico-vazio">
+                        Carregando...
+                    </div>
+                </div>
+            </div>
+
+            <div class="grafico">
+                <h3>Distribuição por etapa</h3>
+
+                <div id="grafico-etapas">
+                    <div class="grafico-vazio">
+                        Carregando...
+                    </div>
+                </div>
+            </div>
+        </section>
 
         <h2>Clientes recentes</h2>
 
@@ -276,14 +392,17 @@
 
                 <tbody id="clientes-tabela">
                     <tr>
-                        <td colspan="5" class="empty">
+                        <td
+                            colspan="5"
+                            class="empty"
+                        >
                             Carregando clientes...
                         </td>
                     </tr>
                 </tbody>
             </table>
         </div>
-    </div>
+    </main>
 
     <script>
         function escaparHtml(valor) {
@@ -296,23 +415,34 @@
         }
 
         function formatarData(data) {
-            if (!data) {
-                return "Não informado";
-            }
+    if (!data) {
+        return "Não informado";
+    }
 
-            const dataFormatada = new Date(data);
+    const dataFormatada = new Date(data);
 
-            if (Number.isNaN(dataFormatada.getTime())) {
-                return "Data inválida";
-            }
+    if (Number.isNaN(dataFormatada.getTime())) {
+        return "Data inválida";
+    }
 
-            return dataFormatada.toLocaleString("pt-BR");
-        }
+    return new Intl.DateTimeFormat("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+    }).format(dataFormatada);
+}
 
         function mostrarMensagemTabela(tabela, mensagem) {
             tabela.innerHTML = `
                 <tr>
-                    <td colspan="5" class="empty">
+                    <td
+                        colspan="5"
+                        class="empty"
+                    >
                         ${escaparHtml(mensagem)}
                     </td>
                 </tr>
@@ -343,8 +473,12 @@
                 ));
         }
 
-        function renderizarDistribuicao(elemento, distribuicao) {
-            const itens = normalizarDistribuicao(distribuicao);
+        function renderizarDistribuicao(
+            elemento,
+            distribuicao
+        ) {
+            const itens =
+                normalizarDistribuicao(distribuicao);
 
             if (itens.length === 0) {
                 elemento.innerHTML = `
@@ -362,6 +496,7 @@
                             <span class="distribuicao-nome">
                                 ${escaparHtml(item.nome)}
                             </span>
+
                             <span class="distribuicao-quantidade">
                                 ${item.quantidade}
                             </span>
@@ -371,110 +506,225 @@
             `;
         }
 
+        function renderizarGrafico(
+            elemento,
+            distribuicao,
+            classe = ""
+        ) {
+            const itens =
+                normalizarDistribuicao(distribuicao);
+
+            if (itens.length === 0) {
+                elemento.innerHTML = `
+                    <div class="grafico-vazio">
+                        Nenhum dado disponível.
+                    </div>
+                `;
+                return;
+            }
+
+            const maiorQuantidade = Math.max(
+                ...itens.map((item) => item.quantidade),
+                1
+            );
+
+            elemento.innerHTML = itens.map((item) => {
+                const percentual =
+                    (item.quantidade / maiorQuantidade) * 100;
+
+                const nomeSeguro =
+                    escaparHtml(item.nome);
+
+                return `
+                    <div class="barra-item">
+                        <div class="barra-cabecalho">
+                            <span>${nomeSeguro}</span>
+                            <strong>${item.quantidade}</strong>
+                        </div>
+
+                        <div
+                            class="barra-fundo"
+                            role="progressbar"
+                            aria-label="${nomeSeguro}"
+                            aria-valuenow="${item.quantidade}"
+                            aria-valuemin="0"
+                            aria-valuemax="${maiorQuantidade}"
+                        >
+                            <div
+                                class="barra-preenchimento ${classe}"
+                                style="width: ${percentual}%"
+                            ></div>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function obterTotalDistribuicao(distribuicao) {
+            return normalizarDistribuicao(distribuicao)
+                .reduce(
+                    (total, item) =>
+                        total + item.quantidade,
+                    0
+                );
+        }
+
+        function renderizarClientes(
+            tabela,
+            clientes
+        ) {
+            if (!Array.isArray(clientes) || clientes.length === 0) {
+                mostrarMensagemTabela(
+                    tabela,
+                    "Nenhum cliente cadastrado."
+                );
+                return;
+            }
+
+            tabela.innerHTML = clientes.map((cliente) => `
+                <tr>
+                    <td>
+                        ${escaparHtml(
+                            cliente.nome || "Não informado"
+                        )}
+                    </td>
+
+                    <td>
+                        ${escaparHtml(
+                            cliente.telefone || "Não informado"
+                        )}
+                    </td>
+
+                    <td>
+                        ${escaparHtml(
+                            cliente.status || "Sem status"
+                        )}
+                    </td>
+
+                    <td>
+                        ${escaparHtml(
+                            cliente.etapa_atual ||
+                            "Não definida"
+                        )}
+                    </td>
+
+                    <td>
+                        ${escaparHtml(
+                            formatarData(
+                                cliente.data_atualizacao
+                            )
+                        )}
+                    </td>
+                </tr>
+            `).join("");
+        }
+
         async function carregarDashboard() {
-            const status = document.getElementById("status");
-            const tabela = document.getElementById("clientes-tabela");
+            const status =
+                document.getElementById("status");
+
+            const tabela =
+                document.getElementById("clientes-tabela");
+
             const statusDistribuicao =
-                document.getElementById("status-distribuicao");
+                document.getElementById(
+                    "status-distribuicao"
+                );
+
             const etapasDistribuicao =
-                document.getElementById("etapas-distribuicao");
+                document.getElementById(
+                    "etapas-distribuicao"
+                );
+
+            const graficoStatus =
+                document.getElementById(
+                    "grafico-status"
+                );
+
+            const graficoEtapas =
+                document.getElementById(
+                    "grafico-etapas"
+                );
 
             try {
-                const resposta = await fetch("/api/dashboard-data");
+                const resposta = await fetch(
+                    "/api/dashboard-data"
+                );
 
                 if (!resposta.ok) {
-                    throw new Error(`HTTP ${resposta.status}`);
+                    throw new Error(
+                        `HTTP ${resposta.status}`
+                    );
                 }
 
                 const dados = await resposta.json();
 
-                document.getElementById("total-clientes").textContent =
-                    dados.totalClientes ?? 0;
-
-                document.getElementById("novos-hoje").textContent =
-                    dados.novosHoje ?? 0;
-
-                document.getElementById("onboarding-completos").textContent =
-                    dados.onboardingCompletos ?? 0;
+                const porStatus =
+                    dados.porStatus || {};
 
                 const porEtapa =
-                    dados.porEtapa &&
-                    typeof dados.porEtapa === "object"
-                        ? dados.porEtapa
-                        : {};
+                    dados.porEtapa || {};
 
-                const totalEtapas = Object.values(porEtapa)
-                    .reduce(
-                        (total, quantidade) =>
-                            total + Number(quantidade || 0),
-                        0
+                document.getElementById(
+                    "total-clientes"
+                ).textContent =
+                    dados.totalClientes ?? 0;
+
+                document.getElementById(
+                    "novos-hoje"
+                ).textContent =
+                    dados.novosHoje ?? 0;
+
+                document.getElementById(
+                    "onboarding-completos"
+                ).textContent =
+                    dados.onboardingCompletos ?? 0;
+
+                document.getElementById(
+                    "total-etapas"
+                ).textContent =
+                    obterTotalDistribuicao(porEtapa);
+
+                document.getElementById(
+                    "ultima-atualizacao"
+                ).textContent =
+                    formatarData(
+                        dados.ultimaAtualizacao
                     );
-
-                document.getElementById("total-etapas").textContent =
-                    totalEtapas;
-
-                document.getElementById("ultima-atualizacao").textContent =
-                    formatarData(dados.ultimaAtualizacao);
 
                 renderizarDistribuicao(
                     statusDistribuicao,
-                    dados.porStatus
+                    porStatus
                 );
 
                 renderizarDistribuicao(
                     etapasDistribuicao,
-                    dados.porEtapa
+                    porEtapa
                 );
 
-                const clientes = Array.isArray(dados.clientes)
-                    ? dados.clientes
-                    : [];
+                renderizarGrafico(
+                    graficoStatus,
+                    porStatus
+                );
 
-                if (clientes.length === 0) {
-                    mostrarMensagemTabela(
-                        tabela,
-                        "Nenhum cliente cadastrado."
-                    );
-                } else {
-                    tabela.innerHTML = clientes.map((cliente) => `
-                        <tr>
-                            <td>
-                                ${escaparHtml(
-                                    cliente.nome || "Não informado"
-                                )}
-                            </td>
-                            <td>
-                                ${escaparHtml(
-                                    cliente.telefone || "Não informado"
-                                )}
-                            </td>
-                            <td>
-                                ${escaparHtml(
-                                    cliente.status || "Sem status"
-                                )}
-                            </td>
-                            <td>
-                                ${escaparHtml(
-                                    cliente.etapa_atual || "Não definida"
-                                )}
-                            </td>
-                            <td>
-                                ${escaparHtml(
-                                    formatarData(
-                                        cliente.data_atualizacao
-                                    )
-                                )}
-                            </td>
-                        </tr>
-                    `).join("");
-                }
+                renderizarGrafico(
+                    graficoEtapas,
+                    porEtapa,
+                    "etapa"
+                );
+
+                renderizarClientes(
+                    tabela,
+                    dados.clientes
+                );
 
                 status.textContent =
                     `Servidor online. Dados atualizados em ${
                         formatarData(new Date())
                     }.`;
 
-                status.className = "status success";
+                status.className =
+                    "status success";
             } catch (erro) {
                 console.error(
                     "Erro ao carregar o dashboard:",
@@ -482,9 +732,12 @@
                 );
 
                 status.textContent =
-                    `Erro ao carregar dados: ${erro.message}`;
+                    `Erro ao carregar dados: ${
+                        erro.message
+                    }`;
 
-                status.className = "status error";
+                status.className =
+                    "status error";
 
                 renderizarDistribuicao(
                     statusDistribuicao,
@@ -493,6 +746,16 @@
 
                 renderizarDistribuicao(
                     etapasDistribuicao,
+                    {}
+                );
+
+                renderizarGrafico(
+                    graficoStatus,
+                    {}
+                );
+
+                renderizarGrafico(
+                    graficoEtapas,
                     {}
                 );
 
