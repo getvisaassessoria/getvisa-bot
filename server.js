@@ -61,6 +61,81 @@ app.use(
   })
 );
 
+
+const DASHBOARD_USER =
+  String(process.env.DASHBOARD_USER || '').trim();
+
+const DASHBOARD_PASSWORD =
+  String(process.env.DASHBOARD_PASSWORD || '');
+
+function dashboardAuth(req, res, next) {
+  const rotaProtegida =
+    req.path === '/painel.html' ||
+    req.path === '/api/dashboard-data';
+
+  if (!rotaProtegida) {
+    return next();
+  }
+
+  if (!DASHBOARD_USER || !DASHBOARD_PASSWORD) {
+    console.error(
+      '❌ DASHBOARD_USER ou DASHBOARD_PASSWORD não configurados'
+    );
+
+    return res.status(503).json({
+      error: 'Autenticação do dashboard não configurada'
+    });
+  }
+
+  const authorization =
+    req.headers.authorization || '';
+
+  if (!authorization.startsWith('Basic ')) {
+    res.set('WWW-Authenticate', 'Basic realm="Dashboard"');
+
+    return res.status(401).send(
+      'Autenticação necessária'
+    );
+  }
+
+  try {
+    const credenciais = Buffer
+      .from(authorization.slice(6), 'base64')
+      .toString('utf8');
+
+    const separador = credenciais.indexOf(':');
+
+    const usuario = separador >= 0
+      ? credenciais.slice(0, separador)
+      : '';
+
+    const senha = separador >= 0
+      ? credenciais.slice(separador + 1)
+      : '';
+
+    if (
+      usuario !== DASHBOARD_USER ||
+      senha !== DASHBOARD_PASSWORD
+    ) {
+      res.set('WWW-Authenticate', 'Basic realm="Dashboard"');
+
+      return res.status(401).send(
+        'Credenciais inválidas'
+      );
+    }
+
+    return next();
+  } catch (erro) {
+    res.set('WWW-Authenticate', 'Basic realm="Dashboard"');
+
+    return res.status(401).send(
+      'Credenciais inválidas'
+    );
+  }
+}
+
+app.use(dashboardAuth);
+
 app.use(
   express.static(
     path.join(__dirname, 'public')
