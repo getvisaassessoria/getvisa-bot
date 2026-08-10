@@ -725,6 +725,143 @@ app.post(
 );
 
 // ============================================================
+// DASHBOARD
+// ============================================================
+
+app.get(
+  '/api/dashboard-data',
+  async (req, res) => {
+    try {
+      const {
+        data: clientes,
+        error: clientesError
+      } = await supabase
+        .from('clientes_novos')
+        .select(
+          'id, telefone, nome, email, status, onboarding_completo, data_contato'
+        )
+        .order('data_contato', {
+          ascending: false
+        });
+
+      if (clientesError) {
+        console.error(
+          '❌ Erro ao buscar clientes:',
+          clientesError
+        );
+
+        return res.status(500).json({
+          error: 'Erro ao carregar clientes'
+        });
+      }
+
+      const {
+        data: etapas,
+        error: etapasError
+      } = await supabase
+        .from('etapas_processo')
+        .select(
+          'cliente_telefone, etapa_atual, data_atualizacao'
+        )
+        .order('data_atualizacao', {
+          ascending: false
+        });
+
+      if (etapasError) {
+        console.error(
+          '❌ Erro ao buscar etapas:',
+          etapasError
+        );
+
+        return res.status(500).json({
+          error: 'Erro ao carregar etapas'
+        });
+      }
+
+      const listaClientes = clientes || [];
+      const listaEtapas = etapas || [];
+
+      const etapasPorTelefone = new Map(
+        listaEtapas.map((etapa) => [
+          etapa.cliente_telefone,
+          etapa
+        ])
+      );
+
+      const clientesComEtapa = listaClientes.map(
+        (cliente) => {
+          const etapa = etapasPorTelefone.get(
+            cliente.telefone
+          );
+
+          return {
+            ...cliente,
+            etapa_atual:
+              etapa?.etapa_atual || 'boas_vindas',
+            data_atualizacao:
+              etapa?.data_atualizacao ||
+              cliente.data_contato
+          };
+        }
+      );
+
+      const hoje = new Date();
+
+      const inicioDoDia = new Date(
+        hoje.getFullYear(),
+        hoje.getMonth(),
+        hoje.getDate()
+      );
+
+      const novosHoje = listaClientes.filter(
+        (cliente) => {
+          if (!cliente.data_contato) {
+            return false;
+          }
+
+          return new Date(cliente.data_contato) >=
+            inicioDoDia;
+        }
+      ).length;
+
+      const porStatus = listaClientes.reduce(
+        (resultado, cliente) => {
+          const status = cliente.status || 'sem_status';
+
+          resultado[status] =
+            (resultado[status] || 0) + 1;
+
+          return resultado;
+        },
+        {}
+      );
+
+      return res.json({
+        status: 'online',
+        totalClientes: listaClientes.length,
+        novosHoje,
+        onboardingCompletos:
+          listaClientes.filter(
+            (cliente) =>
+              cliente.onboarding_completo === true
+          ).length,
+        porStatus,
+        clientes: clientesComEtapa.slice(0, 100)
+      });
+    } catch (erro) {
+      console.error(
+        '❌ Erro inesperado no dashboard:',
+        erro
+      );
+
+      return res.status(500).json({
+        error: 'Erro interno ao carregar dashboard'
+      });
+    }
+  }
+);
+
+// ============================================================
 // ENDPOINTS DE SAÚDE
 // ============================================================
 

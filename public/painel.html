@@ -154,29 +154,69 @@
 
         // Código para buscar dados do dashboard
         if (dashboardDataElement) {
-            fetch('http://localhost:10000/api/dashboard-data')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response.json();
-                })
+            fetch('/api/dashboard-data')
                 .then(data => {
-                    dashboardDataElement.innerHTML = '';
-                    dashboardDataElement.innerHTML += `<p class="data-item">Mensagem: ${data.message}</p>`;
-                    dashboardDataElement.innerHTML += `<p class="data-item">Status do Servidor: ${data.status}</p>`;
-                    dashboardDataElement.innerHTML += `<p class="data-item">Usuários Online: ${data.usersOnline}</p>`;
-                    dashboardDataElement.innerHTML += `<p class="data-item">Novos Registros Hoje: ${data.newRegistrationsToday}</p>`;
-                    dashboardDataElement.innerHTML += `<p class="data-item">Tarefas Pendentes: ${data.pendingTasks}</p>`;
-                    if (data.recentActivities && data.recentActivities.length > 0) {
-                        dashboardDataElement.innerHTML += `<h3>Atividades Recentes:</h3>`;
-                        data.recentActivities.forEach(activity => {
-                            dashboardDataElement.innerHTML += `<p class="data-item">${activity.description} (${activity.timestamp})</p>`;
-                        });
-                    }
-                    dashboardDataElement.innerHTML += `<p class="data-item">Última Atualização: ${data.lastUpdate}</p>`;
+                    dashboardDataElement.innerHTML = `
+                        <div class="data-item">
+                            Total de clientes: ${data.totalClientes ?? 0}
+                        </div>
+
+                        <div class="data-item">
+                            Novos clientes hoje: ${data.novosHoje ?? 0}
+                        </div>
+
+                        <div class="data-item">
+                            Onboarding completos: ${data.onboardingCompletos ?? 0}
+                        </div>
+
+                        <h3>Clientes cadastrados</h3>
+
+                        ${
+                            data.clientes && data.clientes.length > 0
+                                ? `
+                                    <div class="table-wrapper">
+                                        <table class="clients-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Nome</th>
+                                                    <th>Telefone</th>
+                                                    <th>Status</th>
+                                                    <th>Etapa</th>
+                                                    <th>Último contato</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${data.clientes.map(cliente => `
+                                                    <tr>
+                                                        <td>${cliente.nome || 'Não informado'}</td>
+                                                        <td>${cliente.telefone || 'Não informado'}</td>
+                                                        <td>${cliente.status || 'Sem status'}</td>
+                                                        <td>${cliente.etapa_atual || 'Não definida'}</td>
+                                                        <td>
+                                                            ${
+                                                                cliente.data_atualizacao
+                                                                    ? new Date(
+                                                                        cliente.data_atualizacao
+                                                                      ).toLocaleString('pt-BR')
+                                                                    : 'Não informado'
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                `
+                                : '<p class="data-item">Nenhum cliente cadastrado.</p>'
+                        }
+
+                        <p class="data-item">
+                            Última atualização:
+                            ${new Date().toLocaleString('pt-BR')}
+                        </p>
+                    `;
                 })
-                .catch(error => {
+                .catch(error => {(error => {
                     console.error('Erro ao buscar dados do dashboard:', error);
                     dashboardDataElement.innerHTML = `<p style="color: red;">Erro ao carregar dados: ${error.message}</p>`;
                 });
