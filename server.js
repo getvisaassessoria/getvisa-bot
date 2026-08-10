@@ -911,6 +911,38 @@ app.get(
         {}
       );
 
+      const etapaPorTelefone = new Map(
+        listaEtapas.map((etapa) => [
+          etapa.cliente_telefone,
+          etapa.etapa_atual || 'boas_vindas'
+        ])
+      );
+
+      const porEtapa = listaClientes.reduce(
+        (resultado, cliente) => {
+          const etapa =
+            etapaPorTelefone.get(cliente.telefone) ||
+            'boas_vindas';
+
+          resultado[etapa] =
+            (resultado[etapa] || 0) + 1;
+
+          return resultado;
+        },
+        {}
+      );
+
+      const datasAtualizacao = clientesComEtapa
+        .map((cliente) => cliente.data_atualizacao)
+        .filter(Boolean)
+        .map((data) => new Date(data).getTime())
+        .filter((data) => !Number.isNaN(data));
+
+      const ultimaAtualizacao =
+        datasAtualizacao.length > 0
+          ? new Date(Math.max(...datasAtualizacao)).toISOString()
+          : null;
+
       return res.json({
         status: 'online',
         totalClientes: listaClientes.length,
@@ -921,6 +953,8 @@ app.get(
               cliente.onboarding_completo === true
           ).length,
         porStatus,
+        porEtapa,
+        ultimaAtualizacao,
         clientes: clientesComEtapa.slice(0, 100)
       });
     } catch (erro) {
@@ -935,6 +969,7 @@ app.get(
     }
   }
 );
+
 
 // ============================================================
 // ENDPOINTS DE SAÚDE
