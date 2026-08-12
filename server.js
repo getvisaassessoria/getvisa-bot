@@ -1,11 +1,13 @@
-const express = require('express');
+// server.js
+console.log('--- DEBUG: server.js carregado no topo (VERSAO FINAL) ---'); // ESTA LINHA DEVE ESTAR AQUI
+const express = require('express'); // APENAS UMA VEZ, LOGO ABAIXO DO CONSOLE.LOG
 const { Resend } = require('resend');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 const path = require('path');
 
-const app = express();
+const app = express(); // AQUI É ONDE A INSTÂNCIA DO EXPRESS É CRIADA
 
 const resend = new Resend(
   process.env.RESEND_API_KEY || ''
@@ -16,6 +18,7 @@ const PORT = process.env.PORT || 10000;
 // ============================================================
 // CONFIGURAÇÃO DO SUPABASE
 // ============================================================
+
 
 let supabaseUrl = process.env.SUPABASE_URL || '';
 
@@ -36,7 +39,7 @@ const supabase = createClient(
   supabaseUrl,
   supabaseKey
 );
-
+console.log('--- server.js carregado: ' + __filename + ' ---')
 console.log('✅ URL do Supabase:', supabaseUrl);
 console.log(
   '✅ Cliente Supabase inicializado com SERVICE_ROLE_KEY'
@@ -66,6 +69,248 @@ app.use(
     path.join(__dirname, 'public')
   )
 );
+
+
+// ============================================================
+// CLASSIFICAÇÃO E RESPOSTAS DO BOT
+// ============================================================
+
+function normalizarTexto(texto) {
+  return String(texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[!?.,;:()[$$|{}]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function detectarIntencao(mensagem) {
+  const texto = normalizarTexto(mensagem);
+
+  if (!texto) return 'desconhecida';
+
+  const saudacoes = [
+    'oi',
+    'ola',
+    'bom dia',
+    'boa tarde',
+    'boa noite',
+    'opa',
+    'e ai',
+    'tudo bem',
+    'hello',
+    'hi'
+  ];
+
+  if (
+    saudacoes.some(
+      (item) => texto === item || texto.startsWith(`${item} `)
+    )
+  ) {
+    return 'saudacao';
+  }
+
+  if (
+    [
+      'status',
+      'andamento',
+      'situacao',
+      'situação',
+      'etapa',
+      'fase',
+      'progresso',
+      'como esta meu processo',
+      'como está meu processo',
+      'qual o andamento',
+      'qual a situacao',
+      'qual a situação'
+    ].some((item) => texto.includes(normalizarTexto(item)))
+  ) {
+    return 'andamento';
+  }
+
+  if (
+    [
+      'documento',
+      'documentos',
+      'documentacao',
+      'documentação',
+      'requisito',
+      'requisitos',
+      'papel',
+      'papeis',
+      'papéis'
+    ].some((item) => texto.includes(normalizarTexto(item)))
+  ) {
+    return 'documentos';
+  }
+
+  if (
+    [
+      'prazo',
+      'quanto tempo',
+      'quanto demora',
+      'demora',
+      'dias',
+      'semanas',
+      'agendamento',
+      'processamento'
+    ].some((item) => texto.includes(normalizarTexto(item)))
+  ) {
+    return 'prazo';
+  }
+
+  if (
+    [
+      'pagamento',
+      'pagar',
+      'preco',
+      'preço',
+      'valor',
+      'valores',
+      'quanto custa',
+      'custo',
+      'investimento',
+      'taxa'
+    ].some((item) => texto.includes(normalizarTexto(item)))
+  ) {
+    return 'pagamento';
+  }
+
+  if (
+    [
+      'ajuda',
+      'atendente',
+      'especialista',
+      'falar com alguem',
+      'falar com alguém',
+      'contato',
+      'humano'
+    ].some((item) => texto.includes(normalizarTexto(item)))
+  ) {
+    return 'ajuda';
+  }
+
+  if (
+    [
+      'negado',
+      'negativa',
+      'recusado',
+      'recusaram',
+      'deportado'
+    ].some((item) => texto.includes(normalizarTexto(item)))
+  ) {
+    return 'visto_negado';
+  }
+
+  if (
+    texto.includes('visto americano') ||
+    texto.includes('visto eua') ||
+    texto.includes('visto estados unidos') ||
+    texto.includes('visto usa') ||
+    texto.includes('b1') ||
+    texto.includes('b2')
+  ) {
+    return 'visto_americano';
+  }
+
+  if (
+    texto.includes('visto canadense') ||
+    texto.includes('visto canada')
+  ) {
+    return 'visto_canadense';
+  }
+
+  if (
+    texto.includes('visto australiano') ||
+    texto.includes('visto australia')
+  ) {
+    return 'visto_australiano';
+  }
+
+  if (
+    texto.includes('eta uk') ||
+    texto.includes('reino unido') ||
+    texto.includes('inglaterra')
+  ) {
+    return 'eta_uk';
+  }
+
+  if (texto.includes('passaporte')) {
+    return 'passaporte';
+  }
+
+  if (
+    [
+      'quero fazer o visto',
+      'quero meu visto',
+      'iniciar processo',
+      'comecar processo',
+      'começar processo',
+      'quero contratar',
+      'quero iniciar',
+      'vou contratar'
+    ].some((item) => texto.includes(normalizarTexto(item)))
+  ) {
+    return 'iniciar_processo';
+  }
+
+  return 'desconhecida';
+}
+
+function obterNomeExibicao(nome) {
+  const nomeLimpo = String(nome || '').trim();
+
+  if (!nomeLimpo || nomeLimpo.toLowerCase() === 'cliente') {
+    return 'Cliente';
+  }
+
+  return nomeLimpo.split(' ')[0];
+}
+
+function obterNomeEtapa(etapa) {
+  const nomes = {
+    boas_vindas: 'Boas-vindas',
+    formulario_enviado: 'Formulário Enviado',
+    analise_correcoes: 'Análise e Correções',
+    abertura_processo: 'Abertura do Processo',
+    boleto_emitido: 'Boleto Emitido',
+    boleto_pago: 'Boleto Pago',
+    agendamento_realizado: 'Agendamento Realizado',
+    treinamento_realizado: 'Treinamento Concluído',
+    entrevista_realizada: 'Entrevista Realizada',
+    visto_aprovado: 'Visto Aprovado',
+    passaporte_retornado: 'Passaporte disponível para retirada ou entrega',
+    visto_recusado: 'Visto Recusado'
+  };
+
+  return nomes[etapa] || etapa || 'Em andamento';
+}
+
+function gerarRespostaBot(intencao, nome, etapaAtual) {
+  console.log('--- DEBUG: INICIO gerarRespostaBot (VERSAO ATUALIZADA E UNICA) ---'); // ESTA LINHA NOVA
+  console.log('Intencao recebida em gerarRespostaBot:', intencao); // ESTA LINHA NOVA
+  // REMOVA A LINHA SE ELA EXISTIR: console.log(gerarRespostaBot.toString());
+  const primeiroNome = obterNomeExibicao(nome);
+  const etapa = obterNomeEtapa(etapaAtual);
+
+  const respostas = {
+    saudacao:
+      `👋 Olá, ${primeiroNome}!\n\n` +
+      `Sou o assistente da GetVisa Assessoria. Estou aqui para ajudar com informações sobre vistos, documentos, prazos e andamento do processo.\n\n` +
+      `Como posso ajudar? (ESTA É A VERSAO NOVA E BRILHANTE!)`, // ADICIONE ESTA FRASE UNICA AQUI
+    // ... mantenha as outras respostas como estão
+  };
+  console.log('--- DEBUG: Objeto respostas gerado ---'); // ESTA LINHA NOVA
+  console.log(respostas); // ESTA LINHA NOVA
+  return (
+    respostas[intencao] ||
+    `Olá, ${primeiroNome}!\n\n` +
+      `Não consegui identificar sua solicitação.\n\n` +
+      `Você pode perguntar sobre documentos, prazo, pagamento ou andamento do processo.`
+  );
+}
 
 // ============================================================
 // WEBHOOK Z-API
@@ -636,7 +881,7 @@ app.post(
           return;
         }
 
-        // ========================================================
+                // ========================================================
         // 9. ENVIAR RESPOSTA PELO WHATSAPP
         // ========================================================
 
@@ -652,10 +897,27 @@ app.post(
           existente?.nome ||
           'Cliente';
 
-        const mensagemResposta =
-          `Olá ${nomeParaResposta}! Recebi sua mensagem: ` +
-          `"${mensagemRecebida}".\n\n` +
-          `Sua etapa atual é: ${etapaAtual}.`;
+        // --- INÍCIO DAS LINHAS CORRIGIDAS E COM DEBUG ---
+        const intencao = detectarIntencao(mensagemRecebida);
+
+        console.log('--- DEBUG: ANTES DE CHAMAR gerarRespostaBot ---');
+        console.log('Intencao detectada (antes de gerarRespostaBot):', intencao);
+        console.log('Nome para resposta (antes de gerarRespostaBot):', nomeParaResposta);
+
+        console.log('🎯 Intenção detectada:', intencao); // Mantenha esta linha original
+        console.log('📋 Etapa preservada:', etapaAtual); // Mantenha esta linha original
+
+        const mensagemResposta = gerarRespostaBot(
+          intencao,
+          nomeParaResposta,
+          etapaAtual
+        );
+        // --- FIM DAS LINHAS CORRIGIDAS E COM DEBUG ---
+
+        console.log(
+          '💬 Resposta preparada:',
+          JSON.stringify(mensagemResposta)
+        );
 
         const headers = {
           'Content-Type': 'application/json'
