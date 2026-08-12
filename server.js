@@ -289,9 +289,8 @@ function obterNomeEtapa(etapa) {
 }
 
 function gerarRespostaBot(intencao, nome, etapaAtual) {
-  console.log('--- DEBUG: INICIO gerarRespostaBot (VERSAO ATUALIZADA E UNICA) ---'); // ESTA LINHA NOVA
-  console.log('Intencao recebida em gerarRespostaBot:', intencao); // ESTA LINHA NOVA
-  // REMOVA A LINHA SE ELA EXISTIR: console.log(gerarRespostaBot.toString());
+  console.log('--- DEBUG: INICIO gerarRespostaBot (VERSAO ATUALIZADA E UNICA) ---');
+  console.log('Intencao recebida em gerarRespostaBot:', intencao);
   const primeiroNome = obterNomeExibicao(nome);
   const etapa = obterNomeEtapa(etapaAtual);
 
@@ -299,11 +298,14 @@ function gerarRespostaBot(intencao, nome, etapaAtual) {
     saudacao:
       `👋 Olá, ${primeiroNome}!\n\n` +
       `Sou o assistente da GetVisa Assessoria. Estou aqui para ajudar com informações sobre vistos, documentos, prazos e andamento do processo.\n\n` +
-      `Como posso ajudar? (ESTA É A VERSAO NOVA E BRILHANTE!)`, // ADICIONE ESTA FRASE UNICA AQUI
+      `Como posso ajudar? (ESTA É A VERSAO NOVA E BRILHANTE!)`,
+    // ADICIONE ESTA NOVA RESPOSTA AQUI:
+    andamento:
+      `Certo, ${primeiroNome}! Para verificar o andamento do seu processo, por favor, me informe o número do seu protocolo ou CPF.`,
     // ... mantenha as outras respostas como estão
   };
-  console.log('--- DEBUG: Objeto respostas gerado ---'); // ESTA LINHA NOVA
-  console.log(respostas); // ESTA LINHA NOVA
+  console.log('--- DEBUG: Objeto respostas gerado ---');
+  console.log(respostas);
   return (
     respostas[intencao] ||
     `Olá, ${primeiroNome}!\n\n` +
