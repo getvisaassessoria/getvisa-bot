@@ -299,9 +299,11 @@ function gerarRespostaBot(intencao, nome, etapaAtual) {
       `👋 Olá, ${primeiroNome}!\n\n` +
       `Sou o assistente da GetVisa Assessoria. Estou aqui para ajudar com informações sobre vistos, documentos, prazos e andamento do processo.\n\n` +
       `Como posso ajudar? (ESTA É A VERSAO NOVA E BRILHANTE!)`,
-    // ADICIONE ESTA NOVA RESPOSTA AQUI:
     andamento:
       `Certo, ${primeiroNome}! Para verificar o andamento do seu processo, por favor, me informe o número do seu protocolo ou CPF.`,
+    // ADICIONE ESTA NOVA RESPOSTA AQUI:
+    documentos:
+      `Para te ajudar com os documentos, ${primeiroNome}, preciso saber qual visto você está buscando (ex: americano, canadense, etc.).`,
     // ... mantenha as outras respostas como estão
   };
   console.log('--- DEBUG: Objeto respostas gerado ---');
