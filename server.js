@@ -86,124 +86,89 @@ function normalizarTexto(texto) {
 }
 
 function detectarIntencao(mensagem) {
-  const texto = normalizarTexto(mensagem);
+  const texto = normalizarTexto(mensagem); // A mensagem do usuário é normalizada uma vez aqui.
 
-  if (!texto) return 'desconhecida';
+  if (!texto) {
+    console.log('DEBUG detectarIntencao: Texto vazio, retornando desconhecida.');
+    return 'desconhecida';
+  }
 
+  // --- SAUDACOES ---
   const saudacoes = [
-    'oi',
-    'ola',
-    'bom dia',
-    'boa tarde',
-    'boa noite',
-    'opa',
-    'e ai',
-    'tudo bem',
-    'hello',
-    'hi'
+    'oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'opa', 'e ai', 'tudo bem', 'hello', 'hi'
   ];
-
-  if (
-    saudacoes.some(
-      (item) => texto === item || texto.startsWith(`${item} `)
-    )
-  ) {
+  if (saudacoes.some((item) => texto === item || texto.startsWith(`${item} `))) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: saudacao');
     return 'saudacao';
   }
 
+  // --- ANDAMENTO ---
+  // Note que aqui as frases completas já devem estar normalizadas na lista
   if (
     [
-      'status',
-      'andamento',
-      'situacao',
-      'situação',
-      'etapa',
-      'fase',
-      'progresso',
-      'como esta meu processo',
-      'como está meu processo',
-      'qual o andamento',
-      'qual a situacao',
-      'qual a situação'
-    ].some((item) => texto.includes(normalizarTexto(item)))
+      'status', 'andamento', 'situacao', 'situacao', 'etapa', 'fase', 'progresso',
+      'como esta meu processo', 'como esta meu processo', 'qual o andamento', 'qual a situacao', 'qual a situacao'
+    ].some((item) => texto.includes(item)) // Mudança aqui: texto.includes(item)
   ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: andamento');
     return 'andamento';
   }
 
+  // --- DOCUMENTOS ---
   if (
     [
-      'documento',
-      'documentos',
-      'documentacao',
-      'documentação',
-      'requisito',
-      'requisitos',
-      'papel',
-      'papeis',
-      'papéis'
-    ].some((item) => texto.includes(normalizarTexto(item)))
+      'documento', 'documentos', 'documentacao', 'documentacao', 'requisito', 'requisitos',
+      'papel', 'papeis', 'papeis'
+    ].some((item) => texto.includes(item)) // Mudança aqui: texto.includes(item)
   ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: documentos');
     return 'documentos';
   }
 
+  // --- PRAZO ---
   if (
     [
-      'prazo',
-      'quanto tempo',
-      'quanto demora',
-      'demora',
-      'dias',
-      'semanas',
-      'agendamento',
-      'processamento'
-    ].some((item) => texto.includes(normalizarTexto(item)))
+      'prazo', 'quanto tempo', 'quanto demora', 'demora', 'dias', 'semanas',
+      'agendamento', 'processamento'
+    ].some((item) => texto.includes(item)) // Mudança aqui: texto.includes(item)
   ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: prazo');
     return 'prazo';
   }
 
+  // --- PAGAMENTO ---
   if (
     [
-      'pagamento',
-      'pagar',
-      'preco',
-      'preço',
-      'valor',
-      'valores',
-      'quanto custa',
-      'custo',
-      'investimento',
-      'taxa'
-    ].some((item) => texto.includes(normalizarTexto(item)))
+      'pagamento', 'pagar', 'preco', 'preco', 'valor', 'valores', 'quanto custa',
+      'custo', 'investimento', 'taxa'
+    ].some((item) => texto.includes(item)) // Mudança aqui: texto.includes(item)
   ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: pagamento');
     return 'pagamento';
   }
 
+  // --- AJUDA ---
   if (
     [
-      'ajuda',
-      'atendente',
-      'especialista',
-      'falar com alguem',
-      'falar com alguém',
-      'contato',
-      'humano'
-    ].some((item) => texto.includes(normalizarTexto(item)))
+      'ajuda', 'atendente', 'especialista', 'falar com alguem', 'falar com alguem',
+      'contato', 'humano'
+    ].some((item) => texto.includes(item)) // Mudança aqui: texto.includes(item)
   ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: ajuda');
     return 'ajuda';
   }
 
+  // --- VISTO NEGADO ---
   if (
     [
-      'negado',
-      'negativa',
-      'recusado',
-      'recusaram',
-      'deportado'
-    ].some((item) => texto.includes(normalizarTexto(item)))
+      'negado', 'negativa', 'recusado', 'recusaram', 'deportado'
+    ].some((item) => texto.includes(item)) // Mudança aqui: texto.includes(item)
   ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: visto_negado');
     return 'visto_negado';
   }
 
+  // --- VISTO AMERICANO ---
   if (
     texto.includes('visto americano') ||
     texto.includes('visto eua') ||
@@ -212,50 +177,56 @@ function detectarIntencao(mensagem) {
     texto.includes('b1') ||
     texto.includes('b2')
   ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: visto_americano');
     return 'visto_americano';
   }
 
+  // --- VISTO CANADENSE ---
   if (
     texto.includes('visto canadense') ||
     texto.includes('visto canada')
   ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: visto_canadense');
     return 'visto_canadense';
   }
 
+  // --- VISTO AUSTRALIANO ---
   if (
     texto.includes('visto australiano') ||
     texto.includes('visto australia')
   ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: visto_australiano');
     return 'visto_australiano';
   }
 
+  // --- ETA UK ---
   if (
     texto.includes('eta uk') ||
     texto.includes('reino unido') ||
     texto.includes('inglaterra')
   ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: eta_uk');
     return 'eta_uk';
   }
 
+  // --- PASSAPORTE ---
   if (texto.includes('passaporte')) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: passaporte');
     return 'passaporte';
   }
 
+  // --- INICIAR PROCESSO ---
   if (
     [
-      'quero fazer o visto',
-      'quero meu visto',
-      'iniciar processo',
-      'comecar processo',
-      'começar processo',
-      'quero contratar',
-      'quero iniciar',
-      'vou contratar'
-    ].some((item) => texto.includes(normalizarTexto(item)))
+      'quero fazer o visto', 'quero meu visto', 'iniciar processo', 'comecar processo',
+      'comecar processo', 'quero contratar', 'quero iniciar', 'vou contratar'
+    ].some((item) => texto.includes(item)) // Mudança aqui: texto.includes(item)
   ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: iniciar_processo');
     return 'iniciar_processo';
   }
 
+  console.log('DEBUG detectarIntencao: Nenhuma intenção específica detectada, retornando desconhecida.');
   return 'desconhecida';
 }
 
