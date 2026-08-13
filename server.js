@@ -107,7 +107,7 @@ function detectarIntencao(mensagem) {
   if (
     [
       'status', 'andamento', 'situacao', 'situacao', 'etapa', 'fase', 'progresso',
-      'como esta meu processo', 'como esta meu processo', 'qual o andamento', 'qual a situacao', 'qual a situacao'
+      'como esta meu processo', 'como esta meu processo', 'como esta o meu processo', 'qual o andamento', 'qual a situacao', 'qual a situacao'
     ].some((item) => texto.includes(item)) // Mudança aqui: texto.includes(item)
   ) {
     console.log('DEBUG detectarIntencao: Intenção detectada: andamento');
