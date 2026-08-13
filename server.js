@@ -301,9 +301,11 @@ function gerarRespostaBot(intencao, nome, etapaAtual) {
       `Como posso ajudar? (ESTA É A VERSAO NOVA E BRILHANTE!)`,
     andamento:
       `Certo, ${primeiroNome}! Para verificar o andamento do seu processo, por favor, me informe o número do seu protocolo ou CPF.`,
-    // ADICIONE ESTA NOVA RESPOSTA AQUI:
     documentos:
       `Para te ajudar com os documentos, ${primeiroNome}, preciso saber qual visto você está buscando (ex: americano, canadense, etc.).`,
+    // ADICIONE ESTA NOVA RESPOSTA AQUI:
+    prazo:
+      `Os prazos para o processo de visto podem variar bastante, ${primeiroNome}, dependendo do tipo de visto e da demanda. Para qual visto você gostaria de saber o prazo?`,
     // ... mantenha as outras respostas como estão
   };
   console.log('--- DEBUG: Objeto respostas gerado ---');
