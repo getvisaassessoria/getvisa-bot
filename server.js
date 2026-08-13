@@ -299,17 +299,47 @@ function gerarRespostaBot(intencao, nome, etapaAtual) {
       `👋 Olá, ${primeiroNome}!\n\n` +
       `Sou o assistente da GetVisa Assessoria. Estou aqui para ajudar com informações sobre vistos, documentos, prazos e andamento do processo.\n\n` +
       `Como posso ajudar? (ESTA É A VERSAO NOVA E BRILHANTE!)`,
+
     andamento:
       `Certo, ${primeiroNome}! Para verificar o andamento do seu processo, por favor, me informe o número do seu protocolo ou CPF.`,
+
     documentos:
       `Para te ajudar com os documentos, ${primeiroNome}, preciso saber qual visto você está buscando (ex: americano, canadense, etc.).`,
-    // ADICIONE ESTA NOVA RESPOSTA AQUI:
+
     prazo:
       `Os prazos para o processo de visto podem variar bastante, ${primeiroNome}, dependendo do tipo de visto e da demanda. Para qual visto você gostaria de saber o prazo?`,
-    // ... mantenha as outras respostas como estão
+
+    pagamento:
+      `Para informações sobre pagamentos, ${primeiroNome}, preciso saber qual serviço ou etapa do processo você se refere. Você pode me dar mais detalhes?`,
+
+    ajuda:
+      `Entendido, ${primeiroNome}! Se precisar falar com um de nossos especialistas, por favor, ligue para (XX) XXXX-XXXX ou envie um e-mail para contato@getvisa.com.br.`,
+
+    visto_negado:
+      `Lamento saber que seu visto foi negado, ${primeiroNome}. Podemos analisar seu caso e verificar as opções para uma nova solicitação. Por favor, entre em contato com nossa equipe para um atendimento personalizado.`,
+
+    visto_americano:
+      `Para o visto americano, ${primeiroNome}, os documentos básicos incluem passaporte válido, formulário DS-160 preenchido e comprovantes financeiros. Recomendo consultar nosso site para a lista completa ou falar com um especialista.`,
+
+    visto_canadense:
+      `Para o visto canadense, ${primeiroNome}, os requisitos variam conforme o tipo de visto (turismo, estudo, trabalho). Geralmente, são necessários passaporte, formulário de aplicação e comprovantes de meios de subsistência.`,
+
+    visto_australiano:
+      `O visto australiano, ${primeiroNome}, exige passaporte válido, formulário de aplicação e, dependendo do tipo de visto, outros documentos como comprovantes de vínculo com o Brasil e meios financeiros.`,
+
+    eta_uk:
+      `O ETA para o Reino Unido, ${primeiroNome}, é uma autorização eletrônica de viagem. Você precisará de um passaporte válido e preencher o formulário online. Ele não é um visto, mas uma permissão para entrar.`,
+
+    passaporte:
+      `O passaporte é o documento de viagem essencial, ${primeiroNome}. Para solicitá-lo ou renová-lo, você deve agendar um atendimento na Polícia Federal. Podemos te auxiliar com as informações necessárias.`,
+
+    iniciar_processo:
+      `Excelente, ${primeiroNome}! Para iniciar seu processo de visto, por favor, visite nosso site <a href="https://www.getvisa.com.br/iniciar-processo" target="_blank" style="text-decoration: underline;">www.getvisa.com.br/iniciar-processo</a> ou entre em contato com nossa equipe para um atendimento personalizado.`,
   };
+
   console.log('--- DEBUG: Objeto respostas gerado ---');
   console.log(respostas);
+
   return (
     respostas[intencao] ||
     `Olá, ${primeiroNome}!\n\n` +
