@@ -102,6 +102,15 @@ function detectarIntencao(mensagem) {
     return 'saudacao';
   }
 
+// --- SOLICITAR FORMULARIO DS-160 ---
+  if (
+    ['ds160', 'formulario ds160', 'quero preencher ds160', 'preciso do ds160',
+     'formulario visto americano', 'preencher visto americano'].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: solicitar_ds160');
+    return 'solicitar_ds160';
+  }
+
   // --- ANDAMENTO ---
   // Note que aqui as frases completas já devem estar normalizadas na lista
   if (
@@ -265,11 +274,39 @@ function gerarRespostaBot(intencao, nome, etapaAtual) {
   const primeiroNome = obterNomeExibicao(nome);
   const etapa = obterNomeEtapa(etapaAtual);
 
+  // --- FUNÇÃO getMensagemFormulario ADAPTADA PARA O BOT ---
+  // Esta é uma versão simplificada da sua função getMensagemFormulario para uso aqui.
+  // No seu server.js original, ela pode ser mais complexa, mas para o bot, isso basta.
+  const getMensagemFormularioParaBot = (nomeCliente) => {
+    let nomeExibicao = 'Cliente';
+    if (nomeCliente && typeof nomeCliente === 'string' && nomeCliente.trim().length > 0) {
+        nomeExibicao = nomeCliente.trim().split(' ')[0];
+    }
+
+    return `🌟 *ÓTIMO, ${nomeExibicao.toUpperCase()}!* 🌟\n\n` +
+           `Para iniciarmos seu processo, preciso que você preencha nosso formulário com os dados do visto americano.\n\n` +
+           `📋 *LINK DO FORMULÁRIO:*\n` +
+           `🔗 <a href="https://getvisa.com.br/formulario-ds160" target="_blank" style="text-decoration: underline;">https://getvisa.com.br/formulario-ds160</a>\n\n` +
+           `⏱️ *Tempo estimado:* 15-20 minutos\n` +
+           `📱 *Pode preencher pelo celular ou computador*\n\n` +
+           `✅ *Depois de preencher:*\n` +
+           `• Nossa equipe fará a análise dos dados\n` +
+           `• Você receberá a confirmação por e-mail\n` +
+           `• Iniciaremos o agendamento da entrevista\n\n` +
+           `💡 *Dica:* Tenha seu passaporte em mãos para preencher os dados corretamente.\n\n` +
+           `📱 Dúvidas? Fale com a gente: <a href="https://wa.me/5521974601812" target="_blank" style="text-decoration: underline;">https://wa.me/5521974601812</a>\n\n` +
+           `⚡ *Vamos realizar seu sonho de viajar para os EUA!* ✈️`;
+  };
+  // --- FIM DA FUNÇÃO ADAPTADA ---
+
   const respostas = {
     saudacao:
       `👋 Olá, ${primeiroNome}!\n\n` +
       `Sou o assistente da GetVisa Assessoria. Estou aqui para ajudar com informações sobre vistos, documentos, prazos e andamento do processo.\n\n` +
       `Como posso ajudar? (ESTA É A VERSAO NOVA E BRILHANTE!)`,
+
+    // --- NOVA RESPOSTA PARA SOLICITAR DS-160 ---
+    solicitar_ds160: getMensagemFormularioParaBot(primeiroNome),
 
     andamento:
       `Certo, ${primeiroNome}! Para verificar o andamento do seu processo, por favor, me informe o número do seu protocolo ou CPF.`,
@@ -284,25 +321,25 @@ function gerarRespostaBot(intencao, nome, etapaAtual) {
       `Para informações sobre pagamentos, ${primeiroNome}, preciso saber qual serviço ou etapa do processo você se refere. Você pode me dar mais detalhes?`,
 
     ajuda:
-      `Entendido, ${primeiroNome}! Se precisar falar com um de nossos especialistas, por favor, ligue para (XX) XXXX-XXXX ou envie um e-mail para contato@getvisa.com.br.`,
+      `Entendido, ${primeiroNome}! Se precisar falar com um de nossos especialistas, por favor, ligue para <a href="tel:+5521974601812" target="_blank" style="text-decoration: underline;">(21) 97460-1812</a> ou envie um e-mail para <a href="mailto:contato@getvisa.com.br" target="_blank" style="text-decoration: underline;">contato@getvisa.com.br</a>.`,
 
     visto_negado:
       `Lamento saber que seu visto foi negado, ${primeiroNome}. Podemos analisar seu caso e verificar as opções para uma nova solicitação. Por favor, entre em contato com nossa equipe para um atendimento personalizado.`,
 
     visto_americano:
-      `Para o visto americano, ${primeiroNome}, os documentos básicos incluem passaporte válido, formulário DS-160 preenchido e comprovantes financeiros. Recomendo consultar nosso site para a lista completa ou falar com um especialista.`,
+      `Para o visto americano, ${primeiroNome}, os documentos básicos incluem passaporte válido, formulário DS-160 preenchido e comprovantes financeiros. Recomendo consultar nosso site para a lista completa em <a href="https://getvisa.com.br/visto-americano" target="_blank" style="text-decoration: underline;">getvisa.com.br/visto-americano</a> ou falar com um especialista.`,
 
     visto_canadense:
-      `Para o visto canadense, ${primeiroNome}, os requisitos variam conforme o tipo de visto (turismo, estudo, trabalho). Geralmente, são necessários passaporte, formulário de aplicação e comprovantes de meios de subsistência.`,
+      `Para o visto canadense, ${primeiroNome}, os requisitos variam conforme o tipo de visto (turismo, estudo, trabalho). Geralmente, são necessários passaporte, formulário de aplicação e comprovantes de meios de subsistência. Mais detalhes em <a href="https://getvisa.com.br/visto-canadense" target="_blank" style="text-decoration: underline;">getvisa.com.br/visto-canadense</a>.`,
 
     visto_australiano:
-      `O visto australiano, ${primeiroNome}, exige passaporte válido, formulário de aplicação e, dependendo do tipo de visto, outros documentos como comprovantes de vínculo com o Brasil e meios financeiros.`,
+      `O visto australiano, ${primeiroNome}, exige passaporte válido, formulário de aplicação e, dependendo do tipo de visto, outros documentos como comprovantes de vínculo com o Brasil e meios financeiros. Veja mais em <a href="https://getvisa.com.br/visto-australiano" target="_blank" style="text-decoration: underline;">getvisa.com.br/visto-australiano</a>.`,
 
     eta_uk:
-      `O ETA para o Reino Unido, ${primeiroNome}, é uma autorização eletrônica de viagem. Você precisará de um passaporte válido e preencher o formulário online. Ele não é um visto, mas uma permissão para entrar.`,
+      `O ETA para o Reino Unido, ${primeiroNome}, é uma autorização eletrônica de viagem. Você precisará de um passaporte válido e preencher o formulário online. Ele não é um visto, mas uma permissão para entrar. Informações em <a href="https://getvisa.com.br/eta-uk" target="_blank" style="text-decoration: underline;">getvisa.com.br/eta-uk</a>.`,
 
     passaporte:
-      `O passaporte é o documento de viagem essencial, ${primeiroNome}. Para solicitá-lo ou renová-lo, você deve agendar um atendimento na Polícia Federal. Podemos te auxiliar com as informações necessárias.`,
+      `O passaporte é o documento de viagem essencial, ${primeiroNome}. Para solicitá-lo ou renová-lo, você deve agendar um atendimento na Polícia Federal. Podemos te auxiliar com as informações necessárias. Visite <a href="https://getvisa.com.br/passaporte" target="_blank" style="text-decoration: underline;">getvisa.com.br/passaporte</a>.`,
 
     iniciar_processo:
       `Excelente, ${primeiroNome}! Para iniciar seu processo de visto, por favor, visite nosso site <a href="https://www.getvisa.com.br/iniciar-processo" target="_blank" style="text-decoration: underline;">www.getvisa.com.br/iniciar-processo</a> ou entre em contato com nossa equipe para um atendimento personalizado.`,
