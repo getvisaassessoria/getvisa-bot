@@ -904,7 +904,9 @@ async function processarOnboarding(cleanPhone, messageText, state) {
             const nomeFormatado = formatarNome(messageText);
             console.log('📝 Nome formatado: "' + nomeFormatado + '"');
 
+                        // SALVAR NOME COM UPSERT
             try {
+                console.log('DEBUG SUPABASE: Tentando upsert para telefone:', telefoneLimpo, 'nome:', nomeFormatado);
                 const { data, error } = await supabase
                     .from('clientes_novos')
                     .upsert({
@@ -921,14 +923,14 @@ async function processarOnboarding(cleanPhone, messageText, state) {
                     .single();
 
                 if (error) {
-                    console.error('❌ Erro ao salvar nome:', error);
-                    await sendReply(cleanPhone, '❌ Erro ao salvar seu nome. Tente novamente.');
+                    console.error('❌ ERRO SUPABASE: Erro ao salvar nome:', error);
+                    await sendReply(cleanPhone, '❌ Erro ao salvar seu nome no banco de dados. Tente novamente.');
                     return;
                 }
-                console.log('✅ Nome salvo no Supabase:', nomeFormatado);
+                console.log('✅ SUPABASE: Nome salvo no Supabase:', nomeFormatado, 'Dados retornados:', data);
             } catch (err) {
-                console.error('❌ Erro ao salvar nome:', err);
-                await sendReply(cleanPhone, '❌ Erro ao salvar. Tente novamente.');
+                console.error('❌ ERRO CRÍTICO SUPABASE: Erro inesperado ao salvar nome:', err);
+                await sendReply(cleanPhone, '❌ Erro crítico ao salvar. Tente novamente.');
                 return;
             }
 
