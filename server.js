@@ -1293,93 +1293,255 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
 // 11. FUNÇÃO PRINCIPAL DE PROCESSAMENTO DE MENSAGENS (BOT)
 // ============================================================
 
-async function processarMensagem(cleanPhone, messageText, body) {
-    console.log('=== PROCESSANDO MENSAGEM ===');
-    console.log('Phone: ' + cleanPhone);
-    console.log('Message: "' + messageText + '"');
+// ============================================================
+// FUNÇÕES DE ONBOARDING - VERSÃO CORRIGIDA E COM DEBUG
+// ============================================================
+
+async function processarOnboarding(cleanPhone, incomingOnboardingMessage, state) {
+    console.log('DEBUG processarOnboarding: cleanPhone:', cleanPhone);
+    console.log('DEBUG processarOnboarding: Passo atual:', state.onboardingStep);
+    console.log('DEBUG processarOnboarding: incomingOnboardingMessage (raw):', incomingOnboardingMessage, 'Type:', typeof incomingOnboardingMessage);
+
+    // Garante que a mensagem é uma string, mesmo que venha como outro tipo
+    let messageText = String(incomingOnboardingMessage || '').trim();
+    console.log('DEBUG processarOnboarding: messageText (após String()): "' + messageText + '" (Type: ' + typeof messageText + ')');
+
+    const telefoneLimpo = cleanPhone.toString().replace(/\D/g, '');
+
+    // Comandos de escape
+    const escapeCommands = ['0', 'menu', 'menu principal', 'inicio', 'voltar', 'principal'];
+    if (escapeCommands.includes(messageText.toLowerCase())) { // Use toLowerCase() aqui
+        await sendReply(cleanPhone, '👋 Antes de continuar, preciso saber seu nome para te atender melhor!\n\n' +
+            '📝 **Qual é o seu nome completo?**\n\nEx: Maria Silva');
+        return;
+    }
+
+    switch (state.onboardingStep) {
+        // ============================================================
+        // PASSO 1: SAUDAÇÃO - APRESENTAR A GETVISA
+        // ============================================================
+        case ONBOARDING_STEPS.SAUDACAO:
+            console.log('📌 PASSO 1: SAUDAÇÃO');
+            const saudacao = getRandomMessage(BOAS_VINDAS_MESSAGES.primeira_saudacao);
+            const pedirNome = getRandomMessage(BOAS_VINDAS_MESSAGES.solicitar_nome);
+
+            await sendReply(cleanPhone, saudacao + '\n\n' + pedirNome);
+
+            state.onboardingStep = ONBOARDING_STEPS.AGUARDANDO_NOME;
+            state.lastActivity = Date.now();
+            userState.set(cleanPhone, state);
+            console.log('✅ Estado atualizado para: AGUARDANDO_NOME');
+            break;
+
+        // ============================================================
+        // PASSO 2: AGUARDANDO NOME - VALIDAR E SALVAR
+        // ============================================================
+        case ONBOARDING_STEPS.AGUARDANDO_NOME:
+            console.log('📌 PASSO 2: AGUARDANDO NOME');
+            console.log('📝 Nome recebido: "' + messageText + '"');
+
+            const nomeValidado = validarNome(messageText);
+            console.log('✅ Nome válido?', nomeValidado);
+
+            if (!nomeValidado) {
+                const msgInvalido = getRandomMessage(BOAS_VINDAS_MESSAGES.nome_invalido);
+                await sendReply(cleanPhone, msgInvalido);
+                return;
+            }
+
+            const nomeFormatado = formatarNome(messageText);
+            console.log('📝 Nome formatado: "' + nomeFormatado + '"');
+
+            // SALVAR NOME COM UPSERT
+            try {
+                const { data, error } = await supabase
+                    .from('clientes_novos')
+                    .upsert({
+                        telefone: telefoneLimpo,
+                        nome: nomeFormatado,
+                        data_contato: new Date().toISOString(),
+                        status: 'novo',
+                        onboarding_completo: false,
+                        updated_at: new Date().toISOString()
+                    }, {
+                        onConflict: 'telefone'
+                    })
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('❌ Erro ao salvar nome:', error);
+                    await sendReply(cleanPhone, '❌ Erro ao salvar seu nome. Tente novamente.');
+                    return;
+                }
+                console.log('✅ Nome salvo no Supabase:', nomeFormatado);
+            } catch (err) {
+                console.error('❌ Erro ao salvar nome:', err);
+                await sendReply(cleanPhone, '❌ Erro ao salvar. Tente novamente.');
+                return;
+            }
+
+            // ATUALIZAR ESTADO
+            state.nome = nomeFormatado;
+            state.onboardingStep = ONBOARDING_STEPS.AGUARDANDO_EMAIL;
+            state.lastActivity = Date.now();
+            userState.set(cleanPhone, state);
+            console.log('✅ Estado atualizado para: AGUARDANDO_EMAIL');
+
+            // ENVIAR MENSAGEM PEDINDO E-MAIL
+            const parte1 = getRandomMessage(BOAS_VINDAS_MESSAGES.confirmacao_nome.parte1);
+            const parte2 = getRandomMessage(BOAS_VINDAS_MESSAGES.confirmacao_nome.parte2);
+            const mensagemEmail = parte1 + nomeFormatado.split(' ')[0] + parte2;
+
+            await sendReply(cleanPhone, mensagemEmail);
+            console.log('📧 Mensagem de email enviada');
+            break;
+
+        // ============================================================
+        // PASSO 3: AGUARDANDO E-MAIL - VALIDAR E FINALIZAR
+        // ============================================================
+        case ONBOARDING_STEPS.AGUARDANDO_EMAIL:
+            console.log('📌 PASSO 3: AGUARDANDO EMAIL');
+            console.log('📧 Email recebido: "' + messageText + '"');
+
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(messageText)) {
+                console.log('❌ Email inválido');
+                await sendReply(cleanPhone, '❌ E-mail inválido! Por favor, digite um e-mail válido.\n\n📧 Ex: maria@email.com');
+                return;
+            }
+
+            const email = messageText.trim().toLowerCase();
+            const nome = state.nome;
+            console.log('📧 Email válido:', email);
+            console.log('👤 Nome associado:', nome);
+
+            // SALVAR E-MAIL E COMPLETAR ONBOARDING - USAR UPSERT
+            try {
+                const { data, error } = await supabase
+                    .from('clientes_novos')
+                    .upsert({
+                        telefone: telefoneLimpo,
+                        nome: nome,
+                        email: email,
+                        data_contato: new Date().toISOString(),
+                        status: 'novo',
+                        onboarding_completo: true,
+                        data_onboarding: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    }, {
+                        onConflict: 'telefone'
+                    })
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('❌ Erro ao salvar e-mail:', error);
+                    await sendReply(cleanPhone, '❌ Erro ao salvar seu e-mail. Tente novamente.');
+                    return;
+                }
+                console.log('✅ E-mail salvo no Supabase:', email);
+                console.log('✅ Onboarding completo para:', nome);
+            } catch (err) {
+                console.error('❌ Erro ao salvar e-mail:', err);
+                await sendReply(cleanPhone, '❌ Erro ao salvar. Tente novamente.');
+                return;
+            }
+
+            // ATUALIZAR ESTADO - ONBOARDING COMPLETO
+            state.email = email;
+            state.onboardingCompleto = true;
+            state.onboardingStep = ONBOARDING_STEPS.COMPLETO;
+            state.nivel = 'principal';
+            state.service = null;
+            userState.set(cleanPhone, state);
+            console.log('✅ Estado atualizado para: COMPLETO');
+
+            // ENVIAR MENSAGEM DE CONFIRMAÇÃO COM MENU PRINCIPAL
+            const primeiroNome = nome.split(' ')[0];
+            const mensagemFinal = `✅ Perfeito, ${primeiroNome}! Seus dados foram salvos com sucesso!\n\n` +
+                                 `Agora escolha o serviço desejado:\n\n` +
+                                 `🌟 **GETVISA - ASSESSORIA EM VISTOS**\n\n` +
+                                 `1️⃣ - 🇺🇸 VISTO AMERICANO\n` +
+                                 `2️⃣ - 🇨🇦 VISTO CANADENSE\n` +
+                                 `3️⃣ - 🇦🇺 VISTO AUSTRALIANO\n` +
+                                 `4️⃣ - 🇬🇧 eTA UK (REINO UNIDO)\n` +
+                                 `5️⃣ - 🇨🇦 eTA CANADENSE\n` +
+                                 `6️⃣ - 🛂 PASSAPORTE\n` +
+                                 `7️⃣ - 📞 AJUDA / CONTATO\n\n` +
+                                 `Digite o número da opção (1-7)`;
+
+            await sendReply(cleanPhone, mensagemFinal);
+            console.log('📨 Mensagem de confirmação enviada');
+            break;
+
+        // ============================================================
+        // PASSO 4: COMPLETO (FALLBACK)
+        // ============================================================
+        case ONBOARDING_STEPS.COMPLETO:
+            console.log('⚠️ Onboarding já completo, enviando menu principal');
+            const menuCompleto = await getMenuPrincipal();
+            await sendReply(cleanPhone, menuCompleto);
+            break;
+
+        // ============================================================
+        // DEFAULT: RESETAR ONBOARDING
+        // ============================================================
+        default:
+            console.log('⚠️ Estado de onboarding desconhecido, reiniciando');
+            state.onboardingStep = ONBOARDING_STEPS.SAUDACAO;
+            state.onboardingCompleto = false;
+            state.nome = null;
+            state.email = null;
+            state.nivel = 'onboarding';
+            userState.set(cleanPhone, state);
+            await processarOnboarding(cleanPhone, messageText, state);
+    }
+}
+
+// ============================================================
+// FUNÇÃO PRINCIPAL DE PROCESSAMENTO DE MENSAGENS
+// ============================================================
+
+async function processarMensagem(cleanPhone, incomingMessageContent) {
+    console.log('DEBUG processarMensagem: cleanPhone:', cleanPhone);
+    console.log('DEBUG processarMensagem: incomingMessageContent (raw):', incomingMessageContent, 'Type:', typeof incomingMessageContent);
+
+    // Garante que a mensagem é uma string, mesmo que venha como outro tipo
+    let messageText = String(incomingMessageContent || '').trim();
+    console.log('DEBUG processarMensagem: messageText (após String()):', messageText, 'Type:', typeof messageText);
 
     try {
-        // BUSCAR CLIENTE NO BANCO
-        let clienteDB = null;
-        try {
-            const { data } = await supabase
-                .from('clientes_novos')
-                .select('*')
-                .eq('telefone', cleanPhone)
-                .maybeSingle();
-            clienteDB = data;
-        } catch (err) {
-            console.error('Erro ao buscar cliente em clientes_novos:', err);
-        }
-
-        console.log('Cliente DB:', clienteDB ? 'Encontrado' : 'Nao encontrado');
-        if (clienteDB) {
-            console.log('  - Nome:', clienteDB.nome || '(vazio)');
-            console.log('  - Email:', clienteDB.email || '(vazio)');
-            console.log('  - Onboarding completo:', clienteDB.onboarding_completo || false);
-        }
-
-        // FUNÇÃO PARA VALIDAR NOME (local para processarMensagem)
-        function isNomeValido(nome) {
-            if (!nome) return false;
-            if (typeof nome !== 'string') return false;
-            if (nome === 'Cliente') return false;
-            if (nome.startsWith('Cliente_')) return false;
-            if (nome.trim().length < 2) return false;
-            const regexNome = /^[a-zA-ZÀ-ÿ\s'-]+$/;
-            if (!regexNome.test(nome.trim())) return false;
-            if (/^\d+$/.test(nome.replace(/\s/g, ''))) return false;
-            return true;
-        }
-
-        // RECUPERAR OU CRIAR ESTADO DO USUÁRIO
         let state = userState.get(cleanPhone);
-
-        const onboardingCompletoNoBanco = clienteDB &&
-                                          clienteDB.onboarding_completo === true &&
-                                          isNomeValido(clienteDB.nome) &&
-                                          clienteDB.email &&
-                                          clienteDB.email.trim() !== '';
 
         if (!state) {
             console.log('🔄 Criando novo estado para:', cleanPhone);
             state = {
-                nivel: onboardingCompletoNoBanco ? 'principal' : 'onboarding',
+                nivel: 'onboarding',
+                onboardingStep: ONBOARDING_STEPS.SAUDACAO,
+                onboardingCompleto: false,
+                nome: null,
+                email: null,
                 service: null,
-                nome: clienteDB ? clienteDB.nome : null,
-                email: clienteDB ? clienteDB.email : null,
-                onboardingStep: onboardingCompletoNoBanco ? ONBOARDING_STEPS.COMPLETO : ONBOARDING_STEPS.SAUDACAO,
-                onboardingCompleto: onboardingCompletoNoBanco,
                 lastActivity: Date.now()
             };
             userState.set(cleanPhone, state);
+        } else {
+            state.lastActivity = Date.now(); // Atualiza a atividade
+            userState.set(cleanPhone, state);
         }
 
-        // ATUALIZAR ÚLTIMA ATIVIDADE
-        state.lastActivity = Date.now();
-        userState.set(cleanPhone, state);
+        console.log('Estado atual:', state);
 
-        console.log('Estado atual:', {
-            nivel: state.nivel,
-            nome: state.nome || '(vazio)',
-            email: state.email || '(vazio)',
-            onboardingCompleto: state.onboardingCompleto
-        });
-
-        // VERIFICAR SE PRECISA DE ONBOARDING
-        const precisaOnboarding = !onboardingCompletoNoBanco || !state.onboardingCompleto;
-
-        if (precisaOnboarding) {
+        // Se o onboarding não estiver completo, processa o onboarding
+        if (state.onboardingCompleto === false) {
             console.log('🔄 INICIANDO ONBOARDING');
             await processarOnboarding(cleanPhone, messageText, state);
             return;
         }
 
-        // SE ONBOARDING COMPLETO, PROCESSAR MENU
-        console.log('✅ Onboarding completo, processando menu');
-
         // Lógica para voltar ao menu principal
-        if (messageText.toLowerCase().trim() === '0' || messageText.toLowerCase().trim() === 'menu') {
+        if (messageText.toLowerCase() === '0' || messageText.toLowerCase() === 'menu') {
             state.nivel = 'principal';
             state.service = null;
             userState.set(cleanPhone, state);
@@ -1407,13 +1569,13 @@ async function processarMensagem(cleanPhone, messageText, body) {
         }
 
     } catch (error) {
-        console.error('❌ ERRO NO processarMensagem:', error);
+        console.error('❌ ERRO NO processarMensagem (catch principal):', error);
         console.error('❌ Stack:', error.stack);
 
         try {
             await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro. Digite 0 para tentar novamente.');
         } catch (e) {
-            console.error('❌ Erro ao enviar mensagem de erro:', e);
+            console.error('❌ Erro ao enviar mensagem de erro (fallback):', e);
         }
     }
 }
@@ -1433,17 +1595,24 @@ app.post('/api/webhook/zapi', async (req, res) => {
     (async () => {
         try {
             const body = req.body;
-            const mensagemRecebida = body.text;
             const telefoneParaZapi = body.phone; // Telefone do remetente no formato Z-API (com 55)
 
-            if (!mensagemRecebida || !telefoneParaZapi) {
-                console.log('⚠️ Mensagem ou telefone ausentes, ignorando.');
+            // --- CORREÇÃO AQUI: Extrair o texto da mensagem corretamente ---
+            const rawZapiMessage = body.text && body.text.message ? body.text.message : '';
+            console.log('DEBUG WEBHOOK: rawZapiMessage (extraído):', rawZapiMessage, 'Type:', typeof rawZapiMessage);
+
+            // Garante que a mensagem é uma string e remove espaços em branco
+            const messageTextForProcessing = String(rawZapiMessage || '').trim();
+            console.log('DEBUG WEBHOOK: messageTextForProcessing (após String()):', messageTextForProcessing, 'Type:', typeof messageTextForProcessing);
+
+            if (!messageTextForProcessing || !telefoneParaZapi) {
+                console.log('⚠️ Mensagem ou telefone ausentes ou vazios, ignorando.');
                 return;
             }
 
             const cleanPhone = limparTelefone(telefoneParaZapi); // Telefone limpo (sem 55)
 
-            // Buscar nome do cliente para usar nas respostas
+            // Buscar nome do cliente para usar nas respostas (lógica mantida)
             let nomeParaSalvar = 'Cliente';
             try {
                 const { data: clienteExistente } = await supabase
@@ -1459,14 +1628,14 @@ app.post('/api/webhook/zapi', async (req, res) => {
             }
 
             // Chamar a função principal de processamento de mensagens
-            await processarMensagem(cleanPhone, mensagemRecebida, body);
+            // --- CORREÇÃO AQUI: Passar apenas os dois argumentos esperados ---
+            await processarMensagem(cleanPhone, messageTextForProcessing);
 
         } catch (erro) {
             console.error('❌ Erro geral no processamento do webhook:', erro);
         }
     })();
 });
-
 // ============================================================
 // 13. FUNÇÕES DE GERAÇÃO DE PDF (DS-160)
 // ============================================================
