@@ -1045,14 +1045,15 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
 
     const opcoesSubmenu = {
         '1': 'preco',
-        '2': 'prazo',
+        '2': 'prazo', 
         '3': 'documentos',
         '4': 'processo',
-        '5': 'especial', // Visto Negado ou Onde Fazer Passaporte
+        '5': 'especial', // Pode ser 'onde_fazer' para passaporte ou 'visto_negado' para outros
         '6': 'avaliacao',
         '7': 'especialista'
     };
 
+    // Tenta processar como opção numérica do submenu
     if (opcoesSubmenu[messageText]) {
         console.log('Processando opção ' + messageText + ' do submenu de ' + service);
 
@@ -1145,15 +1146,22 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
                 await sendReply(cleanPhone, msgEsp);
                 break;
         }
-        return;
+        return; // Retorna após processar a opção numérica
     }
 
-    if (messageText === '9') { // Opção para repetir o submenu
-        const submenuTexto = getSubmenu(service);
-        await sendReply(cleanPhone, submenuTexto);
-        return;
+    // Se não for uma opção numérica do submenu, tenta detectar uma intenção geral
+    const intencaoDetectada = detectarIntencao(messageText);
+    console.log('DEBUG processarOpcaoNoSubmenu: Tentando detectar intenção geral:', intencaoDetectada);
+
+    if (intencaoDetectada && intencaoDetectada !== 'desconhecida') {
+        const respostaIntencao = gerarRespostaBot(intencaoDetectada, state.nome, null); // Passa null para etapaAtual
+        if (respostaIntencao) {
+            await sendReply(cleanPhone, respostaIntencao);
+            return;
+        }
     }
 
+    // Se não for opção numérica nem intenção geral, então é inválida
     const erroMsg = '❌ Opção inválida' + nomeCliente + '!\n\n' +
                    'Você está no menu: ' + getServiceName(service).toUpperCase() + '\n\n' +
                    'Opções disponíveis:\n' +
