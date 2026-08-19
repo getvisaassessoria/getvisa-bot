@@ -17,6 +17,9 @@ const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY || '');
 const PORT = process.env.PORT || 10000;
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY; // Chave para rotas administrativas
+const agendamentoRoutes = require(path.join(__dirname, 'routes', 'agendamentoRoutes'));
+const webhookRoutesNew = require(path.join(__dirname, 'routes', 'webhookRoutesNew'));
+console.log('✅ webhookRoutesNew importado com sucesso.'); // Adicione este log
 
 // ============================================================
 // 2. CONFIGURAÇÃO DO SUPABASE
@@ -40,7 +43,9 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
-
+app.use('/api/agendamentos', agendamentoRoutes);
+app.use('/api/webhook', webhookRoutesNew);
+console.log('✅ Rota /api/webhook montada.'); // Adicione este log
 // ============================================================
 // 4. CONSTANTES
 // ============================================================
@@ -1090,16 +1095,18 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
 
             case '5':
                 if (service === 'passaporte') {
-                    const msg = '🏛️ ONDE FAZER O PASSAPORTE\n\n' +
-                               '📍 Polícia Federal (agendamento obrigatório)\n' +
-                               '🌐 Site: <a href="https://www.gov.br/pf/pt-br/assuntos/passaporte" target="_blank" style="text-decoration: underline;">https://www.gov.br/pf/pt-br/assuntos/passaporte</a>\n\n' +
-                               '📋 Passo a passo:\n' +
-                               '1. Acesse o site da PF\n' +
-                               '2. Preencha o formulário online\n' +
-                               '3. Pague a taxa GRU (~R$ 257)\n' +
-                               '4. Agende o atendimento\n' +
-                               '5. Compareça ao posto com os documentos\n\n' +
-                               '💡 Dica: Agende com antecedência!\n\n' +
+                    // --- VERSÃO APRIMORADA COM INFORMAÇÕES DO GOV.BR ---
+                    const msg = '🏛️ **ONDE FAZER O PASSAPORTE**\n\n' +
+                               'O passaporte é emitido pela Polícia Federal. O processo é digitalizado e exige agendamento prévio.\n\n' +
+                               '🔗 **Site Oficial:** <a href="https://www.gov.br/pf/pt-br/assuntos/passaporte" target="_blank" style="text-decoration: underline;">https://www.gov.br/pf/pt-br/assuntos/passaporte</a>\n\n' +
+                               '📋 **Etapas Principais:**\n' +
+                               '1. **Preencher o Formulário:** Acesse o site da PF e preencha com atenção. A documentação necessária será verificada antes.\n' +
+                               '2. **Pagar a Taxa:** Gerada automaticamente. O valor comum é de *R$ 257,25*. Pode ser pago via PIX, Cartão ou Boleto.\n' +
+                               '3. **Agendar Atendimento:** Escolha o posto da PF. A retirada do passaporte ocorrerá na mesma unidade.\n' +
+                               '4. **Comparecer à Unidade:** Leve documentos originais. Serão coletados dados biométricos (digitais e foto).\n' +
+                               '5. **Consultar Andamento:** Acompanhe pelo site. O prazo de entrega é geralmente de *6 a 10 dias úteis*.\n' +
+                               '6. **Receber Passaporte:** Compareça ao posto com documento de identificação.\n\n' +
+                               '💡 **Dica:** Agende com antecedência! Passaportes não retirados em 90 dias são cancelados.\n\n' +
                                '📌 ' + nomeCliente + ' - Você está em: PASSAPORTE\n' +
                                'Digite outra opção (1-7) ou 0 para menu principal';
                     await sendReply(cleanPhone, msg);
@@ -1171,6 +1178,7 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
                    '💡 Para escolher outro serviço, digite 0 primeiro.';
     await sendReply(cleanPhone, erroMsg);
 }
+
 
 async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
     console.log('=== MENU PRINCIPAL ===');
