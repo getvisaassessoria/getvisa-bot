@@ -40,62 +40,64 @@ router.post('/zapi', async (req, res) => {
         logToFile('📨 Requisição POST recebida no webhook Z-API!');
         logToFile(`Corpo da requisição (req.body): ${JSON.stringify(req.body, null, 2)}`);
         logToFile(`Headers da requisição (req.headers): ${JSON.stringify(req.headers, null, 2)}`);
-        logToFile('WEBHOOK DEBUG (Z-API) - Este já estava lá');
+    const { telefone, nome } = req.body;
+if (!telefone || telefone.trim() === '') {
+    logToFile('❌ Erro: Telefone ausente ou vazio na requisição. Retornando 400.');
+    return res.status(400).send('Erro: Telefone é obrigatório e não pode ser vazio.');
+}
 
-        const { telefone, nome } = req.body;
+const telefoneLimpo = limparTelefone(telefone);
+logToFile(`📱 Telefone limpo: ${telefoneLimpo}`);
 
-        // Validação ajustada: verifica se o telefone está presente e não está vazio
-        if (!telefone || telefone.trim() === '') {
-            logToFile('❌ Erro: Telefone ausente ou vazio na requisição. Ignorando.');
-            return res.status(400).send('Erro: Telefone é obrigatório e não pode ser vazio.');
-        }
+// --- INÍCIO DA DEPURACÃO SUPABASE ---
+logToFile('🔍 Tentando buscar cliente existente no Supabase...');
+const { data: clienteExistente, error: selectErrorDetails } = await supabase
+    .from('clientes')
+    .select('*')
+    .eq('telefone', telefoneLimpo)
+    .maybeSingle();
 
-        const telefoneLimpo = limparTelefone(telefone);
-        logToFile(`📱 Telefone limpo: ${telefoneLimpo}`);
+if (selectErrorDetails) {
+    logToFile(`❌ ERRO AO BUSCAR CLIENTE: ${selectErrorDetails.message}`);
+    logToFile(`Detalhes do erro de busca: ${JSON.stringify(selectErrorDetails, null, 2)}`);
+    // É crucial que este erro seja logado para entendermos o que está acontecendo
+} else {
+    logToFile(`✅ Busca de cliente concluída. Cliente existente: ${clienteExistente ? 'Sim' : 'Não'}`);
+}
 
-        // Verifica se o cliente já existe
-        const { data: clienteExistente, error: selectErrorDetails } = await supabase
-            .from('clientes')
-            .select('*')
-            .eq('telefone', telefoneLimpo)
-            .maybeSingle();
+if (!clienteExistente) {
+    logToFile('🆕 Cliente não encontrado. Preparando para criar novo cliente...');
+    const novoCliente = {
+        telefone: telefoneLimpo,
+        nome: nome || 'Cliente',
+        data_contato: new Date().toISOString(),
+        status: 'novo'
+    };
+    logToFile(`Dados do novo cliente: ${JSON.stringify(novoCliente, null, 2)}`);
 
-        if (selectErrorDetails) {
-            logToFile(`❌ Erro ao buscar cliente existente: ${selectErrorDetails.message}`);
-            // Não retorne um erro 500 aqui, apenas logue e continue, ou trate de forma mais robusta
-        }
+    logToFile('🚀 Tentando inserir novo cliente no Supabase...');
+    const { error: insertError } = await supabase
+        .from('clientes')
+        .insert([novoCliente]);
 
-        if (!clienteExistente) {
-            logToFile('🆕 Criando novo cliente...');
-
-            const novoCliente = {
-                telefone: telefoneLimpo,
-                nome: nome || 'Cliente',
-                data_contato: new Date().toISOString(),
-                // origem: 'whatsapp', // Mantenha esta linha comentada se a coluna 'origem' não existe no seu DB
-                status: 'novo'
-            };
-
-            const { error: insertError } = await supabase
-                .from('clientes')
-                .insert([novoCliente]);
-
-            if (insertError) {
-                logToFile(`❌ Erro ao criar: ${insertError.message}`);
-            } else {
-                logToFile('✅ Cliente criado!');
-            }
-        } else {
-            logToFile('✅ Cliente já existe');
-        }
-
-        res.status(200).send('OK');
-
-    } catch (error) {
-        logToFile(`❌ ERRO NO BLOCO CATCH: ${error.message}`);
-        logToFile(`Stack do erro: ${error.stack}`);
-        res.status(500).send('Erro interno do servidor.');
+    if (insertError) {
+        logToFile(`❌ ERRO AO CRIAR CLIENTE: ${insertError.message}`);
+        logToFile(`Detalhes do erro de inserção: ${JSON.stringify(insertError, null, 2)}`);
+        // É crucial que este erro seja logado
+    } else {
+        logToFile('✅ Cliente criado com sucesso no Supabase!');
     }
+} else {
+    logToFile('✅ Cliente já existe no Supabase. Nenhuma ação de criação necessária.');
+}
+// --- FIM DA DEPURACÃO SUPABASE ---
+
+res.status(200).send('OK');
+} catch (error) {
+    logToFile(`❌ ERRO NO BLOCO CATCH PRINCIPAL: ${error.message}`);
+    logToFile(`Stack do erro: ${error.stack}`);
+    res.status(500).send('Erro interno do servidor.');
+}
 });
 
 module.exports = router;
