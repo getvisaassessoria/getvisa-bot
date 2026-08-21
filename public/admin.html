@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - GETVISA Agendamentos</title>
+    <style>
+        /* ============================================================
+           RESET E BASE
+           ============================================================ */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+
+        /* ============================================================
+           HEADER
+           ============================================================ */
+        .header {
+            background: linear-gradient(135deg, #1a73e8, #0d47a1);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .header h1 { font-size: 24px; }
+        .header .badge {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        /* ============================================================
+           CONTAINER
+           ============================================================ */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* ============================================================
+           TABS
+           ============================================================ */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            flex-wrap: wrap;
+        }
+        .tab {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            background: #e9ecef;
+            color: #495057;
+            transition: all 0.3s;
+        }
+        .tab:hover { background: #dee2e6; }
+        .tab.active {
+            background: #1a73e8;
+            color: white;
+        }
+
+        /* ============================================================
+           STATS CARDS
+           ============================================================ */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+        .stat-card h3 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #1a73e8;
+        }
+        .stat-card .number.green { color: #28a745; }
+        .stat-card .number.orange { color: #ff9800; }
+        .stat-card .number.red { color: #dc3545; }
+
+        /* ============================================================
+           FILTROS
+           ============================================================ */
+        .filters {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+        .filters input,
+        .filters select {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            flex: 1;
+            min-width: 150px;
+        }
+        .filters button {
+            padding: 10px 25px;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        .filters button:hover { background: #1557b0; }
+        .filters button.secondary {
+            background: #6c757d;
+        }
+        .filters button.secondary:hover { background: #5a6268; }
+
+        /* ============================================================
+           TABELAS
+           ============================================================ */
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow-x: auto;
+            padding: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th {
+            background: #f8f9fa;
+            padding: 12px 10px;
+            text-align: left;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+        }
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #e9ecef;
+            vertical-align: middle;
+        }
+        tr:hover { background: #f8f9fa; }
+
+        /* ============================================================
+           BADGES
+           ============================================================ */
+        .badge-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .badge-status.pendente {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .badge-status.concluido {
+            background: #d4edda;
+            color: #155724;
+        }
+        .badge-status.enviado {
+            background: #d4edda;
+            color: #155724;
+        }
+        .badge-status.falha {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* ============================================================
+           BOTÕES DE AÇÃO
+           ============================================================ */
+        .btn-action {
+            padding: 4px 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 11px;
+            margin: 0 2px;
+            transition: all 0.2s;
+        }
+        .btn-action.edit {
+            background: #ffc107;
+            color: #333;
+        }
+        .btn-action.edit:hover { background: #e0a800; }
+        .btn-action.done {
+            background: #28a745;
+            color: white;
+        }
+        .btn-action.done:hover { background: #1e7e34; }
+        .btn-action.delete {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-action.delete:hover { background: #bd2130; }
+        .btn-action.whatsapp {
+            background: #25d366;
+            color: white;
+        }
+        .btn-action.whatsapp:hover { background: #1da851; }
+        .btn-action.reenviar {
+            background: #17a2b8;
+            color: white;
+        }
+        .btn-action.reenviar:hover { background: #138496; }
+        .btn-action.upload {
+            background: #17a2b8;
+            color: white;
+        }
+        .btn-action.upload:hover { background: #138496; }
+        .btn-action.pdf {
+            background: #6f42c1;
+            color: white;
+        }
+        .btn-action.pdf:hover { background: #5a32a3; }
+
+        /* ============================================================
+           MODAL
+           ============================================================ */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal.show { display: flex; }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-content h2 {
+            margin-bottom: 20px;
+            color: #1a73e8;
+        }
+        .modal-content label {
+            display: block;
+            margin: 10px 0 5px;
+            font-weight: 600;
+            font-size: 14px;
+            color: #333;
+        }
+        .modal-content input,
+        .modal-content select,
+        .modal-content textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .modal-content input[type="file"] {
+            padding: 8px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .modal-actions button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .modal-actions .save {
+            background: #1a73e8;
+            color: white;
+        }
+        .modal-actions .save:hover { background: #1557b0; }
+        .modal-actions .cancel {
+            background: #6c757d;
+            color: white;
+        }
+        .modal-actions .cancel:hover { background: #5a6268; }
+
+        /* ============================================================
+           UTILITÁRIOS
+           ============================================================ */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .text-center { text-align: center; }
+        .text-muted { color: #999; }
+        .text-small { font-size: 11px; color: #888; }
+
+        /* ============================================================
+           RESPONSIVIDADE
+           ============================================================ */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                text-align: center;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .filters {
+                flex-direction: column;
+            }
+            .filters input,
+            .filters select {
+                width: 100%;
+            }
+            .tabs {
+                flex-direction: column;
+            }
+            .tab {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================
+    HEADER
+    ============================================================ -->
+    <div class="header">
+        <h1>📊 GETVISA - Painel de Agendamentos</h1>
+        <div class="badge">🟢 Sistema Online</div>
+    </div>
+
+    <!-- ============================================================
+    CONTAINER PRINCIPAL
+    ============================================================ -->
+    <div class="container">
+
+        <!-- ============================================================
+        TABS
+        ============================================================ -->
+        <div class="tabs">
+            <button class="tab active" onclick="mudarTab('agendamentos')">📋 Agendamentos</button>
+            <button class="tab" onclick="mudarTab('lembretes')">🔔 Lembretes</button>
+        </div>
+
+        <!-- ============================================================
+        ABA 1: AGENDAMENTOS
+        ============================================================ -->
+        <div id="tabAgendamentos">
+
+            <!-- Stats -->
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card">
+                    <h3>📋 Total</h3>
+                    <div class="number" id="statTotal">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>✅ Concluídos</h3>
+                    <div class="number green" id="statConcluidos">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>⏳ Pendentes</h3>
+                    <div class="number orange" id="statPendentes">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>📅 Próximos 30 dias</h3>
+                    <div class="number" id="statProximos">-</div>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <div class="filters">
+                <input type="date" id="filterInicio" placeholder="Data Início">
+                <input type="date" id="filterFim" placeholder="Data Fim">
+                <select id="filterAtividade">
+                    <option value="">Todas as atividades</option>
+                    <option value="CASV">CASV</option>
+                    <option value="Entrevista no Consulado Americano">Entrevista</option>
+                    <option value="Treinamento">Treinamento</option>
+                    <option value="Retirada do Passaporte">Retirada</option>
+                </select>
+                <select id="filterStatus">
+                    <option value="">Todos</option>
+                    <option value="pendente">Pendentes</option>
+                    <option value="concluido">Concluídos</option>
+                </select>
+                <button onclick="carregarAgendamentos()">🔍 Buscar</button>
+                <button class="secondary" onclick="resetarFiltros()">🔄 Limpar</button>
+                <button class="secondary" onclick="exportarCSV()">📥 Exportar CSV</button>
+            </div>
+
+            <!-- Tabela -->
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Telefone</th>
+                            <th>Atividade</th>
+                            <th>Data</th>
+                            <th>Hora</th>
+                            <th>Local</th>
+                            <th>Protocolo</th>
+                            <th>PDF</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                            <th>WhatsApp</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr><td colspan="11" class="loading">Carregando agendamentos...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ============================================================
+        ABA 2: LEMBRETES
+        ============================================================ -->
+        <div id="tabLembretes" style="display:none;">
+
+            <!-- Stats Lembretes -->
+            <div class="stats-grid" id="statsLembretes">
+                <div class="stat-card">
+                    <h3>📋 Total</h3>
+                    <div class="number" id="lembreteTotal">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>⏳ Pendentes</h3>
+                    <div class="number orange" id="lembretePendentes">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>✅ Enviados</h3>
+                    <div class="number green" id="lembreteEnviados">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>❌ Falhas</h3>
+                    <div class="number red" id="lembreteFalhas">-</div>
+                </div>
+            </div>
+
+            <!-- Tabela de Lembretes -->
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Agendamento</th>
+                            <th>Tipo</th>
+                            <th>Data Disparo</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lembreteTableBody">
+                        <tr><td colspan="6" class="loading">Carregando lembretes...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ============================================================
+    MODAL DE EDIÇÃO
+    ============================================================ -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <h2>✏️ Editar Agendamento</h2>
+            <input type="hidden" id="editId">
+
+            <label>Cliente</label>
+            <input type="text" id="editCliente" disabled>
+
+            <label>Atividade</label>
+            <select id="editAtividade">
+                <option value="CASV">CASV</option>
+                <option value="Entrevista no Consulado Americano">Entrevista</option>
+                <option value="Treinamento">Treinamento</option>
+                <option value="Retirada do Passaporte">Retirada</option>
+            </select>
+
+            <label>Data</label>
+            <input type="date" id="editData">
+
+            <label>Hora</label>
+            <input type="time" id="editHora">
+
+            <label>Local</label>
+            <input type="text" id="editLocal" placeholder="Ex: Consulado Americano - São Paulo">
+
+            <label>Protocolo DS-160</label>
+            <input type="text" id="editProtocolo" placeholder="AA00BB11CC">
+
+            <label>Status</label>
+            <select id="editStatus">
+                <option value="false">Pendente</option>
+                <option value="true">Concluído</option>
+            </select>
+
+            <div class="modal-actions">
+                <button class="save" onclick="salvarEdicao()">💾 Salvar</button>
+                <button class="cancel" onclick="fecharModal()">❌ Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    MODAL PARA UPLOAD DE PDF
+    ============================================================ -->
+    <div class="modal" id="modalUploadPDF">
+        <div class="modal-content">
+            <h2>📤 Upload de PDF do Consulado</h2>
+            <input type="hidden" id="uploadAgendamentoId">
+
+            <label>Arquivo PDF</label>
+            <input type="file" id="uploadPDFFile" accept=".pdf">
+
+            <p class="text-small" style="margin-top:8px;">
+                📌 Selecione o PDF de confirmação do agendamento do consulado.
+            </p>
+
+            <div class="modal-actions">
+                <button class="save" onclick="fazerUploadPDF()">📤 Enviar</button>
+                <button class="cancel" onclick="fecharModalUploadPDF()">❌ Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    JAVASCRIPT
+    ============================================================ -->
+    <script>
+        const API_BASE = '/api/admin/agendamentos';
+
+        // ============================================================
+        // TABS
+        // ============================================================
+        function mudarTab(tab) {
+            document.getElementById('tabAgendamentos').style.display = 'none';
+            document.getElementById('tabLembretes').style.display = 'none';
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+
+            if (tab === 'agendamentos') {
+                document.getElementById('tabAgendamentos').style.display = 'block';
+                document.querySelectorAll('.tab')[0].classList.add('active');
+            } else {
+                document.getElementById('tabLembretes').style.display = 'block';
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                carregarLembretes();
+            }
+        }
+
+        // ============================================================
+        // AGENDAMENTOS
+        // ============================================================
+        async function carregarAgendamentos() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '<tr><td colspan="11" class="loading">Carregando...</td></tr>';
+
+            try {
+                const params = new URLSearchParams();
+                const inicio = document.getElementById('filterInicio').value;
+                const fim = document.getElementById('filterFim').value;
+                const atividade = document.getElementById('filterAtividade').value;
+                const status = document.getElementById('filterStatus').value;
+
+                if (inicio) params.append('data_inicio', inicio);
+                if (fim) params.append('data_fim', fim);
+                if (atividade) params.append('atividade', atividade);
+                if (status) params.append('status', status);
+
+                const url = `${API_BASE}?${params.toString()}`;
+                const response = await fetch(url);
+                const result = await response.json();
+
+                if (!result.success) throw new Error(result.message);
+
+                await carregarEstatisticas();
+
+                if (result.data.length === 0) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="11" style="text-align:center;padding:40px;color:#999;">Nenhum agendamento encontrado</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = result.data.map(item => {
+                    const telefone = item.clientes?.telefone || '';
+                    const nome = item.clientes?.nome || 'N/A';
+                    const temPdf = item.pdf_consulado_url ? true : false;
+
+                    return `
+                            <tr>
+                                <td><strong>${nome}</strong></td>
+                                <td>${telefone}</td>
+                                <td>${item.atividade}</td>
+                                <td>${formatarData(item.data_agendamento)}</td>
+                                <td>${item.hora_agendamento?.substring(0, 5) || 'N/A'}</td>
+                                <td>${item.local_agendamento || 'N/A'}</td>
+                                <td>${item.protocolo_ds160 || '-'}</td>
+                                <td>
+                                    ${temPdf ? 
+                                        `<button class="btn-action pdf" onclick="baixarPDF('${item.id}')">📄</button>
+                                         <button class="btn-action delete" onclick="removerPDF('${item.id}')">🗑️</button>` :
+                                        `<button class="btn-action upload" onclick="abrirUploadPDF('${item.id}')">📤 Upload</button>`
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge-status ${item.concluido ? 'concluido' : 'pendente'}">
+                                        ${item.concluido ? '✅ Concluído' : '⏳ Pendente'}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn-action edit" onclick="abrirEdicao('${item.id}')">✏️</button>
+                                    <button class="btn-action done" onclick="marcarConcluido('${item.id}')">✅</button>
+                                    <button class="btn-action delete" onclick="excluirAgendamento('${item.id}')">🗑️</button>
+                                </td>
+                                <td>
+                                    <button class="btn-action whatsapp" onclick="abrirWhatsApp('${telefone}', '${nome}', '${item.atividade}', '${item.data_agendamento}', '${item.hora_agendamento || ''}')">
+                                        📱
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                }).join('');
+
+            } catch (error) {
+                tbody.innerHTML =
+                    `<tr><td colspan="11" style="color:red;text-align:center;padding:20px;">❌ Erro: ${error.message}</td></tr>`;
+                console.error(error);
+            }
+        }
+
+        async function carregarEstatisticas() {
+            try {
+                const response = await fetch(`${API_BASE}/estatisticas`);
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('statTotal').textContent = result.stats.total;
+                    document.getElementById('statConcluidos').textContent = result.stats.concluidos;
+                    document.getElementById('statPendentes').textContent = result.stats.pendentes;
+                    document.getElementById('statProximos').textContent = result.stats.proximos30dias || 0;
+                }
+            } catch (error) {
+                console.error('Erro ao carregar estatísticas:', error);
+            }
+        }
+
+        function formatarData(data) {
+            if (!data) return 'N/A';
+            const partes = data.split('-');
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+
+        // ============================================================
+        // WHATSAPP
+        // ============================================================
+        function abrirWhatsApp(telefone, nome, atividade, data, hora) {
+            if (!telefone || telefone === 'N/A') {
+                alert('❌ Cliente não possui telefone cadastrado!');
+                return;
+            }
+
+            const dataFormatada = formatarData(data);
+            const horaFormatada = hora?.substring(0, 5) || 'horário a confirmar';
+
+            const mensagem = `🔔 *GETVISA - Lembrete de Agendamento*\n\n` +
+                `Olá *${nome || 'Cliente'}*!\n\n` +
+                `Seu *${atividade}* está agendado para:\n\n` +
+                `📅 Data: ${dataFormatada}\n` +
+                `⏰ Hora: ${horaFormatada}\n\n` +
+                `📍 Compareça com 15 minutos de antecedência.\n` +
+                `📋 Não se esqueça de levar seus documentos.\n\n` +
+                `Boa sorte! 🍀\n\n` +
+                `— Equipe GetVisa`;
+
+            const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+            const url = `https://wa.me/55${telefoneLimpo}?text=${encodeURIComponent(mensagem)}`;
+
+            window.open(url, '_blank');
+            console.log(`📱 Abrindo WhatsApp para ${telefoneLimpo}`);
+        }
+
+        // ============================================================
+        // PDF UPLOAD
+        // ============================================================
+        function abrirUploadPDF(id) {
+            document.getElementById('uploadAgendamentoId').value = id;
+            document.getElementById('uploadPDFFile').value = '';
+            document.getElementById('modalUploadPDF').classList.add('show');
+        }
+
+        function fecharModalUploadPDF() {
+            document.getElementById('modalUploadPDF').classList.remove('show');
+        }
+
+        async function fazerUploadPDF() {
+    const id = document.getElementById('uploadAgendamentoId').value;
+    const fileInput = document.getElementById('uploadPDFFile');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        alert('❌ Selecione um arquivo PDF');
+        return;
+    }
+
+    if (file.type !== 'application/pdf') {
+        alert('❌ Apenas arquivos PDF são permitidos');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('pdf', file);
+
+    try {
+        const response = await fetch(`${API_BASE}/${id}/upload-pdf`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (!result.success) throw new Error(result.message);
+
+        alert('✅ PDF enviado com sucesso!');
+        fecharModalUploadPDF();
+        
+        // ✅ RECARREGAR A TABELA AUTOMATICAMENTE
+        await carregarAgendamentos();
+
+    } catch (error) {
+        alert('❌ Erro ao enviar PDF: ' + error.message);
+    }
+}
+
+        async function baixarPDF(id) {
+            try {
+                window.open(`${API_BASE}/${id}/pdf`, '_blank');
+            } catch (error) {
+                alert('❌ Erro ao baixar PDF: ' + error.message);
+            }
+        }
+
+        async function removerPDF(id) {
+            if (!confirm('⚠️ Remover o PDF deste agendamento?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/${id}/pdf`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (!result.success) throw new Error(result.message);
+
+                alert('✅ PDF removido com sucesso!');
+                carregarAgendamentos();
+
+            } catch (error) {
+                alert('❌ Erro ao remover PDF: ' + error.message);
+            }
+        }
+
+        // ============================================================
+        // CRUD AGENDAMENTOS
+        // ============================================================
+        async function abrirEdicao(id) {
+            try {
+                const response = await fetch(`${API_BASE}/${id}`);
+                const result = await response.json();
+                if (!result.success) throw new Error(result.message);
+
+                const item = result.data;
+                document.getElementById('editId').value = id;
+                document.getElementById('editCliente').value = item.clientes?.nome || 'N/A';
+                document.getElementById('editAtividade').value = item.atividade || 'CASV';
+                document.getElementById('editData').value = item.data_agendamento;
+                document.getElementById('editHora').value = item.hora_agendamento?.substring(0, 5) || '';
+                document.getElementById('editLocal').value = item.local_agendamento || '';
+                document.getElementById('editProtocolo').value = item.protocolo_ds160 || '';
+                document.getElementById('editStatus').value = item.concluido ? 'true' : 'false';
+
+                document.getElementById('modal').classList.add('show');
+            } catch (error) {
+                alert('Erro ao carregar dados: ' + error.message);
+            }
+        }
+
+        function fecharModal() {
+            document.getElementById('modal').classList.remove('show');
+        }
+
+        async function salvarEdicao() {
+            const id = document.getElementById('editId').value;
+            const data = {
+                atividade: document.getElementById('editAtividade').value,
+                data_agendamento: document.getElementById('editData').value,
+                hora_agendamento: document.getElementById('editHora').value,
+                local_agendamento: document.getElementById('editLocal').value,
+                protocolo_ds160: document.getElementById('editProtocolo').value,
+                concluido: document.getElementById('editStatus').value === 'true'
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                if (!result.success) throw new Error(result.message);
+
+                alert('✅ Agendamento atualizado com sucesso!');
+                fecharModal();
+                carregarAgendamentos();
+            } catch (error) {
+                alert('❌ Erro ao salvar: ' + error.message);
+            }
+        }
+
+        async function marcarConcluido(id) {
+            if (!confirm('Marcar este agendamento como concluído?')) return;
+            try {
+                const response = await fetch(`${API_BASE}/${id}/concluir`, { method: 'PATCH' });
+                const result = await response.json();
+                if (!result.success) throw new Error(result.message);
+                alert('✅ Agendamento marcado como concluído!');
+                carregarAgendamentos();
+            } catch (error) {
+                alert('❌ Erro: ' + error.message);
+            }
+        }
+
+        async function excluirAgendamento(id) {
+            if (!confirm('⚠️ Tem certeza que deseja excluir este agendamento?')) return;
+            try {
+                const response = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+                const result = await response.json();
+                if (!result.success) throw new Error(result.message);
+                alert('🗑️ Agendamento excluído!');
+                carregarAgendamentos();
+            } catch (error) {
+                alert('❌ Erro: ' + error.message);
+            }
+        }
+
+        function resetarFiltros() {
+            document.getElementById('filterInicio').value = '';
+            document.getElementById('filterFim').value = '';
+            document.getElementById('filterAtividade').value = '';
+            document.getElementById('filterStatus').value = '';
+            carregarAgendamentos();
+        }
+
+        async function exportarCSV() {
+            try {
+                const inicio = document.getElementById('filterInicio').value;
+                const fim = document.getElementById('filterFim').value;
+                const params = new URLSearchParams();
+                if (inicio) params.append('inicio', inicio);
+                if (fim) params.append('fim', fim);
+                params.append('formato', 'csv');
+                window.location.href = `${API_BASE}/relatorio/periodo?${params.toString()}`;
+            } catch (error) {
+                alert('❌ Erro ao exportar: ' + error.message);
+            }
+        }
+
+        // ============================================================
+        // LEMBRETES
+        // ============================================================
+        async function carregarLembretes() {
+            const tbody = document.getElementById('lembreteTableBody');
+            tbody.innerHTML = '<tr><td colspan="6" class="loading">Carregando lembretes...</td></tr>';
+
+            try {
+                const statsResponse = await fetch(`${API_BASE}/lembretes/estatisticas`);
+                const statsResult = await statsResponse.json();
+                if (statsResult.success) {
+                    document.getElementById('lembreteTotal').textContent = statsResult.stats.total;
+                    document.getElementById('lembretePendentes').textContent = statsResult.stats.pendentes;
+                    document.getElementById('lembreteEnviados').textContent = statsResult.stats.enviados;
+                    document.getElementById('lembreteFalhas').textContent = statsResult.stats.falhas;
+                }
+
+                const response = await fetch(`${API_BASE}/lembretes/pendentes`);
+                const result = await response.json();
+
+                if (!result.success) throw new Error(result.message);
+
+                if (result.data.length === 0) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="6" style="text-align:center;padding:40px;color:#999;">Nenhum lembrete pendente</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = result.data.map(item => {
+                    const statusClass = item.status_envio === 'pendente' ? 'pendente' :
+                        item.status_envio === 'enviado' ? 'concluido' : 'falha';
+                    const statusLabel = item.status_envio === 'pendente' ? '⏳ Pendente' :
+                        item.status_envio === 'enviado' ? '✅ Enviado' : '❌ Falha';
+
+                    return `
+                            <tr>
+                                <td><strong>${item.agendamentos?.clientes?.nome || 'N/A'}</strong></td>
+                                <td>${item.agendamentos?.atividade || 'N/A'}</td>
+                                <td>${item.tipo_aviso || '-'}</td>
+                                <td>${new Date(item.data_disparo).toLocaleString('pt-BR')}</td>
+                                <td>
+                                    <span class="badge-status ${statusClass}">
+                                        ${statusLabel}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn-action reenviar" onclick="reenviarLembrete('${item.id}')">🔄 Reenviar</button>
+                                </td>
+                            </tr>
+                        `;
+                }).join('');
+
+            } catch (error) {
+                tbody.innerHTML =
+                    `<tr><td colspan="6" style="color:red;text-align:center;padding:20px;">❌ Erro: ${error.message}</td></tr>`;
+                console.error(error);
+            }
+        }
+
+        async function reenviarLembrete(id) {
+            if (!confirm('Reenviar este lembrete?')) return;
+            try {
+                const response = await fetch(`${API_BASE}/lembretes/${id}/reenviar`, { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    alert('✅ Lembrete reenviado com sucesso!');
+                    carregarLembretes();
+                } else {
+                    alert('❌ Erro: ' + result.message);
+                }
+            } catch (error) {
+                alert('❌ Erro: ' + error.message);
+            }
+        }
+
+        // ============================================================
+        // INICIALIZAR
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Página carregada, carregando agendamentos...');
+            carregarAgendamentos();
+        });
+    </script>
+
+</body>
+</html>

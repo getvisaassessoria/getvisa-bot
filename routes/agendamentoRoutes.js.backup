@@ -1,0 +1,29 @@
+// routes/agendamentoRoutes.js
+const express = require('express');
+const agendamentoController = require('../controllers/agendamentoController');
+const router = express.Router();
+
+// 🚨 IMPORTAR E CONFIGURAR O MULTER AQUI 🚨
+const multer = require('multer');
+const upload = multer(); // Configura o multer para processar arquivos em memória (buffer)
+
+// Rota para upload de PDF e processamento de agendamentos
+// 🚨 APLICAR O MIDDLEWARE MULTER AQUI 🚨
+router.post('/upload-pdf', upload.single('pdfFile'), agendamentoController.uploadPdf);
+
+// Rota para salvar agendamentos manualmente
+router.post('/manual', agendamentoController.saveManualAgendamentos);
+
+// Rota para obter o relatório geral de agendamentos
+router.get('/', agendamentoController.getAgendamentosReport);
+
+// Rota para marcar um agendamento como concluído
+router.put('/:id/concluir', agendamentoController.markAgendamentoConcluido);
+
+// Rota para editar um agendamento
+router.put('/:id', agendamentoController.editAgendamento);
+
+// Rota para excluir um agendamento
+router.delete('/:id', agendamentoController.deleteAgendamento);
+
+module.exports = router;

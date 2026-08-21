@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agendar Treinamento - GetVisa</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 90%;
+        }
+        h1 {
+            color: #1a73e8;
+            margin-bottom: 10px;
+        }
+        p { color: #555; margin-bottom: 20px; }
+        label {
+            display: block;
+            font-weight: 600;
+            margin: 15px 0 5px;
+            color: #333;
+        }
+        select, input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #1557b0; }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📅 Agendar Treinamento</h1>
+        <p>Preencha os dados abaixo para agendar seu treinamento para a entrevista.</p>
+
+        <div id="form">
+            <label>📌 Tipo de Treinamento</label>
+            <select id="tipo">
+                <option value="Online">🖥️ Online (via videochamada)</option>
+                <option value="Presencial">🏢 Presencial (em nossa unidade)</option>
+            </select>
+
+            <label>📅 Data Sugerida</label>
+            <input type="date" id="dataSugerida">
+
+            <label>🕒 Horário Preferencial</label>
+            <select id="horario">
+                <option value="08:00">08:00</option>
+                <option value="09:00">09:00</option>
+                <option value="10:00">10:00</option>
+                <option value="11:00">11:00</option>
+                <option value="14:00">14:00</option>
+                <option value="15:00">15:00</option>
+                <option value="16:00">16:00</option>
+                <option value="17:00">17:00</option>
+            </select>
+
+            <button onclick="agendarTreinamento()">📤 Agendar Treinamento</button>
+        </div>
+
+        <div id="resultado" class="hidden">
+            <p id="mensagem"></p>
+        </div>
+    </div>
+
+    <script>
+        // Pega parâmetros da URL
+        const params = new URLSearchParams(window.location.search);
+        const clienteId = params.get('cliente_id');
+        const entrevistaId = params.get('entrevista_id');
+        const dataSugerida = params.get('data_sugerida');
+
+        if (dataSugerida) {
+            document.getElementById('dataSugerida').value = dataSugerida;
+        }
+
+        async function agendarTreinamento() {
+            const tipo = document.getElementById('tipo').value;
+            const data = document.getElementById('dataSugerida').value;
+            const horario = document.getElementById('horario').value;
+
+            if (!clienteId) {
+                alert('❌ Cliente não identificado. Por favor, acesse pelo link enviado no WhatsApp.');
+                return;
+            }
+
+            if (!data) {
+                alert('❌ Selecione uma data para o treinamento.');
+                return;
+            }
+
+            const payload = {
+                cliente_id: clienteId,
+                entrevista_id: entrevistaId,
+                tipo: tipo,
+                data: data,
+                horario: horario
+            };
+
+            try {
+                const response = await fetch('/api/agendar-treinamento', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    document.getElementById('form').classList.add('hidden');
+                    document.getElementById('resultado').classList.remove('hidden');
+                    document.getElementById('mensagem').innerHTML = `
+                        <p class="success">✅ Treinamento agendado com sucesso!</p>
+                        <p><strong>Tipo:</strong> ${tipo}</p>
+                        <p><strong>Data:</strong> ${new Date(data).toLocaleDateString('pt-BR')}</p>
+                        <p><strong>Horário:</strong> ${horario}</p>
+                        <p>Em breve nossa equipe entrará em contato para confirmar.</p>
+                    `;
+                } else {
+                    alert('❌ Erro ao agendar: ' + (result.message || 'tente novamente'));
+                }
+            } catch (error) {
+                alert('❌ Erro ao conectar com o servidor.');
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -25,7 +25,7 @@ app.post('/api/webhook/zapi', async (req, res) => {
         
         // Verifica se existe
         const { data: existe, error: buscaError } = await supabase
-            .from('clientes_novos')
+            .from('clientes')
             .select('*')
             .eq('telefone', telefone)
             .maybeSingle();
@@ -38,7 +38,7 @@ app.post('/api/webhook/zapi', async (req, res) => {
         if (!existe) {
             console.log('🆕 Criando novo cliente...');
             const { error: insertError } = await supabase
-                .from('clientes_novos')
+                .from('clientes')
                 .insert([{
                     telefone: telefone,
                     nome: req.body.senderName || 'Teste',

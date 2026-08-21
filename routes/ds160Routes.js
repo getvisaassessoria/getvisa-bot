@@ -56,7 +56,7 @@ router.post('/submit-ds160', async (req, res) => {
         console.log('✅ PDF do DS-160 gerado com sucesso.');
 
         // 2. Salvar os dados no Supabase
-        // Primeiro, garantir que o cliente exista na tabela clientes_novos ou ativos
+        // Primeiro, garantir que o cliente exista na tabela clientes ou ativos
         const clienteExistente = await cadastrarCliente(cleanPhone, full_name);
         if (!clienteExistente) {
             console.error('❌ Falha ao cadastrar/atualizar cliente no Supabase.');

@@ -2,14 +2,25 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
+// Usar SUPABASE_SERVICE_ROLE_KEY para operações de backend
 const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY // <--- ALTERADO AQUI
 );
 
 /**
  * Insere um novo agendamento na tabela 'agendamentos'.
  * @param {object} agendamentoData - Dados do agendamento a ser inserido.
+ * @param {string} agendamentoData.cliente_id - ID do cliente associado.
+ * @param {string} agendamentoData.atividade - Descrição da atividade/compromisso.
+ * @param {string} agendamentoData.data_agendamento - Data do agendamento (formato 'YYYY-MM-DD').
+ * @param {string} [agendamentoData.hora_agendamento] - Hora do agendamento (formato 'HH:MM').
+ * @param {string} [agendamentoData.local_agendamento] - Local do agendamento.
+ * @param {string} [agendamentoData.protocolo_ds160] - Protocolo DS-160, se aplicável.
+ * @param {string} [agendamentoData.pdf_consulado_url] - URL do PDF do consulado.
+ * @param {string} [agendamentoData.data_extracao_pdf] - Data de extração dos dados do PDF.
+ * @param {boolean} [agendamentoData.concluido=false] - Se o agendamento foi concluído.
+ * @param {string} [agendamentoData.observacoes] - Observações adicionais.
  * @returns {Promise<object|null>} O agendamento inserido ou null em caso de erro.
  */
 async function createAgendamento(agendamentoData) {
@@ -46,7 +57,11 @@ async function getAgendamentos(filters = {}) {
             }
         }
 
-        const { data, error } = await query.order('data_compromisso', { ascending: true }).order('hora_compromisso', { ascending: true });
+        // Ajuste a ordenação para os novos nomes de coluna, se necessário
+        query = query.order('data_agendamento', { ascending: true });
+        query = query.order('hora_agendamento', { ascending: true });
+
+        const { data, error } = await query;
 
         if (error) {
             console.error('❌ Erro ao buscar agendamentos:', error.message);
@@ -63,6 +78,16 @@ async function getAgendamentos(filters = {}) {
  * Atualiza um agendamento existente.
  * @param {string} id - O UUID do agendamento a ser atualizado.
  * @param {object} updateData - Os dados a serem atualizados.
+ * @param {string} [updateData.cliente_id] - ID do cliente associado.
+ * @param {string} [updateData.atividade] - Descrição da atividade/compromisso.
+ * @param {string} [updateData.data_agendamento] - Data do agendamento (formato 'YYYY-MM-DD').
+ * @param {string} [updateData.hora_agendamento] - Hora do agendamento (formato 'HH:MM').
+ * @param {string} [updateData.local_agendamento] - Local do agendamento.
+ * @param {string} [updateData.protocolo_ds160] - Protocolo DS-160, se aplicável.
+ * @param {string} [updateData.pdf_consulado_url] - URL do PDF do consulado.
+ * @param {string} [updateData.data_extracao_pdf] - Data de extração dos dados do PDF.
+ * @param {boolean} [updateData.concluido] - Se o agendamento foi concluído.
+ * @param {string} [updateData.observacoes] - Observações adicionais.
  * @returns {Promise<object|null>} O agendamento atualizado ou null em caso de erro.
  */
 async function updateAgendamento(id, updateData) {

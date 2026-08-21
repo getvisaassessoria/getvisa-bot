@@ -7,7 +7,7 @@ async function enviarWhatsApp(telefone, mensagem) {
         const instance = String(process.env.ZAPI_INSTANCE || '').trim();
         const token = String(process.env.ZAPI_TOKEN || '').trim();
         const securityToken = String(
-            process.env.ZAPI_SECURITY_TOKEN || ''
+            process.env.ZAPI_CLIENT_TOKEN || ''
         ).trim();
 
         if (!instance || !token) {
@@ -77,7 +77,7 @@ async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente, tipo = 'ds160
     try {
         const instance = String(process.env.ZAPI_INSTANCE || '').trim();
         const token = String(process.env.ZAPI_TOKEN || '').trim();
-        const securityToken = String(process.env.ZAPI_SECURITY_TOKEN || '').trim();
+        const securityToken = String(process.env.ZAPI_CLIENT_TOKEN || '').trim();
 
         if (!instance || !token) {
             console.error('❌ Z-API não configurada para envio de PDF');

@@ -1,6 +1,3 @@
-// server.js
-console.log('--- DEBUG: server.js carregado no topo (VERSAO UNIFICADA) ---');
-
 // ============================================================
 // 1. DEPENDÊNCIAS E CONFIGURAÇÕES INICIAIS
 // ============================================================
@@ -11,27 +8,35 @@ const PDFDocument = require('pdfkit');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 const path = require('path');
-const fs = require('fs'); // Necessário para salvar PDFs localmente
+const fs = require('fs');
+const cron = require('node-cron');
+const multer = require('multer');
 
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY || '');
 const PORT = process.env.PORT || 10000;
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY; // Chave para rotas administrativas
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
+
+// Importação das rotas
 const agendamentoRoutes = require(path.join(__dirname, 'routes', 'agendamentoRoutes'));
-const webhookRoutesNew = require(path.join(__dirname, 'routes', 'webhookRoutesNew'));
-console.log('✅ webhookRoutesNew importado com sucesso.'); // Adicione este log
+
+// 🔥 IMPORTAÇÃO DO WEBHOOK - AGORA COM A FILA
+const { router: webhookRoutesNew, messageQueue } = require(path.join(__dirname, 'routes', 'webhookRoutesNew'));
+console.log('✅ webhookRoutesNew importado com sucesso.');
+
+const lembretesService = require('./services/lembretes.service');
+const { enviarWhatsApp, enviarPDFWhatsApp } = require('./utils/whatsappClient');
+
 
 // ============================================================
 // 2. CONFIGURAÇÃO DO SUPABASE
 // ============================================================
 let supabaseUrl = process.env.SUPABASE_URL || '';
 supabaseUrl = supabaseUrl.replace(/\/rest\/v1.*$/, '').replace(/\/+$/, '');
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''; // Usando SERVICE_ROLE_KEY para operações de servidor
-
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 if (!supabaseUrl || !supabaseKey) {
   throw new Error('SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias');
 }
-
 const supabase = createClient(supabaseUrl, supabaseKey);
 console.log('✅ URL do Supabase:', supabaseUrl);
 console.log('✅ Cliente Supabase inicializado com SERVICE_ROLE_KEY');
@@ -43,11 +48,115 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.use((req, res, next) => {
+    console.log(`📨 ${req.method} ${req.url}`);
+    next();
+});
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ============================================================
+// ============================================================
+// 4. ROTA DE UPLOAD DE PDF (DIRETA, ANTES DOS ROTEADORES)
+// ============================================================
+console.log('🔧 REGISTRANDO ROTA /api/agendamentos/upload-pdf...');
+
+const uploadMemory = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(new Error('Apenas arquivos PDF são permitidos'));
+        }
+    }
+});
+
+// 🔥 ROTA DE UPLOAD - DEFINIDA DIRETAMENTE NO APP
+app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (req, res) => {
+    console.log('🔥🔥🔥 ROTA /api/agendamentos/upload-pdf FOI CHAMADA! 🔥🔥🔥');
+    console.log('📥 req.file:', req.file);
+    console.log('📥 req.body:', req.body);
+    
+    try {
+        if (!req.file) {
+            console.log('❌ Nenhum arquivo enviado');
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Nenhum arquivo enviado. Use o campo "pdfFile".' 
+            });
+        }
+
+        console.log(`📄 Recebendo PDF: ${req.file.originalname}, tamanho: ${req.file.size} bytes`);
+
+        // Importa o serviço de forma segura
+        let agendamentoService;
+        try {
+            agendamentoService = require('./services/agendamentoService');
+            console.log('✅ agendamentoService importado com sucesso');
+        } catch (importError) {
+            console.error('❌ Erro ao importar agendamentoService:', importError.message);
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Serviço de agendamento não disponível',
+                error: importError.message 
+            });
+        }
+
+        if (typeof agendamentoService.extractAndSavePdfAgendamentos !== 'function') {
+            console.error('❌ Função extractAndSavePdfAgendamentos não encontrada');
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Função de extração não disponível no serviço' 
+            });
+        }
+
+        const resultado = await agendamentoService.extractAndSavePdfAgendamentos(req.file.buffer);
+
+        if (!resultado.success) {
+            return res.status(400).json(resultado);
+        }
+
+        res.json({
+            success: true,
+            message: `PDF processado com sucesso! ${resultado.agendamentosSalvos?.length || 0} agendamentos criados.`,
+            data: resultado
+        });
+
+    } catch (error) {
+        console.error('❌ Erro no upload do PDF:', error);
+        console.error('❌ Stack:', error.stack);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erro ao processar PDF', 
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
+console.log('✅ ROTA /api/agendamentos/upload-pdf REGISTRADA COM SUCESSO!');
+
+
+// ============================================================
+// 5. ROTAS DA API
+// ============================================================
 app.use('/api/agendamentos', agendamentoRoutes);
 app.use('/api/webhook', webhookRoutesNew);
-console.log('✅ Rota /api/webhook montada.'); // Adicione este log
+console.log('✅ Rota /api/webhook montada.');
+
+app.use('/api/admin/agendamentos', agendamentoRoutes);
+console.log('✅ Rota /api/admin/agendamentos montada.');
+
+app.get('/admin.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+console.log('✅ Rota /admin.html montada.');
+
 // ============================================================
-// 4. CONSTANTES
+// 6. CONSTANTES DO BOT
 // ============================================================
 
 const ONBOARDING_STEPS = {
@@ -213,21 +322,21 @@ const FEATURES = {
 };
 
 // ============================================================
-// 5. ESTADO DO USUÁRIO (PARA O BOT)
+// 7. ESTADO DO USUÁRIO (PARA O BOT)
 // ============================================================
 const userState = new Map();
 
 setInterval(() => {
     const now = Date.now();
     for (const [phone, data] of userState.entries()) {
-        if (data.lastActivity && (now - data.lastActivity) > 30 * 60 * 1000) { // 30 minutos
+        if (data.lastActivity && (now - data.lastActivity) > 30 * 60 * 1000) {
             userState.delete(phone);
         }
     }
-}, 60 * 1000); // Executa a cada minuto
+}, 60 * 1000);
 
 // ============================================================
-// 6. FUNÇÕES AUXILIARES GERAIS
+// 8. FUNÇÕES AUXILIARES GERAIS
 // ============================================================
 
 function limparTelefone(telefone) {
@@ -383,116 +492,7 @@ function isSpamData(dados) {
 }
 
 // ============================================================
-// 7. FUNÇÕES DE ENVIO DE MENSAGENS (WHATSAPP E EMAIL)
-// ============================================================
-
-// Função global para enviar mensagens via Z-API
-async function enviarWhatsApp(telefone, mensagem) {
-    const ZAPI_INSTANCE_ID = String(process.env.ZAPI_INSTANCE_ID || '').trim();
-    const ZAPI_TOKEN = String(process.env.ZAPI_TOKEN || '').trim();
-    const ZAPI_CLIENT_TOKEN = String(process.env.ZAPI_CLIENT_TOKEN || '').trim();
-
-    if (!ZAPI_TOKEN || !ZAPI_INSTANCE_ID) {
-        console.error('❌ ZAPI_TOKEN ou ZAPI_INSTANCE_ID ausentes. Não é possível enviar WhatsApp.');
-        return false;
-    }
-
-    const urlZapi = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`;
-    const headers = { 'Content-Type': 'application/json' };
-    if (ZAPI_CLIENT_TOKEN) {
-        headers['Client-Token'] = ZAPI_CLIENT_TOKEN;
-    }
-
-    try {
-        const responseZapi = await fetch(urlZapi, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-                phone: telefone,
-                message: mensagem
-            })
-        });
-
-        const respostaTexto = await responseZapi.text();
-        let dataZapi;
-        try {
-            dataZapi = respostaTexto ? JSON.parse(respostaTexto) : {};
-        } catch {
-            dataZapi = respostaTexto;
-        }
-
-        console.log(`📨 Z-API status para ${telefone}: ${responseZapi.status}`);
-        console.log('📨 Z-API resposta:', dataZapi);
-
-        if (!responseZapi.ok) {
-            console.error('❌ Falha ao enviar resposta via Z-API:', dataZapi);
-            return false;
-        }
-        return true;
-    } catch (error) {
-        console.error('❌ Erro ao enviar mensagem WhatsApp:', error);
-        return false;
-    }
-}
-
-// Função para enviar PDF via WhatsApp
-async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
-    const ZAPI_INSTANCE_ID = String(process.env.ZAPI_INSTANCE_ID || '').trim();
-    const ZAPI_TOKEN = String(process.env.ZAPI_TOKEN || '').trim();
-    const ZAPI_CLIENT_TOKEN = String(process.env.ZAPI_CLIENT_TOKEN || '').trim();
-
-    if (!ZAPI_TOKEN || !ZAPI_INSTANCE_ID) {
-        console.error('❌ ZAPI_TOKEN ou ZAPI_INSTANCE_ID ausentes. Não é possível enviar PDF por WhatsApp.');
-        return false;
-    }
-
-    const urlZapi = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-document/base64`;
-    const headers = { 'Content-Type': 'application/json' };
-    if (ZAPI_CLIENT_TOKEN) {
-        headers['Client-Token'] = ZAPI_CLIENT_TOKEN;
-    }
-
-    try {
-        const responseZapi = await fetch(urlZapi, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-                phone: telefone,
-                document: pdfBuffer.toString('base64'),
-                filename: `DS160_${nomeCliente.replace(/[^a-z0-9]/gi, '_')}.pdf`,
-                caption: `🎉 Olá ${nomeCliente}! Seu formulário DS-160 está pronto! Segue o PDF para sua revisão. Em breve nossa equipe entrará em contato com os próximos passos.`
-            })
-        });
-
-        const respostaTexto = await responseZapi.text();
-        let dataZapi;
-        try {
-            dataZapi = respostaTexto ? JSON.parse(respostaTexto) : {};
-        } catch {
-            dataZapi = respostaTexto;
-        }
-
-        console.log(`📨 Z-API PDF status para ${telefone}: ${responseZapi.status}`);
-        console.log('📨 Z-API PDF resposta:', dataZapi);
-
-        if (!responseZapi.ok) {
-            console.error('❌ Falha ao enviar PDF via Z-API:', dataZapi);
-            return false;
-        }
-        return true;
-    } catch (error) {
-        console.error('❌ Erro ao enviar PDF WhatsApp:', error);
-        return false;
-    }
-}
-
-// Função global para enviar respostas do bot (usada pelo webhook)
-async function sendReply(cleanPhone, message) {
-    return enviarWhatsApp(cleanPhone, message);
-}
-
-// ============================================================
-// 8. FUNÇÕES DE CLASSIFICAÇÃO E RESPOSTAS DO BOT
+// 10. FUNÇÕES DE CLASSIFICAÇÃO E RESPOSTAS DO BOT
 // ============================================================
 
 function normalizarTexto(texto) {
@@ -513,7 +513,6 @@ function detectarIntencao(mensagem) {
     return 'desconhecida';
   }
 
-  // --- SAUDACOES ---
   const saudacoes = [
     'oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'opa', 'e ai', 'tudo bem', 'hello', 'hi'
   ];
@@ -522,7 +521,6 @@ function detectarIntencao(mensagem) {
     return 'saudacao';
   }
 
-  // --- SOLICITAR FORMULARIO DS-160 ---
   if (
     ['ds160', 'formulario ds160', 'quero preencher ds160', 'preciso do ds160',
      'formulario visto americano', 'preencher visto americano', 'quero o formulario', 'link do formulario'].some((item) => texto.includes(item))
@@ -531,7 +529,6 @@ function detectarIntencao(mensagem) {
     return 'solicitar_ds160';
   }
 
-  // --- ANDAMENTO ---
   if (
     [
       'status', 'andamento', 'situacao', 'etapa', 'fase', 'progresso',
@@ -542,7 +539,6 @@ function detectarIntencao(mensagem) {
     return 'andamento';
   }
 
-  // --- DOCUMENTOS ---
   if (
     [
       'documento', 'documentos', 'documentacao', 'requisito', 'requisitos',
@@ -553,7 +549,6 @@ function detectarIntencao(mensagem) {
     return 'documentos';
   }
 
-  // --- PRAZO ---
   if (
     [
       'prazo', 'quanto tempo', 'quanto demora', 'demora', 'dias', 'semanas',
@@ -564,7 +559,6 @@ function detectarIntencao(mensagem) {
     return 'prazo';
   }
 
-  // --- PAGAMENTO ---
   if (
     [
       'pagamento', 'pagar', 'preco', 'valor', 'valores', 'quanto custa',
@@ -575,7 +569,6 @@ function detectarIntencao(mensagem) {
     return 'pagamento';
   }
 
-  // --- AJUDA ---
   if (
     [
       'ajuda', 'atendente', 'especialista', 'falar com alguem',
@@ -586,7 +579,6 @@ function detectarIntencao(mensagem) {
     return 'ajuda';
   }
 
-  // --- VISTO NEGADO ---
   if (
     [
       'negado', 'negativa', 'recusado', 'recusaram', 'deportado', 'visto negado'
@@ -596,7 +588,6 @@ function detectarIntencao(mensagem) {
     return 'visto_negado';
   }
 
-  // --- VISTO AMERICANO ---
   if (
     texto.includes('visto americano') ||
     texto.includes('visto eua') ||
@@ -609,7 +600,6 @@ function detectarIntencao(mensagem) {
     return 'visto_americano';
   }
 
-  // --- VISTO CANADENSE ---
   if (
     texto.includes('visto canadense') ||
     texto.includes('visto canada')
@@ -618,7 +608,6 @@ function detectarIntencao(mensagem) {
     return 'visto_canadense';
   }
 
-  // --- VISTO AUSTRALIANO ---
   if (
     texto.includes('visto australiano') ||
     texto.includes('visto australia')
@@ -627,7 +616,6 @@ function detectarIntencao(mensagem) {
     return 'visto_australiano';
   }
 
-  // --- ETA UK ---
   if (
     texto.includes('eta uk') ||
     texto.includes('reino unido') ||
@@ -637,13 +625,11 @@ function detectarIntencao(mensagem) {
     return 'eta_uk';
   }
 
-  // --- PASSAPORTE ---
   if (texto.includes('passaporte')) {
     console.log('DEBUG detectarIntencao: Intenção detectada: passaporte');
     return 'passaporte';
   }
 
-  // --- INICIAR PROCESSO ---
   if (
     [
       'quero fazer o visto', 'quero meu visto', 'iniciar processo', 'comecar processo',
@@ -685,7 +671,6 @@ function obterNomeEtapa(etapa) {
   return nomes[etapa] || 'Etapa Desconhecida';
 }
 
-// Helper para a mensagem do formulário DS-160 para o BOT
 function getMensagemFormularioParaBot(nomeCliente) {
     let primeiroNome = 'Cliente';
     try {
@@ -764,7 +749,6 @@ function gerarRespostaBot(intencao, nome, etapaAtual) {
   };
 
   console.log('--- DEBUG: Objeto respostas gerado ---');
-  console.log(respostas);
 
   return (
     respostas[intencao] ||
@@ -775,7 +759,7 @@ function gerarRespostaBot(intencao, nome, etapaAtual) {
 }
 
 // ============================================================
-// 9. FUNÇÕES DE MENU (BOT)
+// 10. FUNÇÕES DE MENU (BOT)
 // ============================================================
 
 async function getMenuPrincipal() {
@@ -860,7 +844,7 @@ function getSubmenu(service) {
 }
 
 // ============================================================
-// 10. FUNÇÕES DE ONBOARDING (BOT)
+// 11. FUNÇÕES DE ONBOARDING (BOT)
 // ============================================================
 
 async function processarOnboarding(cleanPhone, messageText, state) {
@@ -871,7 +855,6 @@ async function processarOnboarding(cleanPhone, messageText, state) {
     const telefoneLimpo = cleanPhone.toString().replace(/\D/g, '');
     console.log('📱 Telefone limpo para uso:', telefoneLimpo);
 
-    // Comandos de escape
     const escapeCommands = ['0', 'menu', 'menu principal', 'inicio', 'voltar', 'principal'];
     if (escapeCommands.includes(messageText.toLowerCase().trim())) {
         await sendReply(cleanPhone, '👋 Antes de continuar, preciso saber seu nome para te atender melhor!\n\n' +
@@ -909,11 +892,10 @@ async function processarOnboarding(cleanPhone, messageText, state) {
             const nomeFormatado = formatarNome(messageText);
             console.log('📝 Nome formatado: "' + nomeFormatado + '"');
 
-                        // SALVAR NOME COM UPSERT
             try {
                 console.log('DEBUG SUPABASE: Tentando upsert para telefone:', telefoneLimpo, 'nome:', nomeFormatado);
                 const { data, error } = await supabase
-                    .from('clientes_novos')
+                    .from('clientes')
                     .upsert({
                         telefone: telefoneLimpo,
                         nome: nomeFormatado,
@@ -971,7 +953,7 @@ async function processarOnboarding(cleanPhone, messageText, state) {
 
             try {
                 const { data, error } = await supabase
-                    .from('clientes_novos')
+                    .from('clientes')
                     .upsert({
                         telefone: telefoneLimpo,
                         nome: nome,
@@ -1055,12 +1037,11 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
         '2': 'prazo', 
         '3': 'documentos',
         '4': 'processo',
-        '5': 'especial', // Pode ser 'onde_fazer' para passaporte ou 'visto_negado' para outros
+        '5': 'especial',
         '6': 'avaliacao',
         '7': 'especialista'
     };
 
-    // Tenta processar como opção numérica do submenu
     if (opcoesSubmenu[messageText]) {
         console.log('Processando opção ' + messageText + ' do submenu de ' + service);
 
@@ -1095,16 +1076,15 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
 
             case '5':
                 if (service === 'passaporte') {
-                    // --- VERSÃO APRIMORADA COM INFORMAÇÕES DO GOV.BR ---
                     const msg = '🏛️ **ONDE FAZER O PASSAPORTE**\n\n' +
                                'O passaporte é emitido pela Polícia Federal. O processo é digitalizado e exige agendamento prévio.\n\n' +
                                '🔗 **Site Oficial:** <a href="https://www.gov.br/pf/pt-br/assuntos/passaporte" target="_blank" style="text-decoration: underline;">https://www.gov.br/pf/pt-br/assuntos/passaporte</a>\n\n' +
                                '📋 **Etapas Principais:**\n' +
-                               '1. **Preencher o Formulário:** Acesse o site da PF e preencha com atenção. A documentação necessária será verificada antes.\n' +
-                               '2. **Pagar a Taxa:** Gerada automaticamente. O valor comum é de *R$ 257,25*. Pode ser pago via PIX, Cartão ou Boleto.\n' +
-                               '3. **Agendar Atendimento:** Escolha o posto da PF. A retirada do passaporte ocorrerá na mesma unidade.\n' +
-                               '4. **Comparecer à Unidade:** Leve documentos originais. Serão coletados dados biométricos (digitais e foto).\n' +
-                               '5. **Consultar Andamento:** Acompanhe pelo site. O prazo de entrega é geralmente de *6 a 10 dias úteis*.\n' +
+                               '1. **Preencher o Formulário:** Acesse o site da PF e preencha com atenção.\n' +
+                               '2. **Pagar a Taxa:** Gerada automaticamente. O valor comum é de *R$ 257,25*.\n' +
+                               '3. **Agendar Atendimento:** Escolha o posto da PF.\n' +
+                               '4. **Comparecer à Unidade:** Leve documentos originais.\n' +
+                               '5. **Consultar Andamento:** Acompanhe pelo site.\n' +
                                '6. **Receber Passaporte:** Compareça ao posto com documento de identificação.\n\n' +
                                '💡 **Dica:** Agende com antecedência! Passaportes não retirados em 90 dias são cancelados.\n\n' +
                                '📌 ' + nomeCliente + ' - Você está em: PASSAPORTE\n' +
@@ -1155,22 +1135,20 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
                 await sendReply(cleanPhone, msgEsp);
                 break;
         }
-        return; // Retorna após processar a opção numérica
+        return;
     }
 
-    // Se não for uma opção numérica do submenu, tenta detectar uma intenção geral
     const intencaoDetectada = detectarIntencao(messageText);
     console.log('DEBUG processarOpcaoNoSubmenu: Tentando detectar intenção geral:', intencaoDetectada);
 
     if (intencaoDetectada && intencaoDetectada !== 'desconhecida') {
-        const respostaIntencao = gerarRespostaBot(intencaoDetectada, state.nome, null); // Passa null para etapaAtual
+        const respostaIntencao = gerarRespostaBot(intencaoDetectada, state.nome, null);
         if (respostaIntencao) {
             await sendReply(cleanPhone, respostaIntencao);
             return;
         }
     }
 
-    // Se não for opção numérica nem intenção geral, então é inválida
     const erroMsg = '❌ Opção inválida' + nomeCliente + '!\n\n' +
                    'Você está no menu: ' + getServiceName(service).toUpperCase() + '\n\n' +
                    'Opções disponíveis:\n' +
@@ -1179,14 +1157,11 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
     await sendReply(cleanPhone, erroMsg);
 }
 
-
 async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
     console.log('=== MENU PRINCIPAL ===');
     console.log('Mensagem recebida: "' + messageText + '"');
-    console.log('Estado recebido:', JSON.stringify(state, null, 2));
 
     try {
-        // MAPEAMENTO DE SERVIÇOS
         const servicoMap = {
             '1': 'visto_americano',
             '2': 'visto_canadense',
@@ -1196,7 +1171,6 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             '6': 'passaporte'
         };
 
-        // PROCESSAR ESCOLHA DE SERVIÇO (NÚMEROS)
         if (servicoMap[messageText]) {
             const serviceKey = servicoMap[messageText];
             console.log('Entrando no submenu de: ' + serviceKey);
@@ -1215,7 +1189,6 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
-        // OPÇÃO 7 - AJUDA / CONTATO
         if (messageText === '7') {
             const ajudaMsg = '📞 AJUDA / CONTATO GETVISA\n\n' +
                             '👨‍💼 Moisés - Especialista em Vistos\n\n' +
@@ -1228,17 +1201,15 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
-        // DETECTAR INTENÇÃO
         let intent = null;
         try {
-            intent = detectarIntencao(messageText); // Usando a função detectarIntencao do bot
+            intent = detectarIntencao(messageText);
             console.log('Intenção detectada:', intent);
         } catch (err) {
             console.error('❌ Erro ao detectar intenção:', err);
             intent = null;
         }
 
-        // INTENÇÃO: INICIAR PROCESSO ou SOLICITAR DS-160
         if (intent === 'iniciar_processo' || intent === 'solicitar_ds160') {
             console.log('🚀 Cliente quer iniciar o processo ou o formulário DS-160!');
 
@@ -1253,17 +1224,15 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             }
 
             try {
-                const mensagemFormulario = getMensagemFormularioParaBot(nomeCliente); // Usando a função do bot
+                const mensagemFormulario = getMensagemFormularioParaBot(nomeCliente);
                 await sendReply(cleanPhone, mensagemFormulario);
             } catch (err) {
                 console.error('❌ Erro ao gerar mensagem do formulário:', err);
-                // Fallback
                 await sendReply(cleanPhone, '🌟 Vamos iniciar seu processo!\n\n📋 Preencha nosso formulário:\n🔗 <a href="https://getvisa.com.br/formulario-ds160" target="_blank" style="text-decoration: underline;">https://getvisa.com.br/formulario-ds160</a>\n\n📱 Dúvidas? <a href="https://wa.me/5521974601812" target="_blank" style="text-decoration: underline;">https://wa.me/5521974601812</a>');
             }
             return;
         }
 
-        // INTENÇÃO: VISTO AMERICANO (direto para o submenu)
         if (intent === 'visto_americano') {
             state.nivel = 'submenu';
             state.service = 'visto_americano';
@@ -1278,10 +1247,9 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
-        // OUTRAS INTENÇÕES (respostas diretas)
         if (intent) {
             try {
-                const resposta = gerarRespostaBot(intent, state.nome, state.etapaAtual); // Usando gerarRespostaBot do bot
+                const resposta = gerarRespostaBot(intent, state.nome, state.etapaAtual);
                 await sendReply(cleanPhone, resposta + '\n\nDigite 0 para o menu principal');
             } catch (err) {
                 console.error('❌ Erro ao processar intenção:', err);
@@ -1290,7 +1258,6 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
-        // FALLBACK - MENSAGEM NÃO RECONHECIDA
         console.log('⚠️ Nenhuma intenção detectada para:', messageText);
 
         try {
@@ -1308,226 +1275,15 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
 }
 
 // ============================================================
-// 11. FUNÇÃO PRINCIPAL DE PROCESSAMENTO DE MENSAGENS (BOT)
-// ============================================================
-
-// ============================================================
-// FUNÇÕES DE ONBOARDING - VERSÃO CORRIGIDA E COM DEBUG
-// ============================================================
-
-async function processarOnboarding(cleanPhone, incomingOnboardingMessage, state) {
-    console.log('DEBUG processarOnboarding: cleanPhone:', cleanPhone);
-    console.log('DEBUG processarOnboarding: Passo atual:', state.onboardingStep);
-    console.log('DEBUG processarOnboarding: incomingOnboardingMessage (raw):', incomingOnboardingMessage, 'Type:', typeof incomingOnboardingMessage);
-
-    // Garante que a mensagem é uma string, mesmo que venha como outro tipo
-    let messageText = String(incomingOnboardingMessage || '').trim();
-    console.log('DEBUG processarOnboarding: messageText (após String()): "' + messageText + '" (Type: ' + typeof messageText + ')');
-
-    const telefoneLimpo = cleanPhone.toString().replace(/\D/g, '');
-
-    // Comandos de escape
-    const escapeCommands = ['0', 'menu', 'menu principal', 'inicio', 'voltar', 'principal'];
-    if (escapeCommands.includes(messageText.toLowerCase())) { // Use toLowerCase() aqui
-        await sendReply(cleanPhone, '👋 Antes de continuar, preciso saber seu nome para te atender melhor!\n\n' +
-            '📝 **Qual é o seu nome completo?**\n\nEx: Maria Silva');
-        return;
-    }
-
-    switch (state.onboardingStep) {
-        // ============================================================
-        // PASSO 1: SAUDAÇÃO - APRESENTAR A GETVISA
-        // ============================================================
-        case ONBOARDING_STEPS.SAUDACAO:
-            console.log('📌 PASSO 1: SAUDAÇÃO');
-            const saudacao = getRandomMessage(BOAS_VINDAS_MESSAGES.primeira_saudacao);
-            const pedirNome = getRandomMessage(BOAS_VINDAS_MESSAGES.solicitar_nome);
-
-            await sendReply(cleanPhone, saudacao + '\n\n' + pedirNome);
-
-            state.onboardingStep = ONBOARDING_STEPS.AGUARDANDO_NOME;
-            state.lastActivity = Date.now();
-            userState.set(cleanPhone, state);
-            console.log('✅ Estado atualizado para: AGUARDANDO_NOME');
-            break;
-
-        // ============================================================
-        // PASSO 2: AGUARDANDO NOME - VALIDAR E SALVAR
-        // ============================================================
-        case ONBOARDING_STEPS.AGUARDANDO_NOME:
-            console.log('📌 PASSO 2: AGUARDANDO NOME');
-            console.log('📝 Nome recebido: "' + messageText + '"');
-
-            const nomeValidado = validarNome(messageText);
-            console.log('✅ Nome válido?', nomeValidado);
-
-            if (!nomeValidado) {
-                const msgInvalido = getRandomMessage(BOAS_VINDAS_MESSAGES.nome_invalido);
-                await sendReply(cleanPhone, msgInvalido);
-                return;
-            }
-
-            const nomeFormatado = formatarNome(messageText);
-            console.log('📝 Nome formatado: "' + nomeFormatado + '"');
-
-            // SALVAR NOME COM UPSERT
-            try {
-                const { data, error } = await supabase
-                    .from('clientes_novos')
-                    .upsert({
-                        telefone: telefoneLimpo,
-                        nome: nomeFormatado,
-                        data_contato: new Date().toISOString(),
-                        status: 'novo',
-                        onboarding_completo: false,
-                        updated_at: new Date().toISOString()
-                    }, {
-                        onConflict: 'telefone'
-                    })
-                    .select()
-                    .single();
-
-                if (error) {
-                    console.error('❌ Erro ao salvar nome:', error);
-                    await sendReply(cleanPhone, '❌ Erro ao salvar seu nome. Tente novamente.');
-                    return;
-                }
-                console.log('✅ Nome salvo no Supabase:', nomeFormatado);
-            } catch (err) {
-                console.error('❌ Erro ao salvar nome:', err);
-                await sendReply(cleanPhone, '❌ Erro ao salvar. Tente novamente.');
-                return;
-            }
-
-            // ATUALIZAR ESTADO
-            state.nome = nomeFormatado;
-            state.onboardingStep = ONBOARDING_STEPS.AGUARDANDO_EMAIL;
-            state.lastActivity = Date.now();
-            userState.set(cleanPhone, state);
-            console.log('✅ Estado atualizado para: AGUARDANDO_EMAIL');
-
-            // ENVIAR MENSAGEM PEDINDO E-MAIL
-            const parte1 = getRandomMessage(BOAS_VINDAS_MESSAGES.confirmacao_nome.parte1);
-            const parte2 = getRandomMessage(BOAS_VINDAS_MESSAGES.confirmacao_nome.parte2);
-            const mensagemEmail = parte1 + nomeFormatado.split(' ')[0] + parte2;
-
-            await sendReply(cleanPhone, mensagemEmail);
-            console.log('📧 Mensagem de email enviada');
-            break;
-
-        // ============================================================
-        // PASSO 3: AGUARDANDO E-MAIL - VALIDAR E FINALIZAR
-        // ============================================================
-        case ONBOARDING_STEPS.AGUARDANDO_EMAIL:
-            console.log('📌 PASSO 3: AGUARDANDO EMAIL');
-            console.log('📧 Email recebido: "' + messageText + '"');
-
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(messageText)) {
-                console.log('❌ Email inválido');
-                await sendReply(cleanPhone, '❌ E-mail inválido! Por favor, digite um e-mail válido.\n\n📧 Ex: maria@email.com');
-                return;
-            }
-
-            const email = messageText.trim().toLowerCase();
-            const nome = state.nome;
-            console.log('📧 Email válido:', email);
-            console.log('👤 Nome associado:', nome);
-
-            // SALVAR E-MAIL E COMPLETAR ONBOARDING - USAR UPSERT
-            try {
-                const { data, error } = await supabase
-                    .from('clientes_novos')
-                    .upsert({
-                        telefone: telefoneLimpo,
-                        nome: nome,
-                        email: email,
-                        data_contato: new Date().toISOString(),
-                        status: 'novo',
-                        onboarding_completo: true,
-                        data_onboarding: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    }, {
-                        onConflict: 'telefone'
-                    })
-                    .select()
-                    .single();
-
-                if (error) {
-                    console.error('❌ Erro ao salvar e-mail:', error);
-                    await sendReply(cleanPhone, '❌ Erro ao salvar seu e-mail. Tente novamente.');
-                    return;
-                }
-                console.log('✅ E-mail salvo no Supabase:', email);
-                console.log('✅ Onboarding completo para:', nome);
-            } catch (err) {
-                console.error('❌ Erro ao salvar e-mail:', err);
-                await sendReply(cleanPhone, '❌ Erro ao salvar. Tente novamente.');
-                return;
-            }
-
-            // ATUALIZAR ESTADO - ONBOARDING COMPLETO
-            state.email = email;
-            state.onboardingCompleto = true;
-            state.onboardingStep = ONBOARDING_STEPS.COMPLETO;
-            state.nivel = 'principal';
-            state.service = null;
-            userState.set(cleanPhone, state);
-            console.log('✅ Estado atualizado para: COMPLETO');
-
-            // ENVIAR MENSAGEM DE CONFIRMAÇÃO COM MENU PRINCIPAL
-            const primeiroNome = nome.split(' ')[0];
-            const mensagemFinal = `✅ Perfeito, ${primeiroNome}! Seus dados foram salvos com sucesso!\n\n` +
-                                 `Agora escolha o serviço desejado:\n\n` +
-                                 `🌟 **GETVISA - ASSESSORIA EM VISTOS**\n\n` +
-                                 `1️⃣ - 🇺🇸 VISTO AMERICANO\n` +
-                                 `2️⃣ - 🇨🇦 VISTO CANADENSE\n` +
-                                 `3️⃣ - 🇦🇺 VISTO AUSTRALIANO\n` +
-                                 `4️⃣ - 🇬🇧 eTA UK (REINO UNIDO)\n` +
-                                 `5️⃣ - 🇨🇦 eTA CANADENSE\n` +
-                                 `6️⃣ - 🛂 PASSAPORTE\n` +
-                                 `7️⃣ - 📞 AJUDA / CONTATO\n\n` +
-                                 `Digite o número da opção (1-7)`;
-
-            await sendReply(cleanPhone, mensagemFinal);
-            console.log('📨 Mensagem de confirmação enviada');
-            break;
-
-        // ============================================================
-        // PASSO 4: COMPLETO (FALLBACK)
-        // ============================================================
-        case ONBOARDING_STEPS.COMPLETO:
-            console.log('⚠️ Onboarding já completo, enviando menu principal');
-            const menuCompleto = await getMenuPrincipal();
-            await sendReply(cleanPhone, menuCompleto);
-            break;
-
-        // ============================================================
-        // DEFAULT: RESETAR ONBOARDING
-        // ============================================================
-        default:
-            console.log('⚠️ Estado de onboarding desconhecido, reiniciando');
-            state.onboardingStep = ONBOARDING_STEPS.SAUDACAO;
-            state.onboardingCompleto = false;
-            state.nome = null;
-            state.email = null;
-            state.nivel = 'onboarding';
-            userState.set(cleanPhone, state);
-            await processarOnboarding(cleanPhone, messageText, state);
-    }
-}
-
-// ============================================================
-// FUNÇÃO PRINCIPAL DE PROCESSAMENTO DE MENSAGENS
+// 13. FUNÇÃO PRINCIPAL DE PROCESSAMENTO DE MENSAGENS (BOT)
 // ============================================================
 
 async function processarMensagem(cleanPhone, incomingMessageContent) {
     console.log('DEBUG processarMensagem: cleanPhone:', cleanPhone);
-    console.log('DEBUG processarMensagem: incomingMessageContent (raw):', incomingMessageContent, 'Type:', typeof incomingMessageContent);
+    console.log('DEBUG processarMensagem: incomingMessageContent (raw):', incomingMessageContent);
 
-    // Garante que a mensagem é uma string, mesmo que venha como outro tipo
     let messageText = String(incomingMessageContent || '').trim();
-    console.log('DEBUG processarMensagem: messageText (após String()):', messageText, 'Type:', typeof messageText);
+    console.log('DEBUG processarMensagem: messageText (após String()):', messageText);
 
     try {
         let state = userState.get(cleanPhone);
@@ -1545,20 +1301,18 @@ async function processarMensagem(cleanPhone, incomingMessageContent) {
             };
             userState.set(cleanPhone, state);
         } else {
-            state.lastActivity = Date.now(); // Atualiza a atividade
+            state.lastActivity = Date.now();
             userState.set(cleanPhone, state);
         }
 
         console.log('Estado atual:', state);
 
-        // Se o onboarding não estiver completo, processa o onboarding
         if (state.onboardingCompleto === false) {
             console.log('🔄 INICIANDO ONBOARDING');
             await processarOnboarding(cleanPhone, messageText, state);
             return;
         }
 
-        // Lógica para voltar ao menu principal
         if (messageText.toLowerCase() === '0' || messageText.toLowerCase() === 'menu') {
             state.nivel = 'principal';
             state.service = null;
@@ -1576,7 +1330,6 @@ async function processarMensagem(cleanPhone, incomingMessageContent) {
             }
         } catch (err) {
             console.error('❌ Erro ao processar opção:', err);
-            // Fallback: mostrar menu principal
             try {
                 const menu = await getMenuPrincipal();
                 await sendReply(cleanPhone, menu);
@@ -1599,42 +1352,54 @@ async function processarMensagem(cleanPhone, incomingMessageContent) {
 }
 
 // ============================================================
-// 12. WEBHOOK PRINCIPAL (Z-API)
+// 14. FUNÇÃO DE ENVIO DE RESPOSTA (WHATSAPP)
+// ============================================================
+
+async function sendReply(phone, message) {
+    try {
+        console.log(`📨 Enviando mensagem para ${phone}:`);
+        console.log(message);
+        const resultado = await enviarWhatsApp(phone, message);
+        console.log(`✅ Mensagem enviada: ${resultado}`);
+        return resultado;
+    } catch (error) {
+        console.error(`❌ Erro ao enviar mensagem para ${phone}:`, error);
+        return false;
+    }
+}
+
+// ============================================================
+// 15. WEBHOOK PRINCIPAL (Z-API)
 // ============================================================
 
 app.post('/api/webhook/zapi', async (req, res) => {
     console.log('--- DEBUG: INICIO WEBHOOK Z-API ---');
     console.log('Body recebido:', JSON.stringify(req.body, null, 2));
 
-    // A Z-API espera um status 200 OK imediatamente.
     res.status(200).send('OK');
 
-    // Processamento assíncrono para não bloquear a resposta da Z-API
     (async () => {
         try {
             const body = req.body;
-            const telefoneParaZapi = body.phone; // Telefone do remetente no formato Z-API (com 55)
+            const telefoneParaZapi = body.phone;
 
-            // --- CORREÇÃO AQUI: Extrair o texto da mensagem corretamente ---
             const rawZapiMessage = body.text && body.text.message ? body.text.message : '';
-            console.log('DEBUG WEBHOOK: rawZapiMessage (extraído):', rawZapiMessage, 'Type:', typeof rawZapiMessage);
+            console.log('DEBUG WEBHOOK: rawZapiMessage (extraído):', rawZapiMessage);
 
-            // Garante que a mensagem é uma string e remove espaços em branco
             const messageTextForProcessing = String(rawZapiMessage || '').trim();
-            console.log('DEBUG WEBHOOK: messageTextForProcessing (após String()):', messageTextForProcessing, 'Type:', typeof messageTextForProcessing);
+            console.log('DEBUG WEBHOOK: messageTextForProcessing:', messageTextForProcessing);
 
             if (!messageTextForProcessing || !telefoneParaZapi) {
-                console.log('⚠️ Mensagem ou telefone ausentes ou vazios, ignorando.');
+                console.log('⚠️ Mensagem ou telefone ausentes, ignorando.');
                 return;
             }
 
-            const cleanPhone = limparTelefone(telefoneParaZapi); // Telefone limpo (sem 55)
+            const cleanPhone = limparTelefone(telefoneParaZapi);
 
-            // Buscar nome do cliente para usar nas respostas (lógica mantida)
             let nomeParaSalvar = 'Cliente';
             try {
                 const { data: clienteExistente } = await supabase
-                    .from('clientes_novos')
+                    .from('clientes')
                     .select('nome')
                     .eq('telefone', cleanPhone)
                     .maybeSingle();
@@ -1645,8 +1410,6 @@ app.post('/api/webhook/zapi', async (req, res) => {
                 console.error('Erro ao buscar nome do cliente no webhook:', err);
             }
 
-            // Chamar a função principal de processamento de mensagens
-            // --- CORREÇÃO AQUI: Passar apenas os dois argumentos esperados ---
             await processarMensagem(cleanPhone, messageTextForProcessing);
 
         } catch (erro) {
@@ -1654,14 +1417,13 @@ app.post('/api/webhook/zapi', async (req, res) => {
         }
     })();
 });
+
 // ============================================================
-// 13. FUNÇÕES DE GERAÇÃO DE PDF (DS-160)
+// 16. FUNÇÕES DE GERAÇÃO DE PDF (DS-160)
 // ============================================================
 
-// Placeholder para a função de validação do DS-160
 function validateDS160(formData) {
     const errors = {};
-    // Exemplo de validação:
     if (!formData['full_name'] || formData['full_name'].trim() === '') {
         errors['full_name'] = 'Nome completo é obrigatório.';
     }
@@ -1671,12 +1433,9 @@ function validateDS160(formData) {
     if (!formData['telefone'] || formData['telefone'].trim() === '') {
         errors['telefone'] = 'Telefone é obrigatório.';
     }
-    // Adicione mais validações conforme necessário para cada campo crítico do seu formulário
-    // Lembre-se de que esta função deve ser robusta para garantir a qualidade dos dados.
     return { isValid: Object.keys(errors).length === 0, errors };
 }
 
-// Função para gerar o PDF do DS-160
 async function gerarPDF_DS160(dados) {
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({
@@ -1795,7 +1554,6 @@ async function gerarPDF_DS160(dados) {
     });
 }
 
-// Helper para a mensagem do formulário DS-160 para o CLIENTE (após envio)
 function getMensagemFormularioDS160ParaCliente(nomeCliente) {
     let primeiroNome = 'Cliente';
     try {
@@ -1817,10 +1575,10 @@ function getMensagemFormularioDS160ParaCliente(nomeCliente) {
 }
 
 // ============================================================
-// 14. FUNÇÕES DE GERENCIAMENTO DE CLIENTES E ETAPAS
+// 17. FUNÇÕES DE GERENCIAMENTO DE CLIENTES E ETAPAS
 // ============================================================
 
-async function buscarClienteEmQualquerTabela(telefoneLimpo, tabelaInicial = 'clientes_novos') {
+async function buscarClienteEmQualquerTabela(telefoneLimpo, tabelaInicial = 'clientes') {
     const tabelas = [tabelaInicial, 'clientes_ativos', 'clientes_finalizados', 'contatos_amigos'];
     for (const tabela of tabelas) {
         try {
@@ -1860,7 +1618,7 @@ async function criarEtapaInicial(telefone) {
         console.log('✅ Etapa inicial criada para:', telefone);
         return data;
     } catch (error) {
-        if (error.code === '23505') { // Duplicate key error
+        if (error.code === '23505') {
             console.log('⚠️ Etapa inicial já existe para este cliente:', telefone);
             return null;
         }
@@ -1946,23 +1704,20 @@ async function notificarClienteEtapa(clienteTelefone, etapaId, mensagemPersonali
 }
 
 // ============================================================
-// 15. ROTAS DE API (FORMULÁRIOS E ADMINISTRAÇÃO)
+// 18. ROTAS DE API (FORMULÁRIOS E ADMINISTRAÇÃO)
 // ============================================================
 
-// Rota para submissão do formulário DS-160
 app.post('/api/submit-ds160', async (req, res) => {
     console.log('--- DEBUG: INICIO submit-ds160 ---');
     console.log('Body recebido:', JSON.stringify(req.body, null, 2));
 
     const formData = req.body;
 
-    // 1. Verificar dados de spam
     if (isSpamData(formData)) {
         console.log('❌ Dados identificados como SPAM, ignorando.');
         return res.status(400).json({ success: false, message: 'Dados inválidos ou spam.' });
     }
 
-    // 2. Validar dados do formulário
     const { isValid, errors } = validateDS160(formData);
     if (!isValid) {
         console.log('❌ Erros de validação:', errors);
@@ -1974,11 +1729,9 @@ app.post('/api/submit-ds160', async (req, res) => {
     const emailCliente = formData.email;
 
     try {
-        // 3. Gerar PDF
         const pdfBuffer = await gerarPDF_DS160(formData);
         console.log(`📄 PDF gerado para ${nomeCliente}, tamanho: ${pdfBuffer.length} bytes`);
 
-        // 4. Salvar dados no Supabase (clientes_ativos e formularios_ds160)
         const { data: clienteAtivo, error: clienteError } = await supabase
             .from('clientes_ativos')
             .upsert({
@@ -1999,7 +1752,7 @@ app.post('/api/submit-ds160', async (req, res) => {
             .from('formularios_ds160')
             .upsert({
                 telefone: telefoneLimpo,
-                ...formData, // Salva todos os dados do formulário
+                ...formData,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             }, { onConflict: 'telefone' })
@@ -2009,17 +1762,14 @@ app.post('/api/submit-ds160', async (req, res) => {
         if (formError) throw formError;
         console.log('✅ Formulário DS-160 salvo/atualizado:', formSalvo.telefone);
 
-        // 5. Criar/Atualizar etapa do processo
-        await criarEtapaInicial(telefoneLimpo); // Garante que a etapa inicial é 'formulario_enviado'
+        await criarEtapaInicial(telefoneLimpo);
 
-        // 6. Remover de clientes_novos (se existir)
-        await supabase.from('clientes_novos').delete().eq('telefone', telefoneLimpo);
-        console.log('🗑️ Cliente removido de clientes_novos (se existia)');
+        await supabase.from('clientes').delete().eq('telefone', telefoneLimpo);
+        console.log('🗑️ Cliente removido de clientes (se existia)');
 
-        // 7. Enviar PDF por e-mail para a equipe
         await resend.emails.send({
             from: 'GetVisa <contato@getvisa.com.br>',
-            to: [process.env.ADMIN_EMAIL || 'contato@getvisa.com.br'], // Email da equipe
+            to: [process.env.ADMIN_EMAIL || 'contato@getvisa.com.br'],
             subject: `NOVO DS-160 Recebido - ${nomeCliente}`,
             html: `<strong>Olá equipe!</strong><br><p>Um novo formulário DS-160 foi preenchido por ${nomeCliente} (${emailCliente}).</p><p>Telefone: ${formatarTelefone(telefoneLimpo)}</p><p>Anexado o PDF para revisão.</p>`,
             attachments: [{
@@ -2029,7 +1779,6 @@ app.post('/api/submit-ds160', async (req, res) => {
         });
         console.log('📧 PDF enviado por e-mail para a equipe.');
 
-        // 8. Enviar PDF por e-mail para o cliente
         if (emailCliente) {
             await resend.emails.send({
                 from: 'GetVisa <contato@getvisa.com.br>',
@@ -2044,13 +1793,11 @@ app.post('/api/submit-ds160', async (req, res) => {
             console.log('📧 PDF enviado por e-mail para o cliente:', emailCliente);
         }
 
-        // 9. Enviar mensagem de confirmação e PDF por WhatsApp para o cliente
         const mensagemConfirmacao = getMensagemFormularioDS160ParaCliente(nomeCliente);
         await enviarWhatsApp(telefoneLimpo, mensagemConfirmacao);
         await enviarPDFWhatsApp(telefoneLimpo, pdfBuffer, nomeCliente);
         console.log('📱 Mensagem de confirmação e PDF enviados por WhatsApp para o cliente.');
 
-        // 10. Notificar a equipe via WhatsApp (opcional)
         await enviarWhatsApp(process.env.ADMIN_PHONE || '5521974601812', `🔔 NOVO DS-160 de ${nomeCliente} (${formatarTelefone(telefoneLimpo)}) recebido!`);
         console.log('📱 Notificação para a equipe via WhatsApp.');
 
@@ -2062,7 +1809,6 @@ app.post('/api/submit-ds160', async (req, res) => {
     }
 });
 
-// Rota para regenerar PDF DS-160 a partir dos dados salvos
 app.post('/api/admin/regenerar-pdf', async function(req, res) {
     try {
         const adminKey = req.headers['x-admin-key'];
@@ -2107,7 +1853,7 @@ app.post('/api/admin/regenerar-pdf', async function(req, res) {
 
         if (!formulario) {
             return res.status(404).json({
-                error: 'Dados do formulário não encontrados. O cliente pode ter preenchido antes de salvarmos os dados completos.'
+                error: 'Dados do formulário não encontrados.'
             });
         }
 
@@ -2172,7 +1918,6 @@ app.post('/api/admin/regenerar-pdf', async function(req, res) {
     }
 });
 
-// Rota para buscar dados do formulário
 app.get('/api/admin/buscar-formulario/:telefone', async function(req, res) {
     try {
         const adminKey = req.headers['x-admin-key'];
@@ -2183,7 +1928,7 @@ app.get('/api/admin/buscar-formulario/:telefone', async function(req, res) {
         const telefone = req.params.telefone;
         const telefoneLimpo = limparTelefone(telefone);
 
-        const tabelas = ['formularios_ds160', 'clientes_ativos', 'clientes_novos'];
+        const tabelas = ['formularios_ds160', 'clientes_ativos', 'clientes'];
         let dados = null;
         let encontradoEm = null;
 
@@ -2223,7 +1968,6 @@ app.get('/api/admin/buscar-formulario/:telefone', async function(req, res) {
     }
 });
 
-// Rota para finalizar cliente
 app.post('/api/clientes/finalizar', async function(req, res) {
     try {
         var telefone = req.body.telefone;
@@ -2296,7 +2040,7 @@ app.post('/api/clientes/finalizar', async function(req, res) {
             .eq('telefone', telefone);
 
         await supabase
-            .from('clientes_novos')
+            .from('clientes')
             .delete()
             .eq('telefone', telefone);
 
@@ -2350,7 +2094,6 @@ app.post('/api/clientes/finalizar', async function(req, res) {
     }
 });
 
-// Rota de teste - verificar conexão com o banco
 app.get('/api/test/banco', async function(req, res) {
     try {
         console.log('🔍 TESTANDO CONEXÃO COM O BANCO...');
@@ -2386,7 +2129,6 @@ app.get('/api/test/banco', async function(req, res) {
     }
 });
 
-// Rota de finalização - corresponde ao que o painel envia
 app.post('/api/etapas/finalizar', async function(req, res) {
     console.log('📌 ===== ROTA /api/etapas/finalizar CHAMADA =====');
     console.log('📌 Body recebido:', JSON.stringify(req.body, null, 2));
@@ -2513,7 +2255,7 @@ app.post('/api/etapas/finalizar', async function(req, res) {
             .eq('telefone', cliente.telefone);
 
         await supabase
-            .from('clientes_novos')
+            .from('clientes')
             .delete()
             .eq('telefone', cliente.telefone);
 
@@ -2604,7 +2346,6 @@ app.post('/api/etapas/finalizar', async function(req, res) {
     }
 });
 
-// Rota para listar clientes finalizados
 app.get('/api/clientes/finalizados', async function(req, res) {
     try {
         console.log('📌 [GET] /api/clientes/finalizados');
@@ -2882,12 +2623,10 @@ app.get('/api/clientes/buscar/:telefone', async function(req, res) {
     }
 });
 
-// Rota de teste - recebimento
 app.post('/api/test-receive', function(req, res) {
     console.log('📨 ===== TESTE DE RECEBIMENTO =====');
     console.log('📨 Headers:', req.headers);
     console.log('📨 Body recebido:', JSON.stringify(req.body, null, 2));
-    console.log('📨 Body keys:', Object.keys(req.body));
 
     const logData = {
         timestamp: new Date().toISOString(),
@@ -2907,7 +2646,6 @@ app.post('/api/test-receive', function(req, res) {
     });
 });
 
-// Endpoint de diagnóstico - crie cliente
 app.post('/api/debug/criar-cliente', async (req, res) => {
     console.log('🔍 ===== DEBUG: CRIAR CLIENTE =====');
 
@@ -2925,9 +2663,9 @@ app.post('/api/debug/criar-cliente', async (req, res) => {
         console.log('📱 Telefone:', telefoneLimpo);
         console.log('👤 Nome:', nome || '(vazio)');
 
-        console.log('🔍 Verificando tabela clientes_novos...');
+        console.log('🔍 Verificando tabela clientes...');
         const { error: tableCheck } = await supabase
-            .from('clientes_novos')
+            .from('clientes')
             .select('id')
             .limit(1);
 
@@ -2937,7 +2675,7 @@ app.post('/api/debug/criar-cliente', async (req, res) => {
                 sucesso: false,
                 etapa: 'verificacao_tabela',
                 erro: tableCheck,
-                mensagem: 'Tabela clientes_novos não existe ou está inacessível'
+                mensagem: 'Tabela clientes não existe ou está inacessível'
             });
         }
 
@@ -2956,7 +2694,7 @@ app.post('/api/debug/criar-cliente', async (req, res) => {
 
         let upsertData;
         const { data: insertData, error: upsertError } = await supabase
-            .from('clientes_novos')
+            .from('clientes')
             .upsert(dados, { onConflict: 'telefone' })
             .select()
             .single();
@@ -2966,7 +2704,7 @@ app.post('/api/debug/criar-cliente', async (req, res) => {
 
             console.log('🔄 Tentando INSERT direto...');
             const { data: directInsertData, error: insertError } = await supabase
-                .from('clientes_novos')
+                .from('clientes')
                 .insert(dados)
                 .select()
                 .single();
@@ -3014,13 +2752,12 @@ app.post('/api/debug/criar-cliente', async (req, res) => {
     }
 });
 
-// Endpoint para verificar estrutura da tabela
 app.get('/api/debug/verificar-tabela', async (req, res) => {
-    console.log('🔍 ===== VERIFICANDO TABELA =====');
+    console.log('🔍 ===== VERIFICANDO TABELA clientes =====');
 
     try {
         const { error: tableError } = await supabase
-            .from('clientes_novos')
+            .from('clientes')
             .select('id')
             .limit(1);
 
@@ -3028,12 +2765,12 @@ app.get('/api/debug/verificar-tabela', async (req, res) => {
             return res.json({
                 existe: false,
                 erro: tableError,
-                mensagem: 'Tabela clientes_novos não existe'
+                mensagem: 'Tabela clientes não existe'
             });
         }
 
         const { data: sample, error: sampleError } = await supabase
-            .from('clientes_novos')
+            .from('clientes')
             .select('*')
             .limit(1);
 
@@ -3052,7 +2789,7 @@ app.get('/api/debug/verificar-tabela', async (req, res) => {
             colunas: colunas,
             tem_dados: sample && sample.length > 0,
             amostra: sample && sample.length > 0 ? sample[0] : null,
-            mensagem: 'Tabela existe e está acessível'
+            mensagem: 'Tabela clientes existe e está acessível'
         });
 
     } catch (error) {
@@ -3063,13 +2800,12 @@ app.get('/api/debug/verificar-tabela', async (req, res) => {
     }
 });
 
-// Endpoint para criar tabela (se necessário)
 app.post('/api/debug/criar-tabela', async (req, res) => {
-    console.log('🔍 ===== CRIANDO TABELA =====');
+    console.log('🔍 ===== CRIANDO TABELAS =====');
 
     try {
         const sql = `
-            CREATE TABLE IF NOT EXISTS clientes_novos (
+            CREATE TABLE IF NOT EXISTS clientes (
                 id SERIAL PRIMARY KEY,
                 telefone VARCHAR(20) UNIQUE NOT NULL,
                 nome VARCHAR(100),
@@ -3081,8 +2817,8 @@ app.post('/api/debug/criar-tabela', async (req, res) => {
                 updated_at TIMESTAMP DEFAULT NOW()
             );
 
-            CREATE INDEX IF NOT EXISTS idx_clientes_novos_telefone ON clientes_novos(telefone);
-            CREATE INDEX IF NOT EXISTS idx_clientes_novos_status ON clientes_novos(status);
+            CREATE INDEX IF NOT EXISTS idx_clientes_telefone ON clientes(telefone);
+            CREATE INDEX IF NOT EXISTS idx_clientes_status ON clientes(status);
 
             CREATE TABLE IF NOT EXISTS clientes_ativos (
                 id SERIAL PRIMARY KEY,
@@ -3116,7 +2852,7 @@ app.post('/api/debug/criar-tabela', async (req, res) => {
 
             CREATE TABLE IF NOT EXISTS etapas_processo (
                 id SERIAL PRIMARY KEY,
-                cliente_telefone VARCHAR(20) UNIQUE NOT NULL REFERENCES clientes_ativos(telefone) ON DELETE CASCADE,
+                cliente_telefone VARCHAR(20) UNIQUE NOT NULL,
                 etapa_atual VARCHAR(50) NOT NULL,
                 data_atualizacao TIMESTAMP DEFAULT NOW(),
                 historico JSONB DEFAULT '[]',
@@ -3161,7 +2897,6 @@ app.post('/api/debug/criar-tabela', async (req, res) => {
     }
 });
 
-// Endpoint para testar webhook manualmente
 app.post('/api/debug/testar-webhook', async (req, res) => {
     console.log('🔍 ===== TESTE MANUAL DO WEBHOOK =====');
 
@@ -3182,7 +2917,7 @@ app.post('/api/debug/testar-webhook', async (req, res) => {
         const telefoneLimpo = cleanPhone;
 
         const { data: cliente, error } = await supabase
-            .from('clientes_novos')
+            .from('clientes')
             .upsert({
                 telefone: telefoneLimpo,
                 data_contato: new Date().toISOString(),
@@ -3230,7 +2965,6 @@ app.post('/api/debug/testar-webhook', async (req, res) => {
     }
 });
 
-// Rota para notificar cliente (admin)
 app.post('/api/admin/notificar-cliente', async function(req, res) {
     try {
         const adminKey = req.headers['x-admin-key'];
@@ -3308,7 +3042,6 @@ app.post('/api/admin/notificar-cliente', async function(req, res) {
     }
 });
 
-// Rota para mover cliente com notificação (painel)
 app.post('/api/painel/mover-com-notificacao', async function(req, res) {
     try {
         const adminKey = req.headers['x-admin-key'];
@@ -3323,7 +3056,7 @@ app.post('/api/painel/mover-com-notificacao', async function(req, res) {
         }
 
         const { data: cliente, error } = await supabase
-            .from('clientes_novos')
+            .from('clientes')
             .select('*')
             .eq('telefone', telefone)
             .maybeSingle();
@@ -3333,7 +3066,7 @@ app.post('/api/painel/mover-com-notificacao', async function(req, res) {
         }
 
         if (!cliente) {
-            return res.status(404).json({ error: 'Cliente não encontrado em clientes_novos' });
+            return res.status(404).json({ error: 'Cliente não encontrado em clientes' });
         }
 
         let resultado = {};
@@ -3384,7 +3117,7 @@ app.post('/api/painel/mover-com-notificacao', async function(req, res) {
                 }
             }
 
-            await supabase.from('clientes_novos').delete().eq('telefone', telefone);
+            await supabase.from('clientes').delete().eq('telefone', telefone);
 
             res.json({
                 success: true,
@@ -3406,7 +3139,6 @@ app.post('/api/painel/mover-com-notificacao', async function(req, res) {
     }
 });
 
-// Rota para notificar por tipo (painel)
 app.post('/api/etapas/notificar-por-tipo', async function(req, res) {
     try {
         const adminKey = req.headers['x-admin-key'];
@@ -3509,7 +3241,6 @@ app.get('/api/etapas/estatisticas', async function(req, res) {
     }
 });
 
-// Rotas de clientes
 app.get('/api/clientes/ativos', async function(req, res) {
     try {
         var result = await supabase
@@ -3536,9 +3267,9 @@ app.get('/api/clientes/ativos', async function(req, res) {
 app.get('/api/clientes/listar', async function(req, res) {
     try {
         var result = await supabase
-            .from('clientes') // Supondo que 'clientes' é uma tabela consolidada ou view
+            .from('clientes')
             .select('*')
-            .order('nome_completo', { ascending: true });
+            .order('nome', { ascending: true });
 
         if (result.error) throw result.error;
 
@@ -3556,7 +3287,6 @@ app.get('/api/clientes/listar', async function(req, res) {
     }
 });
 
-// Rotas de teste
 app.post('/api/test/webhook-manual', async function(req, res) {
     console.log('TESTE MANUAL');
     console.log('Body:', JSON.stringify(req.body, null, 2));
@@ -3587,7 +3317,6 @@ app.post('/api/test/webhook-manual', async function(req, res) {
     }
 });
 
-// Rotas admin
 app.get('/api/test/zapi', async function(req, res) {
     try {
         const adminKey = req.headers['x-admin-key'];
@@ -3595,7 +3324,7 @@ app.get('/api/test/zapi', async function(req, res) {
             return res.status(401).json({ error: 'Não autorizado' });
         }
 
-        const testPhone = process.env.ADMIN_PHONE || '5521974601812'; // Usar telefone admin para teste
+        const testPhone = process.env.ADMIN_PHONE || '5521974601812';
         const testMessage = '🧪 Teste de conexão Z-API - ' + new Date().toLocaleString('pt-BR');
 
         console.log(`📨 Testando Z-API para: ${testPhone}`);
@@ -3628,7 +3357,7 @@ app.get('/api/admin/verificar-cliente/:telefone', async function(req, res) {
 
         const telefoneLimpo = telefone.toString().replace(/\D/g, '');
 
-        const tables = ['clientes_novos', 'clientes_ativos', 'clientes_finalizados', 'contatos_amigos'];
+        const tables = ['clientes', 'clientes_ativos', 'clientes_finalizados', 'contatos_amigos'];
         const results = {};
 
         for (const table of tables) {
@@ -3694,22 +3423,142 @@ app.get('/api/admin/verificar-cliente/:telefone', async function(req, res) {
 });
 
 // ============================================================
-// 16. HEALTH CHECKS E INICIALIZAÇÃO DO SERVIDOR
+// 19. AGENDAR TREINAMENTO (via página)
+// ============================================================
+
+app.post('/api/agendar-treinamento', async (req, res) => {
+    try {
+        const { cliente_id, entrevista_id, tipo, data, horario } = req.body;
+
+        if (!cliente_id || !data || !horario) {
+            return res.status(400).json({ success: false, message: 'Dados incompletos' });
+        }
+
+        const { data: cliente, error: clienteError } = await supabase
+            .from('clientes')
+            .select('id')
+            .eq('id', cliente_id)
+            .single();
+
+        if (clienteError || !cliente) {
+            return res.status(404).json({ success: false, message: 'Cliente não encontrado' });
+        }
+
+        const novoAgendamento = {
+            cliente_id: cliente_id,
+            atividade: 'Treinamento',
+            data_agendamento: data,
+            hora_agendamento: horario,
+            local_agendamento: tipo,
+            observacoes: `Treinamento para entrevista. Tipo: ${tipo}. Entrevista ID: ${entrevista_id || 'N/A'}`,
+            concluido: false
+        };
+
+        const { data: agendamento, error } = await supabase
+            .from('agendamentos')
+            .insert([novoAgendamento])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ Erro ao criar treinamento:', error);
+            return res.status(500).json({ success: false, message: error.message });
+        }
+
+        try {
+            await lembretesService.generateRemindersForCompromisso(agendamento);
+        } catch (e) {
+            console.log('⚠️ Erro ao gerar lembretes para treinamento:', e.message);
+        }
+
+        try {
+            const { enviarWhatsApp } = require('./utils/whatsappClient');
+            const { data: clienteCompleto } = await supabase
+                .from('clientes')
+                .select('nome, telefone')
+                .eq('id', cliente_id)
+                .single();
+
+            if (clienteCompleto?.telefone) {
+                const mensagem = 
+                    `✅ *TREINAMENTO AGENDADO - GETVISA*\n\n` +
+                    `Olá *${clienteCompleto.nome}*!\n\n` +
+                    `Seu treinamento para a entrevista foi agendado com sucesso!\n\n` +
+                    `📅 Data: ${new Date(data).toLocaleDateString('pt-BR')}\n` +
+                    `⏰ Hora: ${horario}\n` +
+                    `📍 Tipo: ${tipo}\n\n` +
+                    `📌 Em breve nossa equipe entrará em contato para confirmar.\n\n` +
+                    `🌟 Equipe GetVisa`;
+                
+                await enviarWhatsApp(clienteCompleto.telefone, mensagem);
+            }
+        } catch (e) {
+            console.log('⚠️ Erro ao enviar confirmação do treinamento:', e.message);
+        }
+
+        res.json({ success: true, message: 'Treinamento agendado com sucesso!', data: agendamento });
+
+    } catch (error) {
+        console.error('❌ Erro ao agendar treinamento:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+// ============================================================
+// 🔥 PROCESSADOR DE FILA DE MENSAGENS (ADICIONAR ANTES DO LISTEN)
+// ============================================================
+setInterval(async () => {
+    if (messageQueue.length === 0) return;
+    
+    console.log(`🔄 Processando fila de mensagens (${messageQueue.length} mensagens)...`);
+    
+    while (messageQueue.length > 0) {
+        const item = messageQueue.shift();
+        try {
+            console.log(`📨 Processando mensagem de ${item.phone}: "${item.message}"`);
+            await processarMensagem(item.phone, item.message);
+            console.log(`✅ Mensagem processada com sucesso para ${item.phone}`);
+        } catch (err) {
+            console.error(`❌ Erro ao processar mensagem de ${item.phone}:`, err.message);
+            // Recolocar na fila se falhar (opcional)
+            // messageQueue.push(item);
+        }
+    }
+}, 3000); // Processa a cada 3 segundos
+
+// ============================================================
+// 20. HEALTH CHECKS E CRON JOB
 // ============================================================
 
 app.get('/health', (req, res) => { res.status(200).send('OK'); });
 app.get('/ping', (req, res) => { res.status(200).send('ok'); });
+
+cron.schedule('*/5 * * * *', async () => {
+    console.log('⏰ Executando cron job: processPendingReminders');
+    try {
+        await lembretesService.processPendingReminders();
+        console.log('✅ Cron job de lembretes concluído com sucesso.');
+    } catch (error) {
+        console.error('❌ Erro no cron job de lembretes:', error);
+    }
+});
+
+// ============================================================
+// 21. INICIALIZAÇÃO DO SERVIDOR
+// ============================================================
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Servidor rodando na porta ${PORT}`);
     console.log(`🔗 Webhook: http://localhost:${PORT}/api/webhook/zapi`);
     console.log(`📱 Z-API configurada: ${
         process.env.ZAPI_TOKEN &&
-        (process.env.ZAPI_INSTANCE_ID || process.env.ZAPI_CLIENT_ID)
+        (process.env.ZAPI_INSTANCE || process.env.ZAPI_CLIENT_TOKEN)
             ? '✅ Sim'
             : '❌ Não'
     }`);
     console.log(`🔑 ADMIN_API_KEY configurada: ${process.env.ADMIN_API_KEY ? '✅ Sim' : '❌ Não'}`);
     console.log(`📧 ADMIN_EMAIL configurado: ${process.env.ADMIN_EMAIL ? '✅ Sim' : '❌ Não'}`);
     console.log(`📞 ADMIN_PHONE configurado: ${process.env.ADMIN_PHONE ? '✅ Sim' : '❌ Não'}`);
+    console.log('⏰ Cron job de lembretes agendado para rodar a cada 5 minutos.');
 });

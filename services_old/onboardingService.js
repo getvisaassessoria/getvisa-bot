@@ -111,7 +111,7 @@ async function processarOnboarding(cleanPhone, messageText, state) {
             // 🔥 SALVAR E-MAIL E COMPLETAR ONBOARDING - USAR UPSERT
             try {
                 const { data, error } = await supabase // Usando supabase diretamente para o update específico
-                    .from('clientes_novos')
+                    .from('clientes')
                     .upsert({
                         telefone: telefoneLimpo,
                         nome: nome,

@@ -26,7 +26,7 @@ async function cadastrarCliente(telefone, nome) {
 
     try {
         const { data, error } = await supabase
-            .from('clientes_novos')
+            .from('clientes')
             .upsert(dadosCliente, {
                 onConflict: 'telefone'
             })
@@ -37,7 +37,7 @@ async function cadastrarCliente(telefone, nome) {
             console.error('❌ Erro ao salvar cliente (UPSERT):', error);
             // TENTAR INSERT DIRETO COMO FALLBACK
             const { data: insertData, error: insertError } = await supabase
-                .from('clientes_novos')
+                .from('clientes')
                 .insert(dadosCliente)
                 .select()
                 .single();
@@ -48,11 +48,11 @@ async function cadastrarCliente(telefone, nome) {
             }
 
             console.log('✅ Cliente inserido com sucesso (INSERT):', insertData);
-            return { dados: insertData, tipo: 'novo', tabela: 'clientes_novos' };
+            return { dados: insertData, tipo: 'novo', tabela: 'clientes' };
         }
 
         console.log('✅ Cliente cadastrado com sucesso (UPSERT):', data);
-        return { dados: data, tipo: 'novo', tabela: 'clientes_novos' };
+        return { dados: data, tipo: 'novo', tabela: 'clientes' };
 
     } catch (err) {
         console.error('❌ Erro exceção ao cadastrar cliente:', err);
@@ -74,7 +74,7 @@ async function buscarClienteEmQualquerTabela(telefone, tabelaEspecifica = null) 
     // Remove duplicatas
     const telefonesUnicos = [...new Set(variacoes)];
 
-    const tables = tabelaEspecifica ? [tabelaEspecifica] : ['clientes_novos', 'clientes_ativos', 'clientes_finalizados', 'contatos_amigos'];
+    const tables = tabelaEspecifica ? [tabelaEspecifica] : ['clientes', 'clientes_ativos', 'clientes_finalizados', 'contatos_amigos'];
 
     for (const table of tables) {
         for (const telefoneVariacao of telefonesUnicos) {

@@ -1,5 +1,5 @@
 // controllers/agendamentoController.js
-const agendamentoService = require('../services/agendamentoService'); // Caminho corrigido
+const agendamentoService = require('../services/agendamentoService');
 const { Buffer } = require('buffer'); // Para lidar com Base64
 
 /**
@@ -7,15 +7,52 @@ const { Buffer } = require('buffer'); // Para lidar com Base64
  * Espera um JSON com { pdfBase64: "..." }
  */
 async function uploadPdf(req, res) {
-    const { pdfBase64 } = req.body;
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'Nenhum arquivo PDF enviado.' });
+        }
+    const pdfBuffer = req.file.buffer; // O conteúdo binário do PDF
 
-    if (!pdfBase64) {
-        return res.status(400).json({ success: false, message: 'Nenhum arquivo PDF em Base64 foi fornecido.' });
+    // CHAMA A NOVA FUNÇÃO QUE EXTRAI E SALVA
+    const resultados = await agendamentoService.extractAndSavePdfAgendamentos(pdfBuffer);
+
+    if (resultados.success) {
+        // Retorna os agendamentos que foram salvos no banco de dados
+        return res.status(200).json({ success: true, message: 'PDF processado e agendamentos salvos com sucesso!', agendamentosSalvos: resultados.agendamentosSalvos });
+    } else {
+        // Retorna a mensagem de erro do serviço
+        return res.status(400).json({ success: false, message: resultados.message, error: resultados.error });
+    }
+
+} catch (error) {
+    console.error('Erro no controller ao fazer upload e processar PDF:', error);
+    return res.status(500).json({ success: false, message: 'Erro interno do servidor ao processar PDF.', error: error.message });
+}
+}
+
+
+
+/**
+ * Rota para salvar agendamentos manualmente.
+ * Espera um JSON com um ARRAY de agendamentos.
+ */
+async function saveManualAgendamentos(req, res) {
+    // Verifica se req.body é um array e se tem pelo menos um elemento
+    if (!Array.isArray(req.body) || req.body.length === 0) {
+        return res.status(400).json({ success: false, message: 'Requisição inválida: Esperado um array de agendamentos.' });
+    }
+
+    // Pega o primeiro agendamento do array para validação inicial
+    const primeiroAgendamento = req.body[0];
+
+    const { nomeCliente, telefoneCliente, dataCompromisso, horaCompromisso, localCompromisso, atividadeCompromisso } = primeiroAgendamento;
+
+    if (!nomeCliente || !telefoneCliente || !dataCompromisso || !horaCompromisso || !localCompromisso || !atividadeCompromisso) {
+        return res.status(400).json({ success: false, message: 'Dados incompletos para salvar agendamentos manualmente.' });
     }
 
     try {
-        const pdfBuffer = Buffer.from(pdfBase64, 'base64');
-        const resultado = await agendamentoService.processAndSavePdfAgendamentos(pdfBuffer);
+        const resultado = await agendamentoService.saveAgendamentos(req.body);
 
         if (resultado.success) {
             return res.status(200).json(resultado);
@@ -23,32 +60,8 @@ async function uploadPdf(req, res) {
             return res.status(400).json(resultado);
         }
     } catch (error) {
-        console.error('❌ Erro no controlador uploadPdf:', error);
-        return res.status(500).json({ success: false, message: 'Erro interno do servidor ao processar PDF.', error: error.message });
-    }
-}
-
-/**
- * Rota para salvar agendamentos manualmente.
- * Espera um JSON com { clientePrincipal, acompanhantes, localPadrao, etapas }
- */
-async function saveManualAgendamentos(req, res) {
-    const { clientePrincipal, acompanhantes, localPadrao, etapas } = req.body;
-
-    if (!clientePrincipal || !localPadrao || !etapas || etapas.length === 0) {
-        return res.status(400).json({ success: false, message: 'Dados incompletos para salvar agendamentos manualmente.' });
-    }
-
-    try {
-        const resultado = await agendamentoService.saveAgendamentos(clientePrincipal, acompanhantes || [], localPadrao, etapas);
-        if (resultado.success) {
-            return res.status(201).json(resultado);
-        } else {
-            return res.status(400).json(resultado);
-        }
-    } catch (error) {
         console.error('❌ Erro no controlador saveManualAgendamentos:', error);
-        return res.status(500).json({ success: false, message: 'Erro interno do servidor ao salvar agendamentos manualmente.', error: error.message });
+        return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 }
 
