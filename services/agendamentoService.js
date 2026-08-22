@@ -2,9 +2,9 @@
 const supabase = require('../config/supabase');
 const clientRepository = require('../repositories/clientRepository');
 const lembretesService = require('./lembretes.service');
-const agendamentoService = require('../services/agendamentoService');
-// ✅ Importação correta do pdf-parse
 const pdfParse = require('pdf-parse');
+const { enviarWhatsApp } = require('../utils/whatsappClient');
+
 console.log('✅ pdfParse carregado com sucesso!');
 
 // Mapeamento de meses
@@ -15,7 +15,6 @@ const mesesMap = {
     "Julho,": "07", "Agosto,": "08", "Setembro,": "09", "Outubro,": "10", "Novembro,": "11", "Dezembro,": "12"
 };
 
-// Função auxiliar para formatar a data do PDF
 function formatarDataPdf(dia, mes_nome, ano) {
     const mesNumero = mesesMap[mes_nome];
     if (!mesNumero) {
@@ -25,31 +24,6 @@ function formatarDataPdf(dia, mes_nome, ano) {
     return `${String(parseInt(dia)).padStart(2, '0')}/${mesNumero}/${ano}`;
 }
 
-// Função auxiliar para encontrar ou criar cliente
-async function findOrCreateClient(nomeCliente, telefoneCliente) {
-    let cliente = await clientRepository.findClientByTelefone(telefoneCliente);
-    if (!cliente) {
-        cliente = await clientRepository.createClient(nomeCliente, telefoneCliente);
-    }
-    return cliente;
-}
-
-// Função auxiliar para criar agendamento
-async function createAgendamento(agendamentoData) {
-    const { data, error } = await supabase
-        .from('agendamentos')
-        .insert([agendamentoData])
-        .select()
-        .single();
-
-    if (error) {
-        console.error('❌ Erro ao criar agendamento no Supabase:', error);
-        return null;
-    }
-    return data;
-}
-
-// Mapear local para texto
 function mapLocalToText(local) {
     const localUpper = local.toUpperCase();
     if (localUpper.includes('RIO DE JANEIRO')) return 'Consulado Americano - Rio de Janeiro';
@@ -60,7 +34,6 @@ function mapLocalToText(local) {
     return local.trim();
 }
 
-// Mapear atividade para texto
 function mapAtividadeToText(atividade) {
     const atividadeUpper = atividade.toUpperCase();
     if (atividadeUpper.includes('CASV')) return 'CASV';
@@ -71,23 +44,15 @@ function mapAtividadeToText(atividade) {
 }
 
 // ============================================================
-// FUNÇÃO DE EXTRAÇÃO DO PDF (CORRIGIDA COM FALLBACK)
+// FUNÇÃO DE EXTRAÇÃO DO PDF
 // ============================================================
 function extractAgendamentoDetailsFromText(pdfText) {
     const agendamentos = [];
     
     console.log('🔍 Extraindo dados do PDF...');
     
-    // 🔥 CORREÇÃO: Usar split que captura tanto com espaço quanto sem
-    // "Nome do Solicitante" pode vir como "Nome do Solicitante " ou "Nome do Solicitante"
-    const blocos = pdfText.split(/Nome do Solicitante\s*/);
-    const blocosSolicitantes = blocos.slice(1);
-    
-    console.log(`📋 Método 1: ${blocosSolicitantes.length} blocos encontrados`);
-    
     // Regex para extrair informações
     const regexInfo = {
-        // 🔥 CORREÇÃO: Nome pode estar colado ou com espaço
         nome: /^([A-ZÀ-Ú\s]+?)(?=\s+Classe do visto|$)/,
         ds160: /Número DS-160\s+([A-Z0-9]+)/,
         casv: /Data do Agendamento no CASV:\s*(\d{1,2})\s+([A-Za-zçã]+),\s+(\d{4}),\s+(\d{2}:\d{2})\s+([A-Za-z\s-]+?)(?:\s+Horário local|$)/,
@@ -128,43 +93,41 @@ function extractAgendamentoDetailsFromText(pdfText) {
         return agendamentos;
     }
     
-    // 🔥 MÉTODO 1: Processar blocos (agora com nomes colados)
+    // Extrair nomes dos solicitantes
+    const blocos = pdfText.split(/Nome do Solicitante\s*/);
+    const blocosSolicitantes = blocos.slice(1);
+    
+    console.log(`📋 ${blocosSolicitantes.length} blocos de solicitantes encontrados`);
+    
+    // Extrair DS-160
+    const matchDs160 = pdfText.match(regexInfo.ds160);
+    let ds160 = matchDs160 ? matchDs160[1].trim() : null;
+    
     for (const bloco of blocosSolicitantes) {
-        // 🔥 CORREÇÃO: Extrair nome do início do bloco
         const linhasBloco = bloco.split('\n');
         let nome = null;
         
-        // A primeira linha do bloco deve conter o nome
         if (linhasBloco.length > 0) {
             const primeiraLinha = linhasBloco[0].trim();
-            // O nome termina quando encontra "Classe do visto" ou "Número"
             const matchNome = primeiraLinha.match(/^([A-ZÀ-Ú\s]+?)(?=\s+Classe do visto|$)/);
             if (matchNome) {
                 nome = matchNome[1].trim();
-                console.log(`✅ Nome encontrado: ${nome}`);
             }
         }
         
-        // Se não encontrou nome na primeira linha, tenta regex
         if (!nome) {
             const matchNome = bloco.match(regexInfo.nome);
             if (matchNome) {
                 nome = matchNome[1].trim();
-                console.log(`✅ Nome encontrado (regex): ${nome}`);
             }
-        }
-        
-        const matchDs160 = bloco.match(regexInfo.ds160);
-        let ds160 = null;
-        if (matchDs160) {
-            ds160 = matchDs160[1].trim();
-            console.log(`✅ DS-160 encontrado: ${ds160}`);
         }
         
         if (!nome) {
             console.warn(`⚠️ Nome não encontrado em um bloco. Pulando.`);
             continue;
         }
+        
+        console.log(`✅ Nome encontrado: ${nome}`);
         
         if (casvData && casvHora && casvLocal) {
             agendamentos.push({
@@ -189,290 +152,53 @@ function extractAgendamentoDetailsFromText(pdfText) {
         }
     }
     
-    // 🔥 Se ainda não encontrou nada, usa fallback com nomes das linhas
-    if (agendamentos.length === 0) {
-        console.log('⚠️ Método 1 falhou. Tentando método 2 (extrair nomes das linhas)...');
-        
-        // Extrair nomes diretamente das linhas que começam com "Nome do Solicitante"
-        const linhas = pdfText.split('\n');
-        const nomes = [];
-        const ds160s = [];
-        
-        for (const linha of linhas) {
-            if (linha.includes('Nome do Solicitante')) {
-                // Extrair nome (remover "Nome do Solicitante" do início)
-                let nome = linha.replace(/Nome do Solicitante\s*/, '').trim();
-                // Pegar apenas o nome (até encontrar "Classe" ou "Número")
-                const matchNome = nome.match(/^([A-ZÀ-Ú\s]+?)(?=\s+Classe|$)/);
-                if (matchNome) {
-                    nomes.push(matchNome[1].trim());
-                } else {
-                    nomes.push(nome.split(' ').slice(0, 3).join(' '));
-                }
-            }
-            
-            if (linha.includes('Número DS-160')) {
-                const match = linha.match(/Número DS-160\s+([A-Z0-9]+)/);
-                if (match) {
-                    ds160s.push(match[1].trim());
-                }
-            }
-        }
-        
-        console.log(`📋 Método 2 encontrou ${nomes.length} nomes e ${ds160s.length} DS-160`);
-        
-        if (nomes.length > 0) {
-            for (let i = 0; i < nomes.length; i++) {
-                const nome = nomes[i] || `Solicitante ${i + 1}`;
-                const ds160 = ds160s[i] || null;
-                
-                if (casvData && casvHora && casvLocal) {
-                    agendamentos.push({
-                        nomeCliente: nome,
-                        atividade: 'CASV',
-                        dataCompromisso: casvData,
-                        horaCompromisso: casvHora,
-                        localCompromisso: casvLocal,
-                        protocolo_ds160: ds160,
-                    });
-                }
-                
-                if (entrevistaData && entrevistaHora && entrevistaLocal) {
-                    agendamentos.push({
-                        nomeCliente: nome,
-                        atividade: 'ENTREVISTA',
-                        dataCompromisso: entrevistaData,
-                        horaCompromisso: entrevistaHora,
-                        localCompromisso: entrevistaLocal,
-                        protocolo_ds160: ds160,
-                    });
-                }
-            }
-        } else {
-            // Último recurso
-            console.log('⚠️ Método 2 falhou. Criando solicitante genérico...');
-            if (casvData && casvHora && casvLocal) {
-                agendamentos.push({
-                    nomeCliente: 'Solicitante do PDF',
-                    atividade: 'CASV',
-                    dataCompromisso: casvData,
-                    horaCompromisso: casvHora,
-                    localCompromisso: casvLocal,
-                    protocolo_ds160: null,
-                });
-            }
-            if (entrevistaData && entrevistaHora && entrevistaLocal) {
-                agendamentos.push({
-                    nomeCliente: 'Solicitante do PDF',
-                    atividade: 'ENTREVISTA',
-                    dataCompromisso: entrevistaData,
-                    horaCompromisso: entrevistaHora,
-                    localCompromisso: entrevistaLocal,
-                    protocolo_ds160: null,
-                });
-            }
-        }
-    }
-    
     console.log(`📋 Total de ${agendamentos.length} agendamentos extraídos.`);
     return agendamentos;
 }
-// ============================================================
-// FUNÇÃO PARA VERIFICAR DUPLICATAS
-// ============================================================
-async function verificarDuplicata(clienteId, data, hora, atividade) {
-    const { data: existentes, error } = await supabase
-        .from('agendamentos')
-        .select('id, cliente_id, data_agendamento, hora_agendamento, atividade')
-        .eq('cliente_id', clienteId)
-        .eq('data_agendamento', data)
-        .eq('hora_agendamento', hora)
-        .eq('atividade', atividade);
-
-    if (error) {
-        console.error('❌ Erro ao verificar duplicata:', error);
-        return false;
-    }
-
-    if (existentes && existentes.length > 0) {
-        console.log(`⚠️ Duplicata encontrada: ${existentes.length} registro(s) existente(s)`);
-        return true;
-    }
-
-    return false;
-}
 
 // ============================================================
-// FUNÇÃO PARA SALVAR AGENDAMENTOS
+// FUNÇÃO PARA GERAR MENSAGEM DE NOTIFICAÇÃO
 // ============================================================
-// services/agendamentoService.js
-
-// services/agendamentoService.js
-
-// services/agendamentoService.js
-
-async function saveAgendamentos(agendamentos) {
-    const agendamentosSalvos = [];
+function gerarMensagemAgendamentos(agendamentos, nomeCliente) {
+    const primeiroNome = nomeCliente ? nomeCliente.split(' ')[0] : 'Cliente';
     
-    // Se não houver agendamentos, retorna
-    if (!agendamentos || agendamentos.length === 0) {
-        return { success: true, agendamentosSalvos: [] };
-    }
-
-    // --- PASSO 1: Determinar o representante do grupo ---
-    // Usamos o primeiro agendamento para extrair nome e telefone do responsável
-    const primeiro = agendamentos[0];
-    const nomeResponsavel = primeiro.nomeCliente || 'Responsável';
-    const telefoneResponsavel = primeiro.telefoneCliente || '99999999999';
-
-    // --- PASSO 2: Buscar ou criar o cliente representante ---
-    const cliente = await findOrCreateClient(nomeResponsavel, telefoneResponsavel);
-    if (!cliente) {
-        console.error(`❌ Não foi possível criar/obter cliente para o responsável: ${nomeResponsavel}`);
-        return { success: false, message: 'Erro ao criar cliente representante' };
-    }
-
-    const clienteId = cliente.id;
-    const clienteTelefone = cliente.telefone || telefoneResponsavel;
-
-    // --- PASSO 3: Processar cada agendamento, vinculando ao mesmo cliente_id ---
-    for (const agendamentoData of agendamentos) {
-        const { nomeCliente, atividade, dataCompromisso, horaCompromisso, localCompromisso, protocolo_ds160, pdf_consulado_url } = agendamentoData;
-
-        if (!atividade || !dataCompromisso || !horaCompromisso || !localCompromisso) {
-            console.warn('⚠️ Dados de agendamento incompletos, pulando:', agendamentoData);
-            continue;
-        }
-
-        const [dia, mes, ano] = dataCompromisso.split('/');
-        const dataFormatadaParaBanco = `${ano}-${mes}-${dia}`;
-
-        const localTexto = mapLocalToText(localCompromisso);
-        const atividadeTexto = mapAtividadeToText(atividade);
-
-        // Verificar duplicata (considerando o mesmo cliente)
-        const isDuplicado = await verificarDuplicata(
-            clienteId,
-            dataFormatadaParaBanco,
-            horaCompromisso,
-            atividadeTexto
-        );
-
-        if (isDuplicado) {
-            console.log(`⏭️ Agendamento duplicado ignorado: ${nomeCliente} - ${atividadeTexto} - ${dataFormatadaParaBanco}`);
-            continue;
-        }
-
-        const novoAgendamento = {
-            cliente_id: clienteId,  // Todos usam o mesmo cliente_id
-            atividade: atividadeTexto,
-            data_agendamento: dataFormatadaParaBanco,
-            hora_agendamento: horaCompromisso,
-            local_agendamento: localTexto,
-            protocolo_ds160: protocolo_ds160 || null,
-            pdf_consulado_url: pdf_consulado_url || null,
-            concluido: false,
-            observacoes: `Membro: ${nomeCliente}`  // Guardamos o nome original para referência
-        };
-
-        console.log(`📝 Salvando agendamento: ${nomeCliente} - ${atividadeTexto} - ${dataFormatadaParaBanco} ${horaCompromisso}`);
-
-        const salvo = await createAgendamento(novoAgendamento);
-        if (salvo) {
-            agendamentosSalvos.push(salvo);
-            try {
-                await lembretesService.generateRemindersForCompromisso(salvo);
-                console.log(`✅ Lembretes gerados para agendamento ${salvo.id}`);
-            } catch (error) {
-                console.error(`⚠️ Erro ao gerar lembretes:`, error.message);
-            }
-        }
-    }
-
-    // --- PASSO 4: Enviar mensagem consolidada para o responsável ---
-    try {
-        const { enviarWhatsApp } = require('../utils/whatsappClient');
-
-        // Montar a mensagem com todos os membros
-        const membros = agendamentos.map(a => a.nomeCliente).filter((v, i, a) => a.indexOf(v) === i); // Nomes únicos
-
-        let mensagem = `✅ *AGENDAMENTOS CONFIRMADOS - GETVISA*\n\n`;
-        mensagem += `Olá *${nomeResponsavel}*!\n\n`;
-        mensagem += `Os agendamentos para o grupo familiar foram registrados com sucesso.\n\n`;
-        mensagem += `📋 *Membros:* ${membros.join(', ')}\n\n`;
-
-        // Agrupar por atividade (CASV e Entrevista)
-        const casv = agendamentos.find(a => a.atividade === 'CASV');
-        const entrevista = agendamentos.find(a => a.atividade === 'ENTREVISTA');
-
-        if (casv) {
-            mensagem += `📅 *CASV:* ${casv.dataCompromisso} às ${casv.horaCompromisso}\n`;
-            mensagem += `📍 Local: ${casv.localCompromisso}\n\n`;
-        }
-
-        if (entrevista) {
-            mensagem += `📅 *Entrevista:* ${entrevista.dataCompromisso} às ${entrevista.horaCompromisso}\n`;
-            mensagem += `📍 Local: ${entrevista.localCompromisso}\n\n`;
-
-            // Se houver entrevista, oferecer treinamento
-            const dataEntrevista = new Date(entrevista.dataCompromisso.split('/').reverse().join('-'));
-            const dataTreinamento = new Date(dataEntrevista);
-            dataTreinamento.setDate(dataEntrevista.getDate() - 10);
-            const dataTreinamentoStr = dataTreinamento.toISOString().split('T')[0];
-
-            mensagem += `📌 *Agende o treinamento para a entrevista:*\n`;
-            mensagem += `🔗 <a href="http://localhost:10000/agendar-treinamento?cliente_id=${clienteId}&data_sugerida=${dataTreinamentoStr}" target="_blank">Clique aqui para agendar</a>\n\n`;
-            mensagem += `📅 Sugerimos ${dataTreinamento.toLocaleDateString('pt-BR')} (10 dias antes da entrevista)\n\n`;
-        } else {
-            // Sem entrevista: apenas CASV
-            mensagem += `📌 *ATENÇÃO:* Compareça ao CASV portando seu passaporte e a CONFIRMATION impressa.\n\n`;
-        }
-
-        mensagem += `🌟 Equipe GetVisa`;
-
-        await enviarWhatsApp(clienteTelefone, mensagem);
-        console.log(`✅ Mensagem consolidada enviada para ${nomeResponsavel} (${clienteTelefone})`);
-
-    } catch (error) {
-        console.error(`⚠️ Erro ao enviar mensagem consolidada:`, error.message);
-    }
-
-    return { success: true, agendamentosSalvos };
+    let mensagem = `✅ *AGENDAMENTOS CONFIRMADOS - GETVISA* ✅\n\n`;
+    mensagem += `Olá *${primeiroNome}*! Seus agendamentos foram realizados com sucesso!\n\n`;
+    mensagem += `📋 *Protocolo DS-160:* ${agendamentos[0]?.protocolo_ds160 || 'N/A'}\n\n`;
+    mensagem += `📅 *DATAS CONFIRMADAS:*\n`;
+    
+    agendamentos.forEach((agendamento, index) => {
+        const data = new Date(agendamento.data_agendamento).toLocaleDateString('pt-BR');
+        const hora = agendamento.hora_agendamento?.substring(0, 5) || '00:00';
+        mensagem += `\n${index + 1}️⃣ *${agendamento.atividade}*\n`;
+        mensagem += `   📍 ${agendamento.local_agendamento || 'Consulado'}\n`;
+        mensagem += `   📅 ${data} às ${hora}\n`;
+    });
+    
+    mensagem += `\n📌 *IMPORTANTE:*\n`;
+    mensagem += `• Chegue com 30 minutos de antecedência\n`;
+    mensagem += `• Leve seu passaporte e comprovante de agendamento\n`;
+    mensagem += `• Mantenha seu celular carregado\n\n`;
+    mensagem += `📱 Dúvidas? Fale com a gente: https://wa.me/5521974601812\n\n`;
+    mensagem += `🌟 *Boa sorte! A GetVisa está com você!* ✈️`;
+    
+    return mensagem;
 }
 
 // ============================================================
 // FUNÇÃO PRINCIPAL: EXTRAIR E SALVAR PDF
 // ============================================================
-async function extractAndSavePdfAgendamentos(pdfBuffer) {
+async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente) {
     try {
         if (typeof pdfParse !== 'function') {
-            throw new Error('pdfParse não é uma função. Verifique a instalação da biblioteca.');
+            throw new Error('pdfParse não é uma função.');
         }
 
         console.log('📄 Processando PDF...');
+        console.log(`📱 Telefone do cliente: ${telefoneCliente}`);
+
         const data = await pdfParse(pdfBuffer);
         const pdfText = data.text;
-
-        console.log('📄 INÍCIO DO TEXTO DO PDF:');
-        console.log('='.repeat(60));
-        console.log(pdfText.substring(0, 500));
-        console.log('='.repeat(60));
-        console.log(`📄 Total de caracteres: ${pdfText.length}`);
-
-        // 🔥 DEBUG: Mostrar linhas com "Nome do Solicitante"
-        console.log('🔍 BUSCANDO "Nome do Solicitante" no PDF:');
-        const linhas = pdfText.split('\n');
-        let encontrou = false;
-        linhas.forEach((linha, index) => {
-            if (linha.includes('Nome do Solicitante')) {
-                console.log(`📌 Linha ${index}: ${linha.trim()}`);
-                encontrou = true;
-            }
-        });
-        
-        if (!encontrou) {
-            console.log('⚠️ Nenhuma linha com "Nome do Solicitante" encontrada.');
-        }
 
         const agendamentosExtraidos = extractAgendamentoDetailsFromText(pdfText);
 
@@ -481,12 +207,131 @@ async function extractAndSavePdfAgendamentos(pdfBuffer) {
             return { success: false, message: 'Nenhum agendamento encontrado no PDF.' };
         }
 
-        console.log(`📋 Encontrados ${agendamentosExtraidos.length} agendamentos no PDF.`);
-        const resultadosSalvamento = await saveAgendamentos(agendamentosExtraidos);
-        return resultadosSalvamento;
+        // 🔥 BUSCAR O CLIENTE PELO TELEFONE INFORMADO
+        const { data: cliente, error: clienteError } = await supabase
+            .from('clientes')
+            .select('id, nome, telefone')
+            .eq('telefone', telefoneCliente)
+            .maybeSingle();
+
+        if (clienteError) {
+            console.error('❌ Erro ao buscar cliente:', clienteError);
+            return { success: false, message: 'Erro ao buscar cliente.' };
+        }
+
+        let clienteId;
+        let clienteNome;
+
+        if (cliente) {
+            // ✅ Cliente existe
+            clienteId = cliente.id;
+            clienteNome = cliente.nome;
+            console.log(`✅ Cliente encontrado: ${cliente.nome} (${cliente.telefone})`);
+        } else {
+            // 🆕 Cliente não existe, criar novo
+            const nomeDoCliente = agendamentosExtraidos[0]?.nomeCliente || 'Cliente';
+            console.log(`🆕 Criando novo cliente: ${nomeDoCliente} (${telefoneCliente})`);
+            
+            const { data: novoCliente, error: insertError } = await supabase
+                .from('clientes')
+                .insert([{
+                    nome: nomeDoCliente,
+                    telefone: telefoneCliente,
+                    status: 'lead',
+                    data_contato: new Date().toISOString()
+                }])
+                .select()
+                .single();
+            
+            if (insertError) {
+                console.error('❌ Erro ao criar cliente:', insertError);
+                return { success: false, message: 'Erro ao criar cliente.' };
+            }
+            
+            clienteId = novoCliente.id;
+            clienteNome = novoCliente.nome;
+            console.log(`✅ Cliente criado com sucesso: ${clienteId}`);
+        }
+
+        // 🔥 SALVAR AGENDAMENTOS USANDO O CLIENTE_ID
+        const agendamentosSalvos = [];
+        
+        for (const agendamentoData of agendamentosExtraidos) {
+            const { nomeCliente, atividade, dataCompromisso, horaCompromisso, localCompromisso, protocolo_ds160 } = agendamentoData;
+
+            if (!atividade || !dataCompromisso || !horaCompromisso || !localCompromisso) {
+                console.warn('⚠️ Dados de agendamento incompletos, pulando.');
+                continue;
+            }
+
+            const [dia, mes, ano] = dataCompromisso.split('/');
+            const dataFormatadaParaBanco = `${ano}-${mes}-${dia}`;
+
+            const localTexto = mapLocalToText(localCompromisso);
+            const atividadeTexto = mapAtividadeToText(atividade);
+
+            // Verificar duplicata
+            const { data: existentes } = await supabase
+                .from('agendamentos')
+                .select('id')
+                .eq('cliente_id', clienteId)
+                .eq('data_agendamento', dataFormatadaParaBanco)
+                .eq('hora_agendamento', horaCompromisso)
+                .eq('atividade', atividadeTexto)
+                .maybeSingle();
+
+            if (existentes) {
+                console.log(`⏭️ Agendamento duplicado ignorado: ${atividadeTexto} - ${dataFormatadaParaBanco}`);
+                continue;
+            }
+
+            const novoAgendamento = {
+                cliente_id: clienteId,
+                atividade: atividadeTexto,
+                data_agendamento: dataFormatadaParaBanco,
+                hora_agendamento: horaCompromisso,
+                local_agendamento: localTexto,
+                protocolo_ds160: protocolo_ds160 || null,
+                concluido: false,
+                observacoes: `Membro: ${nomeCliente}`
+            };
+
+            console.log(`📝 Salvando agendamento: ${atividadeTexto} - ${dataFormatadaParaBanco} ${horaCompromisso}`);
+
+            const { data: salvo, error: saveError } = await supabase
+                .from('agendamentos')
+                .insert([novoAgendamento])
+                .select()
+                .single();
+
+            if (saveError) {
+                console.error('❌ Erro ao salvar agendamento:', saveError);
+                continue;
+            }
+
+            agendamentosSalvos.push(salvo);
+            console.log(`✅ Agendamento salvo: ${salvo.id}`);
+        }
+
+        // 🔥 ENVIAR NOTIFICAÇÃO WHATSAPP
+        if (agendamentosSalvos.length > 0) {
+            try {
+                const mensagem = gerarMensagemAgendamentos(agendamentosSalvos, clienteNome);
+                const enviado = await enviarWhatsApp(telefoneCliente, mensagem);
+                if (enviado) {
+                    console.log(`📱 Notificação enviada para ${telefoneCliente}`);
+                } else {
+                    console.log(`⚠️ Falha ao enviar notificação para ${telefoneCliente}`);
+                }
+            } catch (notifyError) {
+                console.error('❌ Erro ao enviar notificação:', notifyError);
+            }
+        }
+
+        return { success: true, agendamentosSalvos };
 
     } catch (error) {
-        console.error('❌ Erro ao extrair ou salvar agendamentos do PDF:', error);
+        console.error('❌ Erro ao processar PDF:', error);
         return { success: false, message: 'Erro interno ao processar PDF.', error: error.message };
     }
 }
@@ -494,9 +339,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer) {
 // ============================================================
 // FUNÇÕES ADICIONAIS
 // ============================================================
-
 async function getGeneralReport() {
-    console.log('📊 Gerando relatório geral...');
     const { data, error } = await supabase
         .from('agendamentos')
         .select(`
@@ -514,7 +357,6 @@ async function getGeneralReport() {
 }
 
 async function markAgendamentoAsConcluido(agendamentoId) {
-    console.log(`✅ Marcando agendamento ${agendamentoId} como concluído...`);
     const { data, error } = await supabase
         .from('agendamentos')
         .update({ concluido: true })
@@ -526,19 +368,15 @@ async function markAgendamentoAsConcluido(agendamentoId) {
         console.error('❌ Erro ao marcar agendamento como concluído:', error);
         return { success: false, message: 'Erro ao marcar agendamento como concluído.' };
     }
-    return { success: true, message: 'Agendamento marcado como concluído com sucesso.', agendamento: data };
+    return { success: true, message: 'Agendamento marcado como concluído.', agendamento: data };
 }
 
 async function updateAgendamentoDetails(agendamentoId, { dataCompromisso, horaCompromisso, localCompromisso }) {
-    console.log(`✏️ Editando agendamento ${agendamentoId}...`);
-    let dataFormatadaParaBanco = null;
+    const updatePayload = {};
     if (dataCompromisso) {
         const [dia, mes, ano] = dataCompromisso.split('/');
-        dataFormatadaParaBanco = `${ano}-${mes}-${dia}`;
+        updatePayload.data_agendamento = `${ano}-${mes}-${dia}`;
     }
-
-    const updatePayload = {};
-    if (dataFormatadaParaBanco) updatePayload.data_agendamento = dataFormatadaParaBanco;
     if (horaCompromisso) updatePayload.hora_agendamento = horaCompromisso;
     if (localCompromisso) updatePayload.local_agendamento = mapLocalToText(localCompromisso);
 
@@ -557,7 +395,6 @@ async function updateAgendamentoDetails(agendamentoId, { dataCompromisso, horaCo
 }
 
 async function deleteAgendamento(agendamentoId) {
-    console.log(`🗑️ Excluindo agendamento ${agendamentoId}...`);
     const { error } = await supabase
         .from('agendamentos')
         .delete()
@@ -571,26 +408,10 @@ async function deleteAgendamento(agendamentoId) {
 }
 
 // ============================================================
-// 📤 UPLOAD DE PDF PARA EXTRAIR AGENDAMENTOS
-// ============================================================
-
-
-    fileFilter: (req, file, cb) => {
-        if (file.mimetype === 'application/pdf') {
-            cb(null, true);
-        } else {
-            cb(new Error('Apenas arquivos PDF são permitidos'));
-        }
-    }
-
-
-
-// ============================================================
 // EXPORTS
 // ============================================================
 module.exports = {
     extractAndSavePdfAgendamentos,
-    saveAgendamentos,
     getGeneralReport,
     markAgendamentoAsConcluido,
     updateAgendamentoDetails,

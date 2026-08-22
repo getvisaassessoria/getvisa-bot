@@ -75,6 +75,7 @@ const uploadMemory = multer({
 });
 
 // 🔥 ROTA DE UPLOAD - DEFINIDA DIRETAMENTE NO APP
+// server.js - Rota de upload
 app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (req, res) => {
     console.log('🔥🔥🔥 ROTA /api/agendamentos/upload-pdf FOI CHAMADA! 🔥🔥🔥');
     console.log('📥 req.file:', req.file);
@@ -82,7 +83,6 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
     
     try {
         if (!req.file) {
-            console.log('❌ Nenhum arquivo enviado');
             return res.status(400).json({ 
                 success: false, 
                 message: 'Nenhum arquivo enviado. Use o campo "pdfFile".' 
@@ -91,7 +91,19 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
 
         console.log(`📄 Recebendo PDF: ${req.file.originalname}, tamanho: ${req.file.size} bytes`);
 
-        // Importa o serviço de forma segura
+        // 🔥 RECEBER O TELEFONE DO CLIENTE (enviado no formulário)
+        const telefoneCliente = req.body.telefone || req.body.phone || null;
+        
+        if (!telefoneCliente) {
+            return res.status(400).json({
+                success: false,
+                message: 'Telefone do cliente é obrigatório. Envie no campo "telefone".'
+            });
+        }
+
+        console.log(`📱 Telefone do cliente: ${telefoneCliente}`);
+
+        // Importa o serviço
         let agendamentoService;
         try {
             agendamentoService = require('./services/agendamentoService');
@@ -105,15 +117,11 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             });
         }
 
-        if (typeof agendamentoService.extractAndSavePdfAgendamentos !== 'function') {
-            console.error('❌ Função extractAndSavePdfAgendamentos não encontrada');
-            return res.status(500).json({ 
-                success: false, 
-                message: 'Função de extração não disponível no serviço' 
-            });
-        }
-
-        const resultado = await agendamentoService.extractAndSavePdfAgendamentos(req.file.buffer);
+        // 🔥 PASSAR O TELEFONE DO CLIENTE PARA O SERVIÇO
+        const resultado = await agendamentoService.extractAndSavePdfAgendamentos(
+            req.file.buffer,
+            telefoneCliente // <-- TELEFONE DO CLIENTE
+        );
 
         if (!resultado.success) {
             return res.status(400).json(resultado);
@@ -3504,6 +3512,104 @@ app.post('/api/agendar-treinamento', async (req, res) => {
     }
 });
 
+// ============================================================
+// ROTAS DO PAINEL ADMIN
+// ============================================================
+
+// Alternar status do agendamento (concluir/reabrir)
+app.patch('/api/agendamentos/:id/toggle', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { concluido } = req.body;
+
+        const { data, error } = await supabase
+            .from('agendamentos')
+            .update({ concluido })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        res.json({ success: true, agendamento: data });
+    } catch (error) {
+        console.error('❌ Erro ao alternar status:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Deletar agendamento
+app.delete('/api/agendamentos/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const { error } = await supabase
+            .from('agendamentos')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+        res.json({ success: true, message: 'Agendamento excluído com sucesso' });
+    } catch (error) {
+        console.error('❌ Erro ao excluir:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Histórico do cliente
+app.get('/api/clientes/:id/historico', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Buscar agendamentos do cliente
+        const { data: agendamentos, error: agError } = await supabase
+            .from('agendamentos')
+            .select('*')
+            .eq('cliente_id', id)
+            .order('created_at', { ascending: false });
+
+        if (agError) throw agError;
+
+        // Buscar etapas do cliente
+        const { data: etapas, error: etapasError } = await supabase
+            .from('etapas_processo')
+            .select('*')
+            .eq('cliente_telefone', id)
+            .order('data_atualizacao', { ascending: false });
+
+        if (etapasError) throw etapasError;
+
+        // Combinar histórico
+        const historico = [];
+
+        if (agendamentos) {
+            agendamentos.forEach(a => {
+                historico.push({
+                    etapa: a.atividade,
+                    data: a.created_at,
+                    observacao: `Agendamento ${a.concluido ? 'concluído' : 'pendente'}`
+                });
+            });
+        }
+
+        if (etapas && etapas.length > 0) {
+            etapas.forEach(e => {
+                historico.push({
+                    etapa: e.etapa_atual,
+                    data: e.data_atualizacao,
+                    observacao: 'Atualização de etapa'
+                });
+            });
+        }
+
+        // Ordenar por data
+        historico.sort((a, b) => new Date(b.data) - new Date(a.data));
+
+        res.json({ success: true, historico });
+    } catch (error) {
+        console.error('❌ Erro ao buscar histórico:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
 
 // ============================================================
 // 🔥 PROCESSADOR DE FILA DE MENSAGENS (ADICIONAR ANTES DO LISTEN)
@@ -3526,6 +3632,8 @@ setInterval(async () => {
         }
     }
 }, 3000); // Processa a cada 3 segundos
+
+
 
 // ============================================================
 // 20. HEALTH CHECKS E CRON JOB
