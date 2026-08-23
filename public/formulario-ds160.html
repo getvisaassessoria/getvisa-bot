@@ -1,0 +1,2172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulário DS-160 - GetVisa Assessoria</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #003366;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .progress-bar {
+            background: #e9ecef;
+            height: 6px;
+            border-radius: 3px;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+        .progress-bar .fill {
+            height: 100%;
+            background: #003366;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        .form-section {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        .form-section.active { display: block; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #003366;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .field {
+            margin-bottom: 20px;
+        }
+        .field label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #555;
+        }
+        .field label .required {
+            color: #dc3545;
+            margin-left: 2px;
+        }
+        .field input, .field select, .field textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .field input:focus, .field select:focus, .field textarea:focus {
+            outline: none;
+            border-color: #003366;
+            box-shadow: 0 0 0 3px rgba(0, 51, 102, 0.1);
+        }
+        .field textarea { min-height: 80px; resize: vertical; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .radio-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 5px;
+        }
+        .radio-group label {
+            font-weight: normal;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+        .radio-group input[type="radio"] {
+            width: auto;
+            padding: 0;
+            margin: 0;
+        }
+        .conditional {
+            background: #f8fafc;
+            border-left: 4px solid #003366;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-top: 15px;
+            display: none;
+        }
+        .conditional.active { display: block; }
+        .form-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 30px;
+            gap: 15px;
+        }
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #003366; color: white; }
+        .btn-primary:hover { background: #004d99; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #5a6268; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #218838; }
+        .btn-sm { padding: 6px 16px; font-size: 13px; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        .step-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ddd;
+            transition: all 0.3s;
+        }
+        .step-dot.active { background: #003366; transform: scale(1.2); }
+        .step-dot.done { background: #28a745; }
+        .alert {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .hidden { display: none !important; }
+        .loading { text-align: center; padding: 20px; }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #003366;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .add-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .add-btn:hover { background: #218838; }
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        .remove-btn:hover { background: #c82333; }
+        .repeatable-item {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .repeatable-item .field { margin-bottom: 12px; }
+        .sub-section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #003366;
+            margin: 20px 0 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed #ddd;
+        }
+        .btn-group-correcao {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 2px solid #e9ecef;
+        }
+        @media (max-width: 600px) {
+            .container { padding: 20px; }
+            .form-row { grid-template-columns: 1fr; }
+            .form-actions { flex-direction: column; }
+            .btn { width: 100%; }
+            .btn-group-correcao { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📋 Formulário DS-160</h1>
+    <p class="subtitle">Preencha todos os dados com atenção. Esta é a base para seu processo de visto americano.</p>
+
+    <div class="progress-bar"><div class="fill" id="progressFill"></div></div>
+
+    <div class="step-indicator" id="stepIndicator">
+        <span class="step-dot active" data-step="1"></span>
+        <span class="step-dot" data-step="2"></span>
+        <span class="step-dot" data-step="3"></span>
+        <span class="step-dot" data-step="4"></span>
+        <span class="step-dot" data-step="5"></span>
+        <span class="step-dot" data-step="6"></span>
+        <span class="step-dot" data-step="7"></span>
+        <span class="step-dot" data-step="8"></span>
+        <span class="step-dot" data-step="9"></span>
+        <span class="step-dot" data-step="10"></span>
+        <span class="step-dot" data-step="11"></span>
+        <span class="step-dot" data-step="12"></span>
+    </div>
+
+    <div id="alertContainer"></div>
+
+    <form id="ds160Form">
+
+        <!-- ============================================================ -->
+        <!-- PASSO 1: INÍCIO DO PREENCHIMENTO -->
+        <!-- ============================================================ -->
+        <div class="form-section active" data-step="1">
+            <h2 class="section-title">📍 Início do Preenchimento</h2>
+
+            <div class="field">
+                <label>Localização: Consulado ou Embaixada onde fará a entrevista <span class="required">*</span></label>
+                <select name="consulado" required>
+                    <option value="">Selecione...</option>
+                    <option value="BRASILIA">Brasília</option>
+                    <option value="RIO_DE_JANEIRO">Rio de Janeiro</option>
+                    <option value="SAO_PAULO">São Paulo</option>
+                    <option value="RECIFE">Recife</option>
+                    <option value="PORTO_ALEGRE">Porto Alegre</option>
+                </select>
+            </div>
+
+            <div class="form-actions">
+                <span></span>
+                <button type="button" class="btn btn-primary" onclick="nextStep(2)">Próximo →</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- PASSO 2: INFORMAÇÕES PESSOAIS -->
+        <!-- ============================================================ -->
+        <div class="form-section" data-step="2">
+            <h2 class="section-title">📌 Informações Pessoais</h2>
+
+            <div class="field">
+                <label>Nome Completo <span class="required">*</span></label>
+                <input type="text" name="full_name" placeholder="Ex: JOÃO DA SILVA" required>
+            </div>
+
+            <div class="field">
+                <label>Você já usou outros nomes? (Solteiro(a), artístico, apelido ou alias) <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-other-names" class="conditional-trigger" data-target="other-names" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-other-names" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="other-names" class="conditional" data-condition="radio-other-names" data-value="one">
+                <div class="form-row">
+                    <div class="field"><label>Outros Sobrenomes <span class="required">*</span></label><input type="text" name="other_surnames" placeholder="Ex: SILVA"></div>
+                    <div class="field"><label>Outros Nomes Próprios <span class="required">*</span></label><input type="text" name="other_given_names" placeholder="Ex: MARIA"></div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Sexo <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="radio-genero" value="MALE" required> Masculino</label>
+                        <label><input type="radio" name="radio-genero" value="FEMALE"> Feminino</label>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Estado Civil <span class="required">*</span></label>
+                    <select name="marital_status" required>
+                        <option value="">Selecione...</option>
+                        <option value="MARRIED">Casado(a)</option>
+                        <option value="UNION">União Estável</option>
+                        <option value="SINGLE">Solteiro(a)</option>
+                        <option value="DIVORCED">Divorciado(a)</option>
+                        <option value="WIDOWED">Viúvo(a)</option>
+                        <option value="SEPARATED">Separado(a) Judicialmente</option>
+                        <option value="OTHER">Outro</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Data de Nascimento <span class="required">*</span></label>
+                    <input type="date" name="dob" required>
+                </div>
+                <div class="field">
+                    <label>Local de Nascimento - Cidade <span class="required">*</span></label>
+                    <input type="text" name="birth_city" placeholder="Ex: SAO GONCALO" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Local de Nascimento - Estado/Província <span class="required">*</span></label>
+                    <input type="text" name="birth_state" placeholder="Ex: RJ" required>
+                </div>
+                <div class="field">
+                    <label>Local de Nascimento - País/Região <span class="required">*</span></label>
+                    <input type="text" name="birth_country" value="BRASIL" required>
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Você possui ou já possuiu outra nacionalidade além da informada acima? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-other-nat" class="conditional-trigger" data-target="other-nat" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-other-nat" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="other-nat" class="conditional" data-condition="radio-other-nat" data-value="one">
+                <div class="form-row">
+                    <div class="field"><label>País da outra nacionalidade <span class="required">*</span></label><input type="text" name="other_nat_country" placeholder="Ex: ITALIA"></div>
+                    <div class="field"><label>Número do passaporte da outra nacionalidade <span class="required">*</span></label><input type="text" name="other_nat_passport" placeholder="Ex: AA123456"></div>
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Você é residente permanente em um país/região diferente do seu país de origem? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-resident" class="conditional-trigger" data-target="resident-country" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-resident" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="resident-country" class="conditional" data-condition="radio-resident" data-value="one">
+                <div class="field"><label>País/Região de residência permanente <span class="required">*</span></label><input type="text" name="resident_country" placeholder="Ex: ESTADOS UNIDOS"></div>
+            </div>
+
+            <div class="field">
+                <label>Número do CPF <span class="required">*</span></label>
+                <input type="text" name="cpf" class="cpf-mask" placeholder="000.000.000-00" required>
+            </div>
+
+            <div class="field">
+                <label>Número do Seguro Social dos EUA (SSN) - Caso já possua</label>
+                <input type="text" name="ssn" placeholder="Se não tiver, deixe em branco">
+            </div>
+
+            <div class="field">
+                <label>Número de Identificação de Contribuinte dos EUA (Tax ID / ITIN) - Caso já possua</label>
+                <input type="text" name="tax_id" placeholder="Se não tiver, deixe em branco">
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="prevStep(1)">← Voltar</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep(3)">Próximo →</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- PASSO 3: INFORMAÇÕES DA VIAGEM -->
+        <!-- ============================================================ -->
+        <div class="form-section" data-step="3">
+            <h2 class="section-title">✈️ Informações da Viagem</h2>
+
+            <div class="field">
+                <label>Propósito da Viagem aos EUA <span class="required">*</span></label>
+                <select name="travel_purpose" required>
+                    <option value="">Selecione...</option>
+                    <option value="BUSINESS_PLEASURE">Turismo/Negócios (B1/B2)</option>
+                    <option value="STUDY">Estudos</option>
+                    <option value="OTHER">Outros</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Você possui planos específicos de viagem? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-travel-plans" class="conditional-trigger" data-target="travel-plans" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-travel-plans" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="travel-plans" class="conditional" data-condition="radio-travel-plans" data-value="one">
+                <div class="form-row">
+                    <div class="field"><label>Data de Chegada nos EUA <span class="required">*</span></label><input type="date" name="arrival_date"></div>
+                    
+                </div>
+                
+                <div class="field"><label>Locais a Serem Visitados nos EUA </label><input type="text" name="places_to_visit" placeholder="Ex: ORLANDO, MIAMI, NEW YORK"></div>
+            </div>
+
+            <div class="field">
+                <label>Endereço Onde Ficará Hospedado nos EUA (Hotel ou residência) </label>
+                <input type="text" name="us_address" placeholder="Se não tiver, deixe em branco">
+            </div>
+
+            <div class="field">
+                <label>Pessoa ou Entidade Responsável pelo Pagamento da Viagem <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-payer" class="conditional-trigger" data-target="payer-info" value="OTHER"> Outra Pessoa</label>
+                    <label><input type="radio" name="radio-payer" class="conditional-trigger" data-target="payer-info" value="COMPANY"> Empresa/Organização</label>
+                    <label><input type="radio" name="radio-payer" value="SELF" checked> Próprio Solicitante</label>
+                </div>
+            </div>
+
+            <div id="payer-info" class="conditional" data-condition="radio-payer" data-value="OTHER,COMPANY">
+                <div class="form-row">
+                    <div class="field"><label>Nome Completo <span class="required">*</span></label><input type="text" name="payer_name" placeholder="Ex: JOAO DA SILVA"></div>
+                    <div class="field"><label>Telefone <span class="required">*</span></label><input type="tel" name="payer_phone" class="phone-mask" placeholder="(21) 99999-9999"></div>
+                </div>
+                <div class="form-row">
+                    <div class="field"><label>E-mail <span class="required">*</span></label><input type="email" name="payer_email" placeholder="exemplo@email.com"></div>
+                    <div class="field"><label>Grau de Parentesco/Relação <span class="required">*</span></label><input type="text" name="payer_relationship" placeholder="Ex: PAI, IRMAO, EMPREGADOR"></div>
+                </div>
+                <div class="field">
+                    <label>Reside no mesmo endereço? <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="radio-payer-address" value="YES" checked> Sim</label>
+                        <label><input type="radio" name="radio-payer-address" class="conditional-trigger" data-target="payer-address-detail" value="NO"> Não</label>
+                    </div>
+                </div>
+                <div id="payer-address-detail" class="conditional" data-condition="radio-payer-address" data-value="NO">
+                    <div class="field"><label>Endereço do Pagador <span class="required">*</span></label><input type="text" name="payer_address"></div>
+                    <div class="form-row">
+                        <div class="field"><label>Cidade <span class="required">*</span></label><input type="text" name="payer_city"></div>
+                        <div class="field"><label>Estado <span class="required">*</span></label><input type="text" name="payer_state"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="field"><label>CEP <span class="required">*</span></label><input type="text" name="payer_zip" class="cep-mask"></div>
+                        <div class="field"><label>País <span class="required">*</span></label><input type="text" name="payer_country" value="BRASIL"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="prevStep(2)">← Voltar</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep(4)">Próximo →</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- PASSO 4: ACOMPANHANTES DE VIAGEM -->
+        <!-- ============================================================ -->
+        <div class="form-section" data-step="4">
+            <h2 class="section-title">👥 Acompanhantes de Viagem</h2>
+
+            <div class="field">
+                <label>Há outras pessoas viajando com você? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-companions" class="conditional-trigger" data-target="companions-group" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-companions" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="companions-group" class="conditional" data-condition="radio-companions" data-value="one">
+                <div class="field">
+                    <label>Você está viajando como parte de um grupo ou organização? (Excursão, delegação, etc.) <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="radio-group-travel" class="conditional-trigger" data-target="group-details" value="one"> Sim</label>
+                        <label><input type="radio" name="radio-group-travel" value="two" checked> Não</label>
+                    </div>
+                </div>
+
+                <div id="group-details" class="conditional" data-condition="radio-group-travel" data-value="one">
+                    <div class="field"><label>Nome do Grupo/Organização <span class="required">*</span></label><input type="text" name="group_name" placeholder="Ex: EXCURSÃO XYZ"></div>
+                </div>
+
+                <div id="individual-companions" class="conditional" data-condition="radio-group-travel" data-value="two">
+                    <div id="companions-container">
+                        <div class="repeatable-item companion-item">
+                            <div class="form-row">
+                                <div class="field"><label>Nome Completo <span class="required">*</span></label><input type="text" name="companion_name[]" placeholder="Ex: MARIA SILVA"></div>
+                                <div class="field"><label>Parentesco/Relação <span class="required">*</span></label>
+                                    <select name="companion_relationship[]">
+                                        <option value="">Selecione...</option>
+                                        <option>Cônjuge</option><option>Pai/Mãe</option>
+                                        <option>Filho(a)</option><option>Irmão(ã)</option>
+                                        <option>Parente</option><option>Amigo(a)</option>
+                                        <option>Colega de Trabalho</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+                        </div>
+                    </div>
+                    <button type="button" class="add-btn" onclick="addItem('companions-container', 'companion-item', companionHTML)">+ Adicionar Acompanhante</button>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="prevStep(3)">← Voltar</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep(5)">Próximo →</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- PASSO 5: VIAGENS ANTERIORES AOS EUA -->
+        <!-- ============================================================ -->
+        <div class="form-section" data-step="5">
+            <h2 class="section-title">🛬 Viagens Anteriores aos EUA</h2>
+
+            <div class="field">
+                <label>Você já esteve nos EUA? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-us-travel" class="conditional-trigger" data-target="us-travel-details" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-us-travel" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="us-travel-details" class="conditional" data-condition="radio-us-travel" data-value="one">
+                <div id="us-travel-container">
+                    <div class="repeatable-item us-travel-item">
+                        <div class="form-row">
+                            <div class="field"><label>Data de Chegada <span class="required">*</span></label><input type="date" name="us_travel_date[]"></div>
+                            <div class="field"><label>Tempo de Permanência (dias) <span class="required">*</span></label><input type="text" name="us_travel_duration[]" placeholder="Ex: 15"></div>
+                        </div>
+                        <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+                    </div>
+                </div>
+                <button type="button" class="add-btn" onclick="addItem('us-travel-container', 'us-travel-item', usTravelHTML)">+ Adicionar Viagem</button>
+
+                <div class="field" style="margin-top:20px;">
+                    <label>Informações sobre Carteira de Habilitação dos EUA</label>
+                    <div class="form-row">
+                        <div class="field"><label>Número da Habilitação</label><input type="text" name="us_driver_license" placeholder="Se não tiver, deixe em branco"></div>
+                        <div class="field"><label>Estado Emissor</label><input type="text" name="us_driver_state" placeholder="Ex: FL"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Você já teve um visto americano emitido? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-visa-issued" class="conditional-trigger" data-target="visa-issued-details" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-visa-issued" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="visa-issued-details" class="conditional" data-condition="radio-visa-issued" data-value="one">
+                <div class="form-row">
+                    <div class="field"><label>Data da última emissão <span class="required">*</span></label><input type="date" name="visa_issued_date"></div>
+                    <div class="field"><label>Número do visto <span class="required">*</span></label><input type="text" name="visa_number" placeholder="Ex: 123456789"></div>
+                </div>
+                <div class="field">
+                    <label>Está solicitando o mesmo tipo de visto? <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="radio-same-visa" value="YES"> Sim</label>
+                        <label><input type="radio" name="radio-same-visa" value="NO" checked> Não</label>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Está aplicando no mesmo país/cidade? <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="radio-same-location" value="YES"> Sim</label>
+                        <label><input type="radio" name="radio-same-location" value="NO" checked> Não</label>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Teve suas impressões digitais coletadas (10 dedos)? <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="radio-fingerprints" value="YES"> Sim</label>
+                        <label><input type="radio" name="radio-fingerprints" value="NO" checked> Não</label>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>O visto foi cancelado ou revogado alguma vez? <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="radio-visa-cancelled" class="conditional-trigger" data-target="visa-cancelled-details" value="YES"> Sim</label>
+                        <label><input type="radio" name="radio-visa-cancelled" value="NO" checked> Não</label>
+                    </div>
+                </div>
+                <div id="visa-cancelled-details" class="conditional" data-condition="radio-visa-cancelled" data-value="YES">
+                    <div class="field"><label>Explique as circunstâncias <span class="required">*</span></label><textarea name="visa_cancelled_expl" rows="3" placeholder="Descreva o motivo do cancelamento/revogação..."></textarea></div>
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Você já teve um visto americano recusado, teve a entrada negada nos EUA ou retirou o pedido de entrada no porto de desembarque? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-visa-refused" class="conditional-trigger" data-target="visa-refused-details" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-visa-refused" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="visa-refused-details" class="conditional" data-condition="radio-visa-refused" data-value="one">
+                <div class="field"><label>Explique detalhadamente os motivos <span class="required">*</span></label><textarea name="visa_refused_explanation" rows="4" placeholder="Descreva detalhadamente os motivos da recusa, negação de entrada ou retirada do pedido..."></textarea></div>
+            </div>
+
+            <div class="field">
+                <label>Alguém já deu entrada em uma petição de imigração em seu nome junto ao Serviço de Cidadania e Imigração dos EUA (USCIS)? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-petition" class="conditional-trigger" data-target="petition-details" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-petition" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="petition-details" class="conditional" data-condition="radio-petition" data-value="one">
+                <div class="field"><label>Detalhes da petição <span class="required">*</span></label><textarea name="petition_details" rows="3" placeholder="Descreva os detalhes da petição de imigração..."></textarea></div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="prevStep(4)">← Voltar</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep(6)">Próximo →</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- PASSO 6: ENDEREÇO E INFORMAÇÕES DE CONTATO -->
+        <!-- ============================================================ -->
+        <div class="form-section" data-step="6">
+            <h2 class="section-title">📞 Endereço e Informações de Contato</h2>
+
+            <div class="field">
+                <label>Endereço Residencial - Endereço (Rua, número, complemento e bairro) <span class="required">*</span></label>
+                <input type="text" name="address" placeholder="Ex: ESTRADA DOS MENEZES, 400, BLOCO A2 APTO 309" required>
+            </div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Cidade <span class="required">*</span></label>
+                    <input type="text" name="city" placeholder="Ex: SAO GONCALO" required>
+                </div>
+                <div class="field">
+                    <label>Estado/Província <span class="required">*</span></label>
+                    <input type="text" name="state" placeholder="Ex: RIO DE JANEIRO" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>CEP <span class="required">*</span></label>
+                    <input type="text" name="zip" class="cep-mask" placeholder="24451-230" required>
+                </div>
+                <div class="field">
+                    <label>País <span class="required">*</span></label>
+                    <input type="text" name="country" value="BRASIL" required>
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Seu endereço de correspondência é o mesmo endereço residencial? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-mailing" class="conditional-trigger" data-target="mailing-address" value="YES" checked> Sim</label>
+                    <label><input type="radio" name="radio-mailing" value="NO"> Não</label>
+                </div>
+            </div>
+
+            <div id="mailing-address" class="conditional" data-condition="radio-mailing" data-value="NO">
+                <div class="field"><label>Endereço de Correspondência <span class="required">*</span></label><input type="text" name="mailing_address" placeholder="Ex: RUA DAS FLORES, 100"></div>
+                <div class="form-row">
+                    <div class="field"><label>Cidade <span class="required">*</span></label><input type="text" name="mailing_city" placeholder="Ex: SAO PAULO"></div>
+                    <div class="field"><label>Estado <span class="required">*</span></label><input type="text" name="mailing_state" placeholder="Ex: SP"></div>
+                </div>
+                <div class="form-row">
+                    <div class="field"><label>CEP <span class="required">*</span></label><input type="text" name="mailing_zip" class="cep-mask" placeholder="00000-000"></div>
+                    <div class="field"><label>País <span class="required">*</span></label><input type="text" name="mailing_country" value="BRASIL"></div>
+                </div>
+            </div>
+
+            <div class="sub-section-title">📱 Números de Telefone</div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Telefone Principal (Celular) <span class="required">*</span></label>
+                    <input type="tel" name="phone" class="phone-mask" placeholder="(21) 99999-9999" required>
+                </div>
+                <div class="field">
+                    <label>Telefone Secundário (Fixo ou alternativo)</label>
+                    <input type="tel" name="phone_secondary" class="phone-mask" placeholder="(21) 99999-9999">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Telefone do Trabalho (Comercial)</label>
+                    <input type="tel" name="phone_work" class="phone-mask" placeholder="(21) 99999-9999">
+                </div>
+                <div class="field">
+                    <label>Telefones Adicionais Utilizados nos Últimos 5 Anos</label>
+                    <input type="tel" name="phone_extra" class="phone-mask" placeholder="(21) 99999-9999">
+                </div>
+            </div>
+
+            <div class="sub-section-title">📧 Endereço de E-mail</div>
+
+            <div class="field">
+                <label>E-mail Principal (de uso frequente) <span class="required">*</span></label>
+                <input type="email" name="email" placeholder="exemplo@email.com" required>
+            </div>
+
+            <div class="field">
+                <label>Possui outros e-mails utilizados nos últimos 5 anos? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-more-emails" class="conditional-trigger" data-target="more-emails" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-more-emails" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="more-emails" class="conditional" data-condition="radio-more-emails" data-value="one">
+                <div id="emails-container">
+                    <div class="repeatable-item email-item">
+                        <div class="field"><label>E-mail adicional <span class="required">*</span></label><input type="email" name="emails_extra[]" placeholder="email@exemplo.com"></div>
+                        <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+                    </div>
+                </div>
+                <button type="button" class="add-btn" onclick="addItem('emails-container', 'email-item', emailExtraHTML)">+ Adicionar E-mail</button>
+            </div>
+
+            <div class="sub-section-title">📱 Redes Sociais</div>
+
+            <div class="field">
+                <label>Redes Sociais - Plataformas e Identificadores (Últimos 5 anos) <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-social" class="conditional-trigger" data-target="social-media" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-social" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="social-media" class="conditional" data-condition="radio-social" data-value="one">
+                <div id="social-container">
+                    <div class="repeatable-item social-item">
+                        <div class="form-row">
+                            <div class="field"><label>Plataforma <span class="required">*</span></label>
+                                <select name="social_plataforma[]">
+                                    <option value="">Selecione...</option>
+                                    <option value="Facebook">Facebook</option>
+                                    <option value="Instagram">Instagram</option>
+                                    <option value="LinkedIn">LinkedIn</option>
+                                    <option value="YouTube">YouTube</option>
+                                    <option value="Twitter">Twitter/X</option>
+                                    <option value="TikTok">TikTok</option>
+                                    <option value="Outro">Outro</option>
+                                </select>
+                            </div>
+                            <div class="field"><label>Identificador (Nome de usuário/handle) <span class="required">*</span></label><input type="text" name="social_identificador[]" placeholder="Ex: usuario"></div>
+                        </div>
+                        <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+                    </div>
+                </div>
+                <button type="button" class="add-btn" onclick="addItem('social-container', 'social-item', socialHTML)">+ Adicionar Rede Social</button>
+            </div>
+
+            <div class="field">
+                <label>Presença Adicional em Redes Sociais (Outros perfis, sites ou blogs em que publicou conteúdo nos últimos 5 anos)</label>
+                <textarea name="social_extra" rows="2" placeholder="Descreva outros perfis ou sites onde publicou conteúdo..."></textarea>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="prevStep(5)">← Voltar</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep(7)">Próximo →</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- PASSO 7: INFORMAÇÕES DO PASSAPORTE -->
+        <!-- ============================================================ -->
+        <div class="form-section" data-step="7">
+            <h2 class="section-title">🛂 Informações do Passaporte</h2>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Número do Passaporte <span class="required">*</span></label>
+                    <input type="text" name="passport_number" placeholder="Ex: FX970578" required>
+                </div>
+                <div class="field">
+                    <label>País/Autoridade Emissora do Passaporte <span class="required">*</span></label>
+                    <input type="text" name="passport_country" value="BRASIL" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Onde o Passaporte foi Emitido? - Cidade <span class="required">*</span></label>
+                    <input type="text" name="passport_city" placeholder="Ex: RIO DE JANEIRO" required>
+                </div>
+                <div class="field">
+                    <label>Onde o Passaporte foi Emitido? - Estado <span class="required">*</span></label>
+                    <input type="text" name="passport_state" placeholder="Ex: RJ" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Data de Emissão <span class="required">*</span></label>
+                    <input type="date" name="passport_issue" required>
+                </div>
+                <div class="field">
+                    <label>Data de Validade <span class="required">*</span></label>
+                    <input type="date" name="passport_expiry" required>
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Você já perdeu um passaporte ou teve um passaporte roubado? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-passport-lost" class="conditional-trigger" data-target="passport-lost" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-passport-lost" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="passport-lost" class="conditional" data-condition="radio-passport-lost" data-value="one">
+                <div class="form-row">
+                    <div class="field"><label>Número do passaporte perdido <span class="required">*</span></label><input type="text" name="passport_lost_number" placeholder="Ex: AB123456"></div>
+                    <div class="field"><label>País de emissão <span class="required">*</span></label><input type="text" name="passport_lost_country" placeholder="Ex: BRASIL"></div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="prevStep(6)">← Voltar</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep(8)">Próximo →</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- PASSO 8: INFORMAÇÕES DE CONTATO NOS EUA -->
+        <!-- ============================================================ -->
+        <div class="form-section" data-step="8">
+            <h2 class="section-title">🇺🇸 Informações de Contato nos EUA</h2>
+
+            <div class="field">
+                <label>Pessoa de Contato ou Organização nos Estados Unidos</label>
+            </div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Pessoa de Contato (Nome da pessoa)</label>
+                    <input type="text" name="us_contact_name" placeholder="Ex: JOÃO SILVA">
+                </div>
+                <div class="field">
+                    <label>Nome da Organização (Hotel, escola ou empresa)</label>
+                    <input type="text" name="us_contact_org" placeholder="Ex: CLARION INN">
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Relação com Você</label>
+                <input type="text" name="us_contact_relationship" placeholder="Ex: PARENTE, AMIGO, HOTEL, EMPREGADOR">
+            </div>
+
+            <div class="field">
+                <label>Endereço do Contato nos EUA</label>
+                <input type="text" name="us_contact_address" placeholder="Ex: 8444 INTERNATIONAL DRIVE ORLANDO, FL 32819">
+            </div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Telefone</label>
+                    <input type="tel" name="us_contact_phone" class="phone-mask" placeholder="(132) 123-4426">
+                </div>
+                <div class="field">
+                    <label>E-mail</label>
+                    <input type="email" name="us_contact_email" placeholder="email@exemplo.com">
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="prevStep(7)">← Voltar</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep(9)">Próximo →</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- PASSO 9: INFORMAÇÕES FAMILIARES -->
+        <!-- ============================================================ -->
+        <div class="form-section" data-step="9">
+            <h2 class="section-title">👨‍👩‍👧‍👦 Informações Familiares</h2>
+
+            <div class="sub-section-title">👨 Dados do Pai</div>
+
+            <div class="field">
+                <label>Nome completo do Pai </label>
+                <input type="text" name="father_name" placeholder="Ex: MANOEL DA SILVA" >
+            </div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Data de Nascimento do pai</label>
+                    <input type="date" name="father_dob">
+                </div>
+                <div class="field">
+                    <label>O pai está nos EUA? </label>
+                    <select name="father_in_us" required>
+                        <option value="NO">Não</option>
+                        <option value="YES">Sim</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="father-status" class="conditional" data-condition="father_in_us" data-value="YES">
+                <div class="field"><label>Qual a situação legal do pai nos EUA? <span class="required">*</span></label>
+                    <select name="father_status" required>
+                        <option value="">Selecione...</option>
+                        <option value="Naturalizado">Naturalizado</option>
+                        <option value="Residente">Residente Permanente</option>
+                        <option value="Imigrante">Imigrante (Visto)</option>
+                        <option value="Outro">Outro</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="sub-section-title">👩 Dados da Mãe</div>
+
+            <div class="field">
+                <label>Nome completo da Mãe <span class="required">*</span></label>
+                <input type="text" name="mother_name" placeholder="Ex: MARIA DE LOURDES ALVES DA SILVA" required>
+            </div>
+
+            <div class="form-row">
+                <div class="field">
+                    <label>Data de Nascimento da Mãe <span class="required">*</span></label>
+                    <input type="date" name="mother_dob" required>
+                </div>
+                <div class="field">
+                    <label>A mãe está nos EUA? <span class="required">*</span></label>
+                    <select name="mother_in_us" required>
+                        <option value="NO">Não</option>
+                        <option value="YES">Sim</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="mother-status" class="conditional" data-condition="mother_in_us" data-value="YES">
+                <div class="field"><label>Qual a situação legal da mãe nos EUA? <span class="required">*</span></label>
+                    <select name="mother_status" required>
+                        <option value="">Selecione...</option>
+                        <option value="Naturalizado">Naturalizada</option>
+                        <option value="Residente">Residente Permanente</option>
+                        <option value="Imigrante">Imigrante (Visto)</option>
+                        <option value="Outro">Outro</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Você possui parentes diretos nos EUA (excluindo pais)? (Cônjuge, noivo(a), filho(a), irmão/irmã) <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-immediate-relatives" class="conditional-trigger" data-target="immediate-relatives" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-immediate-relatives" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="immediate-relatives" class="conditional" data-condition="radio-immediate-relatives" data-value="one">
+                <div id="immediate-relatives-container">
+                    <div class="repeatable-item immediate-relative-item">
+                        <div class="form-row">
+                            <div class="field"><label>Nome Completo <span class="required">*</span></label><input type="text" name="immediate_relative_name[]" placeholder="Ex: JOAQUIM SILVA"></div>
+                            <div class="field"><label>Parentesco <span class="required">*</span></label>
+                                <select name="immediate_relative_relationship[]">
+                                    <option value="">Selecione...</option>
+                                    <option>Cônjuge</option>
+                                    <option>Noivo(a)</option>
+                                    <option>Filho(a)</option>
+                                    <option>Irmão/irmã</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="field"><label>Status de Permanência nos EUA <span class="required">*</span></label>
+                            <select name="immediate_relative_status[]">
+                                <option value="">Selecione...</option>
+                                <option value="Cidadão">Cidadão Americano</option>
+                                <option value="Residente">Residente Permanente</option>
+                                <option value="Visto">Visto Temporário</option>
+                                <option value="Outro">Outro</option>
+                            </select>
+                        </div>
+                        <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+                    </div>
+                </div>
+                <button type="button" class="add-btn" onclick="addItem('immediate-relatives-container', 'immediate-relative-item', immediateRelativeHTML)">+ Adicionar Parente Direto</button>
+            </div>
+
+            <div class="field">
+                <label>Você possui qualquer outro parente nos EUA? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-other-relatives" class="conditional-trigger" data-target="other-relatives" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-other-relatives" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="other-relatives" class="conditional" data-condition="radio-other-relatives" data-value="one">
+                <div class="field"><label>Descreva os outros parentes <span class="required">*</span></label><textarea name="other_relatives_desc" rows="3" placeholder="Ex: TIO ANTONIO, PRIMO CARLOS"></textarea></div>
+            </div>
+
+            <!-- INFORMAÇÕES DO CÔNJUGE - SOMENTE PARA NÃO SOLTEIROS -->
+            <div id="spouse-section" class="conditional" data-condition="marital_status" data-value="MARRIED,UNION,DIVORCED,WIDOWED,SEPARATED,OTHER">
+                <div class="sub-section-title">💑 Informações do Cônjuge ou Ex-Cônjuge</div>
+
+                <div class="field">
+                    <label>Se casado(a), separado(a), divorciado(a) ou viúvo(a), preencha os dados abaixo</label>
+                </div>
+
+                <div class="field">
+                    <label>Nome do Cônjuge/Ex-Cônjuge <span class="required">*</span></label>
+                    <input type="text" name="spouse_name" placeholder="Ex: DENIZE REZENDE VITORIO ALVES" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="field">
+                        <label>Data de Nascimento <span class="required">*</span></label>
+                        <input type="date" name="spouse_dob" required>
+                    </div>
+                    <div class="field">
+                        <label>Nacionalidade <span class="required">*</span></label>
+                        <input type="text" name="spouse_nationality" value="BRASIL" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="field">
+                        <label>Local de Nascimento - Cidade <span class="required">*</span></label>
+                        <input type="text" name="spouse_birth_city" placeholder="Ex: CACHOEIRO ITAPEMIRIM" required>
+                    </div>
+                    <div class="field">
+                        <label>Local de Nascimento - País <span class="required">*</span></label>
+                        <input type="text" name="spouse_birth_country" value="BRASIL" required>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>Endereço do Cônjuge <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="radio-spouse-address" value="SAME" checked> Mesmo endereço</label>
+                        <label><input type="radio" name="radio-spouse-address" class="conditional-trigger" data-target="spouse-address-detail" value="US"> Endereço nos EUA</label>
+                        <label><input type="radio" name="radio-spouse-address" class="conditional-trigger" data-target="spouse-address-detail" value="OTHER"> Outro endereço</label>
+                    </div>
+                </div>
+
+                <div id="spouse-address-detail" class="conditional" data-condition="radio-spouse-address" data-value="US,OTHER">
+                    <div class="field"><label>Endereço do Cônjuge <span class="required">*</span></label><input type="text" name="spouse_address" placeholder="Ex: 123 MAIN ST, NEW YORK, NY 10001"></div>
+                    <div class="form-row">
+                        <div class="field"><label>Cidade <span class="required">*</span></label><input type="text" name="spouse_address_city" placeholder="Ex: NEW YORK"></div>
+                        <div class="field"><label>Estado <span class="required">*</span></label><input type="text" name="spouse_address_state" placeholder="Ex: NY"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="field"><label>CEP <span class="required">*</span></label><input type="text" name="spouse_address_zip" placeholder="Ex: 10001"></div>
+                        <div class="field"><label>País <span class="required">*</span></label><input type="text" name="spouse_address_country" placeholder="Ex: ESTADOS UNIDOS"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="prevStep(8)">← Voltar</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep(10)">Próximo →</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- PASSO 10: TRABALHO, EDUCAÇÃO E TREINAMENTO -->
+        <!-- ============================================================ -->
+        <div class="form-section" data-step="10">
+            <h2 class="section-title">💼 Trabalho, Educação e Treinamento</h2>
+
+            <div class="sub-section-title">A. Ocupação Atual</div>
+
+            <div class="field">
+                <label>Ocupação Principal <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-occupation" class="conditional-trigger-work" value="Profissional" required> Profissional</label>
+                    <label><input type="radio" name="radio-occupation" class="conditional-trigger-work" value="Estudante"> Estudante</label>
+                    <label><input type="radio" name="radio-occupation" class="conditional-trigger-work" value="Aposentado"> Aposentado</label>
+                    <label><input type="radio" name="radio-occupation" class="conditional-trigger-work" value="Dona de Casa"> Dona de Casa</label>
+                </div>
+            </div>
+
+            <!-- Campos de trabalho - visíveis apenas para Profissional e Estudante -->
+            <div id="work-fields" style="display:none;" data-work-types="Profissional,Estudante">
+                <div class="field"><label>Nome do Empregador ou Instituição de Ensino <span class="required">*</span></label><input type="text" name="employer_name" placeholder="Ex: MARINHA DO BRASIL"></div>
+                <div class="field"><label>Endereço do Empregador/Escola <span class="required">*</span></label><input type="text" name="employer_address" placeholder="Ex: RUA PRIMEIRO DE MARCO, 118"></div>
+                <div class="form-row">
+                    <div class="field"><label>Cidade <span class="required">*</span></label><input type="text" name="employer_city" placeholder="Ex: RIO DE JANEIRO"></div>
+                    <div class="field"><label>Estado/Província <span class="required">*</span></label><input type="text" name="employer_state" placeholder="Ex: RJ"></div>
+                </div>
+                <div class="form-row">
+                    <div class="field"><label>CEP <span class="required">*</span></label><input type="text" name="employer_zip" class="cep-mask" placeholder="20010-000"></div>
+                    <div class="field"><label>País <span class="required">*</span></label><input type="text" name="employer_country" value="BRASIL"></div>
+                </div>
+                <div class="form-row">
+                    <div class="field"><label>Telefone <span class="required">*</span></label><input type="tel" name="employer_phone" class="phone-mask" placeholder="(21) 2104-6481"></div>
+                    <div class="field"><label>Data de Início <span class="required">*</span></label><input type="date" name="employer_start"></div>
+                </div>
+                <div class="field"><label>Renda Mensal em Moeda Local (R$) <span class="required">*</span></label><input type="text" name="employer_income" class="moeda-mask" placeholder="R$ 0,00"></div>
+                <div class="field"><label>Descrição Breve das Funções <span class="required">*</span></label><textarea name="employer_duties" rows="3" placeholder="Descreva resumidamente as atividades desempenhadas no dia a dia..."></textarea></div>
+            </div>
+
+            <div class="field">
+                <label>Outras ocupações (mesmos campos da ocupação atual) <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-other-occupations" class="conditional-trigger" data-target="other-occupations-group" value="one"> Sim</label>
+                    <label><input type="radio" name="radio-other-occupations" value="two" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="other-occupations-group" class="conditional" data-condition="radio-other-occupations" data-value="one">
+                <div id="other-occupations-container">
+                    <div class="repeatable-item other-occupation-item">
+                        <div class="field"><label>Nome do Empregador <span class="required">*</span></label><input type="text" name="other_employer_name[]" placeholder="Ex: EMPRESA XYZ"></div>
+                        <div class="field"><label>Endereço <span class="required">*</span></label><input type="text" name="other_employer_address[]" placeholder="Ex: RUA DAS FLORES, 100"></div>
+                        <div class="form-row">
+                            <div class="field"><label>Cidade <span class="required">*</span></label><input type="text" name="other_employer_city[]" placeholder="Ex: SAO PAULO"></div>
+                            <div class="field"><label>Estado <span class="required">*</span></label><input type="text" name="other_employer_state[]" placeholder="Ex: SP"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="field"><label>CEP <span class="required">*</span></label><input type="text" name="other_employer_zip[]" class="cep-mask" placeholder="00000-000"></div>
+                            <div class="field"><label>Telefone <span class="required">*</span></label><input type="tel" name="other_employer_phone[]" class="phone-mask" placeholder="(11) 99999-9999"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="field"><label>Data de Início <span class="required">*</span></label><input type="date" name="other_employer_start[]"></div>
+                            <div class="field"><label>Renda Mensal (R$) <span class="required">*</span></label><input type="text" name="other_employer_income[]" class="moeda-mask" placeholder="R$ 0,00"></div>
+                        </div>
+                        <div class="field"><label>Descrição das Funções <span class="required">*</span></label><textarea name="other_employer_duties[]" rows="3" placeholder="Descreva as atividades desempenhadas..."></textarea></div>
+                        <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+                    </div>
+                </div>
+                <button type="button" class="add-btn" onclick="addItem('other-occupations-container', 'other-occupation-item', otherOccupationHTML)">+ Adicionar Outra Ocupação</button>
+            </div>
+
+            <div class="sub-section-title">B. Empregos Anteriores (Últimos 5 anos)</div>
+
+            <div class="field">
+                <label>Você esteve empregado anteriormente? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-prev-employment" class="conditional-trigger" data-target="prev-employment" value="YES"> Sim</label>
+                    <label><input type="radio" name="radio-prev-employment" value="NO" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="prev-employment" class="conditional" data-condition="radio-prev-employment" data-value="YES">
+                <div id="prev-employment-container">
+                    <div class="repeatable-item prev-employment-item">
+                        <div class="field"><label>Nome da Empresa <span class="required">*</span></label><input type="text" name="prev_employer_name[]" placeholder="Ex: EMPRESA ABC"></div>
+                        <div class="field"><label>Endereço da Empresa <span class="required">*</span></label><input type="text" name="prev_employer_address[]" placeholder="Ex: RUA DAS FLORES, 100"></div>
+                        <div class="form-row">
+                            <div class="field"><label>Cidade <span class="required">*</span></label><input type="text" name="prev_employer_city[]" placeholder="Ex: SAO PAULO"></div>
+                            <div class="field"><label>Estado <span class="required">*</span></label><input type="text" name="prev_employer_state[]" placeholder="Ex: SP"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="field"><label>CEP <span class="required">*</span></label><input type="text" name="prev_employer_zip[]" class="cep-mask" placeholder="00000-000"></div>
+                            <div class="field"><label>Telefone <span class="required">*</span></label><input type="tel" name="prev_employer_phone[]" class="phone-mask" placeholder="(11) 99999-9999"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="field"><label>Cargo Exercido <span class="required">*</span></label><input type="text" name="prev_employer_job[]" placeholder="Ex: ANALISTA"></div>
+                            <div class="field"><label>Nome do Supervisor Direto <span class="required">*</span></label><input type="text" name="prev_employer_supervisor[]" placeholder="Ex: CARLOS ALMEIDA"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="field"><label>Data de Início <span class="required">*</span></label><input type="date" name="prev_employer_start[]"></div>
+                            <div class="field"><label>Data de Término <span class="required">*</span></label><input type="date" name="prev_employer_end[]"></div>
+                        </div>
+                        <div class="field"><label>Descrição Breve das Funções Desempenhadas <span class="required">*</span></label><textarea name="prev_employer_duties[]" rows="3" placeholder="Descreva as atividades desempenhadas..."></textarea></div>
+                        <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+                    </div>
+                </div>
+                <button type="button" class="add-btn" onclick="addItem('prev-employment-container', 'prev-employment-item', prevEmploymentHTML)">+ Adicionar Emprego Anterior</button>
+            </div>
+
+            <div class="sub-section-title">C. Histórico Acadêmico</div>
+
+            <div class="field">
+                <label>Você frequentou alguma instituição de ensino de nível médio, técnico ou superior? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-education" class="conditional-trigger" data-target="education" value="YES"> Sim</label>
+                    <label><input type="radio" name="radio-education" value="NO" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="education" class="conditional" data-condition="radio-education" data-value="YES">
+                <div id="education-container">
+                    <div class="repeatable-item education-item">
+                        <div class="field"><label>Nome da Escola/Faculdade <span class="required">*</span></label><input type="text" name="edu_institution[]" placeholder="Ex: FACULDADE UNYLEYA"></div>
+                        <div class="field"><label>Endereço <span class="required">*</span></label><input type="text" name="edu_address[]" placeholder="Ex: AV. DAS AMERICAS, 4200"></div>
+                        <div class="form-row">
+                            <div class="field"><label>Cidade <span class="required">*</span></label><input type="text" name="edu_city[]" placeholder="Ex: RIO DE JANEIRO"></div>
+                            <div class="field"><label>Estado <span class="required">*</span></label><input type="text" name="edu_state[]" placeholder="Ex: RJ"></div>
+                        </div>
+                        <div class="field"><label>Nome do Curso/Área de Estudo <span class="required">*</span></label><input type="text" name="edu_course[]" placeholder="Ex: ADMINISTRACAO"></div>
+                        <div class="form-row">
+                            <div class="field"><label>Data de Início <span class="required">*</span></label><input type="date" name="edu_start[]"></div>
+                            <div class="field"><label>Data de Conclusão <span class="required">*</span></label><input type="date" name="edu_end[]"></div>
+                        </div>
+                        <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+                    </div>
+                </div>
+                <button type="button" class="add-btn" onclick="addItem('education-container', 'education-item', educationHTML)">+ Adicionar Curso</button>
+            </div>
+
+            <div class="sub-section-title">D. Informações Adicionais sobre Trabalho/Treinamento</div>
+
+            <div class="field">
+                <label>Idiomas Falados (Além do Português)</label>
+                <div id="languages-container">
+                    <div class="repeatable-item language-item">
+                        <div class="field"><label>Idioma</label><input type="text" name="languages[]" placeholder="Ex: INGLES"></div>
+                        <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+                    </div>
+                </div>
+                <button type="button" class="add-btn" onclick="addItem('languages-container', 'language-item', languageHTML)">+ Adicionar Idioma</button>
+            </div>
+
+            <div class="field">
+                <label>Países Visitados nos Últimos 5 Anos <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-traveled" class="conditional-trigger" data-target="traveled-countries" value="YES"> Sim</label>
+                    <label><input type="radio" name="radio-traveled" value="NO" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="traveled-countries" class="conditional" data-condition="radio-traveled" data-value="YES">
+                <div id="traveled-container">
+                    <div class="repeatable-item traveled-item">
+                        <div class="field"><label>País <span class="required">*</span></label><input type="text" name="traveled_countries[]" placeholder="Ex: MARROCOS"></div>
+                        <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+                    </div>
+                </div>
+                <button type="button" class="add-btn" onclick="addItem('traveled-container', 'traveled-item', traveledHTML)">+ Adicionar País</button>
+            </div>
+
+            <div class="field">
+                <label>Você possui alguma habilidade ou treinamento especializado em armas de fogo, explosivos ou áreas nuclear, biológica ou química? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-specialized" class="conditional-trigger" data-target="specialized-details" value="YES"> Sim</label>
+                    <label><input type="radio" name="radio-specialized" value="NO" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="specialized-details" class="conditional" data-condition="radio-specialized" data-value="YES">
+                <div class="field"><label>Descreva o treinamento/habilidade <span class="required">*</span></label><textarea name="specialized_description" rows="4" placeholder="Descreva detalhadamente o treinamento..."></textarea></div>
+            </div>
+
+            <div class="field">
+                <label>Você já prestou serviço militar? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-military" class="conditional-trigger" data-target="military-details" value="YES"> Sim</label>
+                    <label><input type="radio" name="radio-military" value="NO" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="military-details" class="conditional" data-condition="radio-military" data-value="YES">
+                <div class="form-row">
+                    <div class="field"><label>Ramo das forças armadas <span class="required">*</span></label>
+                        <select name="military_branch">
+                            <option value="">Selecione...</option>
+                            <option value="Exercito">Exército</option>
+                            <option value="Marinha">Marinha</option>
+                            <option value="Aeronautica">Aeronáutica</option>
+                            <option value="Forca_Auxiliar">Força Auxiliar</option>
+                        </select>
+                    </div>
+                    <div class="field"><label>Patente/Posto <span class="required">*</span></label><input type="text" name="military_rank" placeholder="Ex: CABO"></div>
+                </div>
+                <div class="form-row">
+                    <div class="field"><label>Especialidade <span class="required">*</span></label><input type="text" name="military_specialty" placeholder="Ex: COMUNICAÇÕES"></div>
+                    <div class="field"><label>Data de Início <span class="required">*</span></label><input type="date" name="military_start"></div>
+                </div>
+                <div class="field"><label>Data de Saída <span class="required">*</span></label><input type="date" name="military_end"></div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="prevStep(9)">← Voltar</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep(11)">Próximo →</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- PASSO 11: QUESTIONÁRIO DE SEGURANÇA -->
+        <!-- ============================================================ -->
+        <div class="form-section" data-step="11">
+            <h2 class="section-title">🔒 Questionário de Segurança</h2>
+
+            <div class="alert alert-info">
+                <strong>⚠️ Atenção!</strong>
+                <p>Caso alguma resposta seja "Sim", o sistema abrirá um campo obrigatório para explicação detalhada.</p>
+            </div>
+
+            <div class="field">
+                <label>Você já foi preso ou condenado por algum crime ou infração? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-arrested" class="conditional-trigger" data-target="arrested-details" value="YES"> Sim</label>
+                    <label><input type="radio" name="radio-arrested" value="NO" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="arrested-details" class="conditional" data-condition="radio-arrested" data-value="YES">
+                <div class="field"><label>Explique detalhadamente <span class="required">*</span></label><textarea name="arrested_explanation" rows="4" placeholder="Descreva detalhadamente o ocorrido..."></textarea></div>
+            </div>
+
+            <div class="field">
+                <label>Você já foi deportado de algum país? <span class="required">*</span></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="radio-deported" class="conditional-trigger" data-target="deported-details" value="YES"> Sim</label>
+                    <label><input type="radio" name="radio-deported" value="NO" checked> Não</label>
+                </div>
+            </div>
+
+            <div id="deported-details" class="conditional" data-condition="radio-deported" data-value="YES">
+                <div class="field"><label>Explique detalhadamente <span class="required">*</span></label><textarea name="deported_explanation" rows="4" placeholder="Descreva detalhadamente o ocorrido..."></textarea></div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="prevStep(10)">← Voltar</button>
+                <button type="button" class="btn btn-primary" onclick="nextStep(12)">Próximo →</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- PASSO 12: REVISÃO E FINALIZAÇÃO -->
+        <!-- ============================================================ -->
+        <div class="form-section" data-step="12">
+            <h2 class="section-title">✅ Revisão e Finalização</h2>
+
+            <div class="alert alert-info">
+                <strong>📌 Atenção!</strong>
+                <p>Verifique todos os dados antes de enviar. Clique nos botões abaixo para corrigir qualquer campo.</p>
+            </div>
+
+            <div id="resumoDados"><p style="color:#666;">Carregando seus dados...</p></div>
+
+            <div class="field" style="margin-top:20px;">
+                <label>
+                    <input type="checkbox" id="aceito_termos" required>
+                    Confirmo que as informações fornecidas são verdadeiras e estou ciente de que mentiras podem resultar em recusa do visto. <span class="required">*</span>
+                </label>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="prevStep(11)">← Voltar</button>
+                <button type="submit" class="btn btn-success" id="submitBtn">📤 Enviar Formulário</button>
+            </div>
+        </div>
+
+    </form>
+
+    <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+        <p style="margin-top:10px;">Enviando dados...</p>
+    </div>
+
+    <div id="resultado" class="hidden">
+        <div class="alert alert-success">
+            <h3>✅ Formulário enviado com sucesso!</h3>
+            <p>Obrigado por preencher o formulário. Nossa equipe entrará em contato em breve.</p>
+            <p><strong>📱 Fique atento ao WhatsApp!</strong></p>
+        </div>
+        <button class="btn btn-primary" onclick="location.reload()">📝 Preencher novo formulário</button>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// VARIÁVEIS GLOBAIS
+// ============================================================
+let currentStep = 1;
+const totalSteps = 12;
+
+// ============================================================
+// HTML DOS ITENS REPETÍVEIS
+// ============================================================
+const companionHTML = `
+    <div class="form-row">
+        <div class="field"><label>Nome Completo <span class="required">*</span></label><input type="text" name="companion_name[]" placeholder="Ex: MARIA SILVA"></div>
+        <div class="field"><label>Parentesco/Relação <span class="required">*</span></label>
+            <select name="companion_relationship[]">
+                <option value="">Selecione...</option>
+                <option>Cônjuge</option><option>Pai/Mãe</option>
+                <option>Filho(a)</option><option>Irmão(ã)</option>
+                <option>Parente</option><option>Amigo(a)</option>
+                <option>Colega de Trabalho</option>
+            </select>
+        </div>
+    </div>
+    <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+`;
+
+const usTravelHTML = `
+    <div class="form-row">
+        <div class="field"><label>Data de Chegada <span class="required">*</span></label><input type="date" name="us_travel_date[]"></div>
+        <div class="field"><label>Tempo de Permanência (dias) <span class="required">*</span></label><input type="text" name="us_travel_duration[]" placeholder="Ex: 15"></div>
+    </div>
+    <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+`;
+
+const immediateRelativeHTML = `
+    <div class="form-row">
+        <div class="field"><label>Nome Completo <span class="required">*</span></label><input type="text" name="immediate_relative_name[]" placeholder="Ex: JOAQUIM SILVA"></div>
+        <div class="field"><label>Parentesco <span class="required">*</span></label>
+            <select name="immediate_relative_relationship[]">
+                <option value="">Selecione...</option>
+                <option>Cônjuge</option>
+                <option>Noivo(a)</option>
+                <option>Filho(a)</option>
+                <option>Irmão/irmã</option>
+            </select>
+        </div>
+    </div>
+    <div class="field"><label>Status de Permanência nos EUA <span class="required">*</span></label>
+        <select name="immediate_relative_status[]">
+            <option value="">Selecione...</option>
+            <option value="Cidadão">Cidadão Americano</option>
+            <option value="Residente">Residente Permanente</option>
+            <option value="Visto">Visto Temporário</option>
+            <option value="Outro">Outro</option>
+        </select>
+    </div>
+    <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+`;
+
+const prevEmploymentHTML = `
+    <div class="field"><label>Nome da Empresa <span class="required">*</span></label><input type="text" name="prev_employer_name[]" placeholder="Ex: EMPRESA ABC"></div>
+    <div class="field"><label>Endereço da Empresa <span class="required">*</span></label><input type="text" name="prev_employer_address[]" placeholder="Ex: RUA DAS FLORES, 100"></div>
+    <div class="form-row">
+        <div class="field"><label>Cidade <span class="required">*</span></label><input type="text" name="prev_employer_city[]" placeholder="Ex: SAO PAULO"></div>
+        <div class="field"><label>Estado <span class="required">*</span></label><input type="text" name="prev_employer_state[]" placeholder="Ex: SP"></div>
+    </div>
+    <div class="form-row">
+        <div class="field"><label>CEP <span class="required">*</span></label><input type="text" name="prev_employer_zip[]" class="cep-mask" placeholder="00000-000"></div>
+        <div class="field"><label>Telefone <span class="required">*</span></label><input type="tel" name="prev_employer_phone[]" class="phone-mask" placeholder="(11) 99999-9999"></div>
+    </div>
+    <div class="form-row">
+        <div class="field"><label>Cargo Exercido <span class="required">*</span></label><input type="text" name="prev_employer_job[]" placeholder="Ex: ANALISTA"></div>
+        <div class="field"><label>Nome do Supervisor Direto <span class="required">*</span></label><input type="text" name="prev_employer_supervisor[]" placeholder="Ex: CARLOS ALMEIDA"></div>
+    </div>
+    <div class="form-row">
+        <div class="field"><label>Data de Início <span class="required">*</span></label><input type="date" name="prev_employer_start[]"></div>
+        <div class="field"><label>Data de Término <span class="required">*</span></label><input type="date" name="prev_employer_end[]"></div>
+    </div>
+    <div class="field"><label>Descrição Breve das Funções Desempenhadas <span class="required">*</span></label><textarea name="prev_employer_duties[]" rows="3" placeholder="Descreva as atividades desempenhadas..."></textarea></div>
+    <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+`;
+
+const otherOccupationHTML = `
+    <div class="field"><label>Nome do Empregador <span class="required">*</span></label><input type="text" name="other_employer_name[]" placeholder="Ex: EMPRESA XYZ"></div>
+    <div class="field"><label>Endereço <span class="required">*</span></label><input type="text" name="other_employer_address[]" placeholder="Ex: RUA DAS FLORES, 100"></div>
+    <div class="form-row">
+        <div class="field"><label>Cidade <span class="required">*</span></label><input type="text" name="other_employer_city[]" placeholder="Ex: SAO PAULO"></div>
+        <div class="field"><label>Estado <span class="required">*</span></label><input type="text" name="other_employer_state[]" placeholder="Ex: SP"></div>
+    </div>
+    <div class="form-row">
+        <div class="field"><label>CEP <span class="required">*</span></label><input type="text" name="other_employer_zip[]" class="cep-mask" placeholder="00000-000"></div>
+        <div class="field"><label>Telefone <span class="required">*</span></label><input type="tel" name="other_employer_phone[]" class="phone-mask" placeholder="(11) 99999-9999"></div>
+    </div>
+    <div class="form-row">
+        <div class="field"><label>Data de Início <span class="required">*</span></label><input type="date" name="other_employer_start[]"></div>
+        <div class="field"><label>Renda Mensal (R$) <span class="required">*</span></label><input type="text" name="other_employer_income[]" class="moeda-mask" placeholder="R$ 0,00"></div>
+    </div>
+    <div class="field"><label>Descrição das Funções <span class="required">*</span></label><textarea name="other_employer_duties[]" rows="3" placeholder="Descreva as atividades desempenhadas..."></textarea></div>
+    <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+`;
+
+const educationHTML = `
+    <div class="field"><label>Nome da Escola/Faculdade <span class="required">*</span></label><input type="text" name="edu_institution[]" placeholder="Ex: FACULDADE UNYLEYA"></div>
+    <div class="field"><label>Endereço <span class="required">*</span></label><input type="text" name="edu_address[]" placeholder="Ex: AV. DAS AMERICAS, 4200"></div>
+    <div class="form-row">
+        <div class="field"><label>Cidade <span class="required">*</span></label><input type="text" name="edu_city[]" placeholder="Ex: RIO DE JANEIRO"></div>
+        <div class="field"><label>Estado <span class="required">*</span></label><input type="text" name="edu_state[]" placeholder="Ex: RJ"></div>
+    </div>
+    <div class="field"><label>Nome do Curso/Área de Estudo <span class="required">*</span></label><input type="text" name="edu_course[]" placeholder="Ex: ADMINISTRACAO"></div>
+    <div class="form-row">
+        <div class="field"><label>Data de Início <span class="required">*</span></label><input type="date" name="edu_start[]"></div>
+        <div class="field"><label>Data de Conclusão <span class="required">*</span></label><input type="date" name="edu_end[]"></div>
+    </div>
+    <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+`;
+
+const languageHTML = `
+    <div class="field"><label>Idioma</label><input type="text" name="languages[]" placeholder="Ex: INGLES"></div>
+    <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+`;
+
+const traveledHTML = `
+    <div class="field"><label>País <span class="required">*</span></label><input type="text" name="traveled_countries[]" placeholder="Ex: MARROCOS"></div>
+    <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+`;
+
+const socialHTML = `
+    <div class="form-row">
+        <div class="field"><label>Plataforma <span class="required">*</span></label>
+            <select name="social_plataforma[]">
+                <option value="">Selecione...</option>
+                <option value="Facebook">Facebook</option>
+                <option value="Instagram">Instagram</option>
+                <option value="LinkedIn">LinkedIn</option>
+                <option value="YouTube">YouTube</option>
+                <option value="Twitter">Twitter/X</option>
+                <option value="TikTok">TikTok</option>
+                <option value="Outro">Outro</option>
+            </select>
+        </div>
+        <div class="field"><label>Identificador <span class="required">*</span></label><input type="text" name="social_identificador[]" placeholder="Ex: usuario"></div>
+    </div>
+    <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+`;
+
+const emailExtraHTML = `
+    <div class="field"><label>E-mail adicional <span class="required">*</span></label><input type="email" name="emails_extra[]" placeholder="email@exemplo.com"></div>
+    <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+`;
+
+// ============================================================
+// MÁSCARAS
+// ============================================================
+function mascaraCPF(i) {
+    var v = i.value.replace(/\D/g, '');
+    if (v.length <= 11) {
+        v = v.replace(/(\d{3})(\d)/, '$1.$2');
+        v = v.replace(/(\d{3})(\d)/, '$1.$2');
+        v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    }
+    i.value = v;
+}
+
+function mascaraTelefone(i) {
+    var v = i.value.replace(/\D/g, '');
+    if (v.length <= 10) {
+        v = v.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+    } else {
+        v = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    }
+    i.value = v;
+}
+
+function mascaraCEP(i) {
+    var v = i.value.replace(/\D/g, '');
+    if (v.length <= 8) {
+        v = v.replace(/(\d{5})(\d{3})/, '$1-$2');
+    }
+    i.value = v;
+}
+
+function mascaraMoeda(i) {
+    var v = i.value.replace(/\D/g, '');
+    v = (v / 100).toFixed(2);
+    v = v.replace('.', ',');
+    v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+    i.value = 'R$ ' + v;
+}
+
+// ============================================================
+// CONDICIONAIS
+// ============================================================
+function toggleConditionals() {
+    // Condicionais padrão
+    document.querySelectorAll('.conditional').forEach(function(c) {
+        var condition = c.dataset.condition;
+        var value = c.dataset.value;
+        var trigger = document.querySelector('[name="' + condition + '"]');
+        var shouldShow = false;
+
+        if (trigger) {
+            if (trigger.tagName === 'SELECT') {
+                var selectedValue = trigger.value;
+                var values = value.split(',');
+                shouldShow = values.includes(selectedValue);
+            } else {
+                var checked = document.querySelector('[name="' + condition + '"]:checked');
+                shouldShow = checked && checked.value === value;
+            }
+        }
+
+        c.style.display = shouldShow ? 'block' : 'none';
+        if (shouldShow) c.classList.add('active');
+        else c.classList.remove('active');
+    });
+
+    // Trabalho - apenas para Profissional e Estudante
+    var work = document.getElementById('work-fields');
+    var workTrigger = document.querySelector('[name="radio-occupation"]:checked');
+    if (workTrigger && ['Profissional', 'Estudante'].includes(workTrigger.value)) {
+        work.style.display = 'block';
+        // Tornar campos obrigatórios
+        work.querySelectorAll('input, select, textarea').forEach(function(el) {
+            el.setAttribute('required', 'required');
+        });
+    } else {
+        work.style.display = 'none';
+        // Remover required dos campos de trabalho
+        work.querySelectorAll('input, select, textarea').forEach(function(el) {
+            el.removeAttribute('required');
+        });
+    }
+}
+
+// ============================================================
+// ITENS REPETÍVEIS
+// ============================================================
+function addItem(containerId, itemClass, html) {
+    var container = document.getElementById(containerId);
+    var div = document.createElement('div');
+    div.className = 'repeatable-item ' + itemClass;
+    div.innerHTML = html;
+    container.appendChild(div);
+    applyMasks(div);
+    toggleConditionals();
+}
+
+function removeItem(btn) {
+    var item = btn.closest('.repeatable-item');
+    var container = item.parentElement;
+    if (container.querySelectorAll('.repeatable-item').length > 1) {
+        item.remove();
+    } else {
+        alert('É necessário manter pelo menos um item.');
+    }
+}
+
+function applyMasks(container) {
+    container.querySelectorAll('.cpf-mask').forEach(function(el) {
+        el.addEventListener('input', function() { mascaraCPF(this); });
+    });
+    container.querySelectorAll('.phone-mask').forEach(function(el) {
+        el.addEventListener('input', function() { mascaraTelefone(this); });
+    });
+    container.querySelectorAll('.cep-mask').forEach(function(el) {
+        el.addEventListener('input', function() { mascaraCEP(this); });
+    });
+    container.querySelectorAll('.moeda-mask').forEach(function(el) {
+        el.addEventListener('input', function() { mascaraMoeda(this); });
+    });
+}
+
+// ============================================================
+// NAVEGAÇÃO
+// ============================================================
+function nextStep(step) {
+    // Validar o passo atual antes de avançar
+    if (validateStep(currentStep)) {
+        showStep(step);
+    }
+}
+
+function prevStep(step) {
+    showStep(step);
+}
+
+function showStep(step) {
+    document.querySelectorAll('.form-section').forEach(function(el) {
+        el.classList.remove('active');
+    });
+    var targetSection = document.querySelector('.form-section[data-step="' + step + '"]');
+    if (targetSection) {
+        targetSection.classList.add('active');
+        currentStep = step;
+
+        var percent = ((step - 1) / (totalSteps - 1)) * 100;
+        document.getElementById('progressFill').style.width = percent + '%';
+
+        document.querySelectorAll('.step-dot').forEach(function(dot) {
+            var dotStep = parseInt(dot.dataset.step);
+            dot.classList.remove('active', 'done');
+            if (dotStep === step) dot.classList.add('active');
+            if (dotStep < step) dot.classList.add('done');
+        });
+
+        if (step === totalSteps) updateResumo();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function validateStep(step) {
+    var section = document.querySelector('.form-section[data-step="' + step + '"]');
+    if (!section) return true;
+    
+    // Buscar todos os campos obrigatórios na seção atual
+    var inputs = section.querySelectorAll('input[required], select[required]');
+    
+    // Também buscar campos obrigatórios dentro de condicionais visíveis
+    var conditionalInputs = section.querySelectorAll('.conditional.active input[required], .conditional.active select[required]');
+    
+    var allInputs = Array.from(inputs).concat(Array.from(conditionalInputs));
+
+    var valid = true;
+    var firstInvalid = null;
+
+    allInputs.forEach(function(input) {
+        // Verificar se o input está visível e habilitado
+        if (input.offsetParent !== null || input.type === 'hidden') {
+            var value = input.value.trim();
+            if (value === '' || value === null) {
+                input.style.borderColor = '#dc3545';
+                valid = false;
+                if (!firstInvalid) firstInvalid = input;
+            } else {
+                input.style.borderColor = '#ddd';
+            }
+        }
+    });
+
+    if (!valid) {
+        showAlert('⚠️ Preencha todos os campos obrigatórios (marcados com *).', 'error');
+        if (firstInvalid) {
+            firstInvalid.focus();
+            firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+    return valid;
+}
+
+// ============================================================
+// FUNÇÃO PARA PEGAR OS DADOS DO FORMULÁRIO
+// ============================================================
+function getFormData() {
+    var data = {};
+    document.querySelectorAll('#ds160Form input, #ds160Form select, #ds160Form textarea').forEach(function(el) {
+        if (el.name) data[el.name] = el.value;
+    });
+    return data;
+}
+
+// ============================================================
+// FUNÇÃO DE REVISÃO COMPLETA
+// ============================================================
+function updateResumo() {
+    var dados = getFormData();
+    var html = '<div style="background:#f8f9fa;padding:20px;border-radius:8px;">';
+    
+    // 1. INÍCIO
+    html += '<h4 style="color:#003366;margin-bottom:10px;">📍 Início do Preenchimento</h4>';
+    html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
+    html += '<p><strong>Consulado/Embaixada:</strong> ' + (dados.consulado || '-') + '</p>';
+    html += '</div>';
+    
+    // 2. INFORMAÇÕES PESSOAIS
+    html += '<h4 style="color:#003366;margin-bottom:10px;">📌 Informações Pessoais</h4>';
+    html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
+    html += '<p><strong>Nome Completo:</strong> ' + (dados.full_name || '-') + '</p>';
+    html += '<p><strong>Outros Sobrenomes:</strong> ' + (dados.other_surnames || 'Não informado') + '</p>';
+    html += '<p><strong>Outros Nomes Próprios:</strong> ' + (dados.other_given_names || 'Não informado') + '</p>';
+    html += '<p><strong>Gênero:</strong> ' + (dados['radio-genero'] === 'MALE' ? 'Masculino' : dados['radio-genero'] === 'FEMALE' ? 'Feminino' : '-') + '</p>';
+    html += '<p><strong>Estado Civil:</strong> ' + (dados.marital_status === 'MARRIED' ? 'Casado(a)' : dados.marital_status === 'UNION' ? 'União Estável' : dados.marital_status === 'SINGLE' ? 'Solteiro(a)' : dados.marital_status === 'DIVORCED' ? 'Divorciado(a)' : dados.marital_status === 'WIDOWED' ? 'Viúvo(a)' : dados.marital_status === 'SEPARATED' ? 'Separado(a) Judicialmente' : dados.marital_status === 'OTHER' ? 'Outro' : '-') + '</p>';
+    html += '<p><strong>Data de Nascimento:</strong> ' + (dados.dob ? new Date(dados.dob).toLocaleDateString('pt-BR') : '-') + '</p>';
+    html += '<p><strong>Cidade de Nascimento:</strong> ' + (dados.birth_city || '-') + '</p>';
+    html += '<p><strong>Estado/Província:</strong> ' + (dados.birth_state || '-') + '</p>';
+    html += '<p><strong>País de Nascimento:</strong> ' + (dados.birth_country || '-') + '</p>';
+    html += '<p><strong>Outra Nacionalidade:</strong> ' + (dados.other_nat_country || 'Não') + '</p>';
+    if (dados.other_nat_country) {
+        html += '<p><strong>Número do Passaporte da Outra Nacionalidade:</strong> ' + (dados.other_nat_passport || '-') + '</p>';
+    }
+    html += '<p><strong>Residente Permanente de outro país:</strong> ' + (dados['radio-resident'] === 'one' ? 'Sim - ' + (dados.resident_country || '') : 'Não') + '</p>';
+    html += '<p><strong>CPF:</strong> ' + (dados.cpf || '-') + '</p>';
+    html += '<p><strong>SSN:</strong> ' + (dados.ssn || 'Não informado') + '</p>';
+    html += '<p><strong>Tax ID:</strong> ' + (dados.tax_id || 'Não informado') + '</p>';
+    html += '</div>';
+    
+    // 3. VIAGEM
+    html += '<h4 style="color:#003366;margin-bottom:10px;">✈️ Informações da Viagem</h4>';
+    html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
+    html += '<p><strong>Propósito:</strong> ' + (dados.travel_purpose || '-') + '</p>';
+    html += '<p><strong>Planos Específicos:</strong> ' + (dados['radio-travel-plans'] === 'one' ? 'Sim' : 'Não') + '</p>';
+    if (dados['radio-travel-plans'] === 'one') {
+        html += '<p><strong>Data de Chegada:</strong> ' + (dados.arrival_date ? new Date(dados.arrival_date).toLocaleDateString('pt-BR') : '-') + '</p>';
+        html += '<p><strong>Locais a Visitar:</strong> ' + (dados.places_to_visit || '-') + '</p>';
+    }
+    html += '<p><strong>Endereço nos EUA:</strong> ' + (dados.us_address || '-') + '</p>';
+    html += '<p><strong>Pagador:</strong> ' + (dados['radio-payer'] === 'SELF' ? 'Próprio Solicitante' : dados['radio-payer'] === 'OTHER' ? 'Outra Pessoa' : 'Empresa/Organização') + '</p>';
+    if (dados['radio-payer'] === 'OTHER' || dados['radio-payer'] === 'COMPANY') {
+        html += '<p><strong>Nome do Pagador:</strong> ' + (dados.payer_name || '-') + '</p>';
+        html += '<p><strong>Telefone:</strong> ' + (dados.payer_phone || '-') + '</p>';
+        html += '<p><strong>E-mail:</strong> ' + (dados.payer_email || '-') + '</p>';
+        html += '<p><strong>Relação:</strong> ' + (dados.payer_relationship || '-') + '</p>';
+    }
+    html += '</div>';
+    
+    // 4. ACOMPANHANTES
+    html += '<h4 style="color:#003366;margin-bottom:10px;">👥 Acompanhantes de Viagem</h4>';
+    html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
+    if (dados['radio-companions'] === 'one') {
+        if (dados['radio-group-travel'] === 'one') {
+            html += '<p><strong>Grupo/Organização:</strong> ' + (dados.group_name || '-') + '</p>';
+        } else {
+            var nomes = dados['companion_name[]'] || [];
+            var rels = dados['companion_relationship[]'] || [];
+            if (Array.isArray(nomes) && nomes.length > 0) {
+                html += '<p><strong>Acompanhantes:</strong></p><ul>';
+                nomes.forEach(function(n, i) {
+                    if (n) html += '<li>' + n + ' (' + (rels[i] || 'Relacionamento não informado') + ')</li>';
+                });
+                html += '</ul>';
+            }
+        }
+    } else {
+        html += '<p>Não há acompanhantes.</p>';
+    }
+    html += '</div>';
+    
+    // 5. VIAGENS ANTERIORES
+    html += '<h4 style="color:#003366;margin-bottom:10px;">🛬 Viagens Anteriores aos EUA</h4>';
+    html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
+    html += '<p><strong>Já esteve nos EUA:</strong> ' + (dados['radio-us-travel'] === 'one' ? 'Sim' : 'Não') + '</p>';
+    if (dados['radio-us-travel'] === 'one') {
+        var datas = dados['us_travel_date[]'] || [];
+        var duracoes = dados['us_travel_duration[]'] || [];
+        if (Array.isArray(datas) && datas.length > 0) {
+            html += '<ul>';
+            datas.forEach(function(d, i) {
+                if (d) {
+                    html += '<li>' + new Date(d).toLocaleDateString('pt-BR') + ' - ' + (duracoes[i] || '') + ' dias</li>';
+                }
+            });
+            html += '</ul>';
+        }
+        html += '<p><strong>Carteira de Habilitação dos EUA:</strong> ' + (dados.us_driver_license || 'Não informado') + '</p>';
+        html += '<p><strong>Estado Emissor:</strong> ' + (dados.us_driver_state || 'Não informado') + '</p>';
+    }
+    html += '<p><strong>Visto emitido anteriormente:</strong> ' + (dados['radio-visa-issued'] === 'one' ? 'Sim' : 'Não') + '</p>';
+    if (dados['radio-visa-issued'] === 'one') {
+        html += '<p><strong>Data da última emissão:</strong> ' + (dados.visa_issued_date ? new Date(dados.visa_issued_date).toLocaleDateString('pt-BR') : '-') + '</p>';
+        html += '<p><strong>Número do visto:</strong> ' + (dados.visa_number || '-') + '</p>';
+        html += '<p><strong>Mesmo tipo de visto:</strong> ' + (dados['radio-same-visa'] === 'YES' ? 'Sim' : 'Não') + '</p>';
+        html += '<p><strong>Mesmo país/cidade:</strong> ' + (dados['radio-same-location'] === 'YES' ? 'Sim' : 'Não') + '</p>';
+        html += '<p><strong>Impressões digitais coletadas:</strong> ' + (dados['radio-fingerprints'] === 'YES' ? 'Sim' : 'Não') + '</p>';
+        html += '<p><strong>Visto cancelado/revogado:</strong> ' + (dados['radio-visa-cancelled'] === 'YES' ? 'Sim - ' + (dados.visa_cancelled_expl || '') : 'Não') + '</p>';
+    }
+    html += '<p><strong>Visto negado/entrada negada:</strong> ' + (dados['radio-visa-refused'] === 'one' ? 'Sim - ' + (dados.visa_refused_explanation || '') : 'Não') + '</p>';
+    html += '<p><strong>Petição de imigração:</strong> ' + (dados['radio-petition'] === 'one' ? 'Sim - ' + (dados.petition_details || '') : 'Não') + '</p>';
+    html += '</div>';
+    
+    // 6. ENDEREÇO E CONTATO
+    html += '<h4 style="color:#003366;margin-bottom:10px;">📞 Endereço e Contato</h4>';
+    html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
+    html += '<p><strong>Endereço:</strong> ' + (dados.address || '-') + '</p>';
+    html += '<p><strong>Cidade:</strong> ' + (dados.city || '-') + '</p>';
+    html += '<p><strong>Estado/Província:</strong> ' + (dados.state || '-') + '</p>';
+    html += '<p><strong>CEP:</strong> ' + (dados.zip || '-') + '</p>';
+    html += '<p><strong>País:</strong> ' + (dados.country || '-') + '</p>';
+    html += '<p><strong>Telefone Principal:</strong> ' + (dados.phone || '-') + '</p>';
+    html += '<p><strong>Telefone Secundário:</strong> ' + (dados.phone_secondary || 'Não informado') + '</p>';
+    html += '<p><strong>Telefone do Trabalho:</strong> ' + (dados.phone_work || 'Não informado') + '</p>';
+    html += '<p><strong>Telefones Adicionais:</strong> ' + (dados.phone_extra || 'Não informado') + '</p>';
+    html += '<p><strong>E-mail Principal:</strong> ' + (dados.email || '-') + '</p>';
+    var emailsExtra = dados['emails_extra[]'] || [];
+    if (Array.isArray(emailsExtra) && emailsExtra.length > 0 && emailsExtra[0]) {
+        html += '<p><strong>E-mails Adicionais:</strong> ' + emailsExtra.filter(function(e) { return e; }).join(', ') + '</p>';
+    }
+    var socialPlataformas = dados['social_plataforma[]'] || [];
+    var socialIdentificadores = dados['social_identificador[]'] || [];
+    if (Array.isArray(socialPlataformas) && socialPlataformas.length > 0 && socialPlataformas[0]) {
+        html += '<p><strong>Redes Sociais:</strong></p><ul>';
+        socialPlataformas.forEach(function(p, i) {
+            if (p && socialIdentificadores[i]) {
+                html += '<li>' + p + ': ' + socialIdentificadores[i] + '</li>';
+            }
+        });
+        html += '</ul>';
+    }
+    html += '<p><strong>Presença Adicional em Redes Sociais:</strong> ' + (dados.social_extra || 'Não informado') + '</p>';
+    html += '</div>';
+    
+    // 7. PASSAPORTE
+    html += '<h4 style="color:#003366;margin-bottom:10px;">🛂 Passaporte</h4>';
+    html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
+    html += '<p><strong>Número:</strong> ' + (dados.passport_number || '-') + '</p>';
+    html += '<p><strong>País/Autoridade Emissora:</strong> ' + (dados.passport_country || '-') + '</p>';
+    html += '<p><strong>Cidade de Emissão:</strong> ' + (dados.passport_city || '-') + '</p>';
+    html += '<p><strong>Estado de Emissão:</strong> ' + (dados.passport_state || '-') + '</p>';
+    html += '<p><strong>Data de Emissão:</strong> ' + (dados.passport_issue ? new Date(dados.passport_issue).toLocaleDateString('pt-BR') : '-') + '</p>';
+    html += '<p><strong>Data de Validade:</strong> ' + (dados.passport_expiry ? new Date(dados.passport_expiry).toLocaleDateString('pt-BR') : '-') + '</p>';
+    html += '<p><strong>Passaporte Perdido/Roubado:</strong> ' + (dados['radio-passport-lost'] === 'one' ? 'Sim - Número: ' + (dados.passport_lost_number || '') + ' - País: ' + (dados.passport_lost_country || '') : 'Não') + '</p>';
+    html += '</div>';
+    
+    // 8. CONTATO EUA
+    html += '<h4 style="color:#003366;margin-bottom:10px;">🇺🇸 Contato nos EUA</h4>';
+    html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
+    html += '<p><strong>Pessoa de Contato:</strong> ' + (dados.us_contact_name || 'Não informado') + '</p>';
+    html += '<p><strong>Organização:</strong> ' + (dados.us_contact_org || 'Não informado') + '</p>';
+    html += '<p><strong>Relação:</strong> ' + (dados.us_contact_relationship || '-') + '</p>';
+    html += '<p><strong>Endereço:</strong> ' + (dados.us_contact_address || '-') + '</p>';
+    html += '<p><strong>Telefone:</strong> ' + (dados.us_contact_phone || '-') + '</p>';
+    html += '<p><strong>E-mail:</strong> ' + (dados.us_contact_email || 'Não informado') + '</p>';
+    html += '</div>';
+    
+    // 9. FAMÍLIA
+    html += '<h4 style="color:#003366;margin-bottom:10px;">👨‍👩‍👧‍👦 Família</h4>';
+    html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
+    html += '<p><strong>Pai:</strong> ' + (dados.father_name || '-') + '</p>';
+    html += '<p><strong>Data de Nascimento do Pai:</strong> ' + (dados.father_dob ? new Date(dados.father_dob).toLocaleDateString('pt-BR') : 'Não informado') + '</p>';
+    html += '<p><strong>Pai nos EUA:</strong> ' + (dados.father_in_us === 'YES' ? 'Sim' : 'Não') + '</p>';
+    if (dados.father_in_us === 'YES') {
+        html += '<p><strong>Situação do Pai:</strong> ' + (dados.father_status || 'Não informado') + '</p>';
+    }
+    html += '<p><strong>Mãe:</strong> ' + (dados.mother_name || '-') + '</p>';
+    html += '<p><strong>Data de Nascimento da Mãe:</strong> ' + (dados.mother_dob ? new Date(dados.mother_dob).toLocaleDateString('pt-BR') : 'Não informado') + '</p>';
+    html += '<p><strong>Mãe nos EUA:</strong> ' + (dados.mother_in_us === 'YES' ? 'Sim' : 'Não') + '</p>';
+    if (dados.mother_in_us === 'YES') {
+        html += '<p><strong>Situação da Mãe:</strong> ' + (dados.mother_status || 'Não informado') + '</p>';
+    }
+    html += '<p><strong>Parentes Diretos nos EUA:</strong> ' + (dados['radio-immediate-relatives'] === 'one' ? 'Sim' : 'Não') + '</p>';
+    if (dados['radio-immediate-relatives'] === 'one') {
+        var nomes = dados['immediate_relative_name[]'] || [];
+        var rels = dados['immediate_relative_relationship[]'] || [];
+        var status = dados['immediate_relative_status[]'] || [];
+        if (Array.isArray(nomes) && nomes.length > 0) {
+            html += '<ul>';
+            nomes.forEach(function(n, i) {
+                if (n) html += '<li>' + n + ' (' + (rels[i] || '') + ' - ' + (status[i] || '') + ')</li>';
+            });
+            html += '</ul>';
+        }
+    }
+    html += '<p><strong>Outros Parentes nos EUA:</strong> ' + (dados['radio-other-relatives'] === 'one' ? 'Sim - ' + (dados.other_relatives_desc || '') : 'Não') + '</p>';
+    // Cônjuge (se não for solteiro)
+    if (dados.marital_status && dados.marital_status !== 'SINGLE') {
+        html += '<p><strong>Cônjuge/Ex-Cônjuge:</strong> ' + (dados.spouse_name || 'Não informado') + '</p>';
+        html += '<p><strong>Data de Nascimento do Cônjuge:</strong> ' + (dados.spouse_dob ? new Date(dados.spouse_dob).toLocaleDateString('pt-BR') : 'Não informado') + '</p>';
+        html += '<p><strong>Nacionalidade do Cônjuge:</strong> ' + (dados.spouse_nationality || 'Não informado') + '</p>';
+        html += '<p><strong>Cidade de Nascimento do Cônjuge:</strong> ' + (dados.spouse_birth_city || 'Não informado') + '</p>';
+        html += '<p><strong>País de Nascimento do Cônjuge:</strong> ' + (dados.spouse_birth_country || 'Não informado') + '</p>';
+        if (dados['radio-spouse-address'] === 'SAME') {
+            html += '<p><strong>Endereço do Cônjuge:</strong> Mesmo endereço</p>';
+        } else {
+            html += '<p><strong>Endereço do Cônjuge:</strong> ' + (dados.spouse_address || 'Não informado') + '</p>';
+            html += '<p><strong>Cidade:</strong> ' + (dados.spouse_address_city || 'Não informado') + '</p>';
+            html += '<p><strong>Estado:</strong> ' + (dados.spouse_address_state || 'Não informado') + '</p>';
+            html += '<p><strong>CEP:</strong> ' + (dados.spouse_address_zip || 'Não informado') + '</p>';
+            html += '<p><strong>País:</strong> ' + (dados.spouse_address_country || 'Não informado') + '</p>';
+        }
+    }
+    html += '</div>';
+    
+    // 10. TRABALHO E EDUCAÇÃO
+    html += '<h4 style="color:#003366;margin-bottom:10px;">💼 Trabalho e Educação</h4>';
+    html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
+    html += '<p><strong>Ocupação Principal:</strong> ' + (dados['radio-occupation'] || '-') + '</p>';
+    if (['Profissional', 'Estudante'].includes(dados['radio-occupation'])) {
+        html += '<p><strong>Empregador/Instituição:</strong> ' + (dados.employer_name || '-') + '</p>';
+        html += '<p><strong>Endereço:</strong> ' + (dados.employer_address || '-') + '</p>';
+        html += '<p><strong>Cidade:</strong> ' + (dados.employer_city || '-') + '</p>';
+        html += '<p><strong>Estado:</strong> ' + (dados.employer_state || '-') + '</p>';
+        html += '<p><strong>CEP:</strong> ' + (dados.employer_zip || '-') + '</p>';
+        html += '<p><strong>Telefone:</strong> ' + (dados.employer_phone || '-') + '</p>';
+        html += '<p><strong>Data de Início:</strong> ' + (dados.employer_start ? new Date(dados.employer_start).toLocaleDateString('pt-BR') : '-') + '</p>';
+        html += '<p><strong>Renda Mensal:</strong> ' + (dados.employer_income || '-') + '</p>';
+        html += '<p><strong>Descrição das Funções:</strong> ' + (dados.employer_duties || '-') + '</p>';
+    } else if (['Aposentado', 'Dona de Casa'].includes(dados['radio-occupation'])) {
+        html += '<p><em>Não se aplica preenchimento de dados de trabalho.</em></p>';
+    }
+    
+    if (dados['radio-other-occupations'] === 'one') {
+        var otherNomes = dados['other_employer_name[]'] || [];
+        if (Array.isArray(otherNomes) && otherNomes.length > 0 && otherNomes[0]) {
+            html += '<p><strong>Outras Ocupações:</strong></p><ul>';
+            otherNomes.forEach(function(e, i) {
+                if (e) {
+                    html += '<li>' + e + ' - R$ ' + (dados['other_employer_income[]'] ? dados['other_employer_income[]'][i] : '0') + '</li>';
+                }
+            });
+            html += '</ul>';
+        }
+    }
+    
+    if (dados['radio-prev-employment'] === 'YES') {
+        var empNomes = dados['prev_employer_name[]'] || [];
+        if (Array.isArray(empNomes) && empNomes.length > 0 && empNomes[0]) {
+            html += '<p><strong>Empregos Anteriores:</strong></p><ul>';
+            empNomes.forEach(function(e, i) {
+                if (e) {
+                    var inicio = dados['prev_employer_start[]'] ? new Date(dados['prev_employer_start[]'][i]).toLocaleDateString('pt-BR') : '';
+                    var fim = dados['prev_employer_end[]'] ? new Date(dados['prev_employer_end[]'][i]).toLocaleDateString('pt-BR') : '';
+                    html += '<li>' + e + ' - ' + (dados['prev_employer_job[]'] ? dados['prev_employer_job[]'][i] : '') + ' (' + inicio + ' - ' + fim + ')</li>';
+                }
+            });
+            html += '</ul>';
+        }
+    }
+    
+    if (dados['radio-education'] === 'YES') {
+        var educInst = dados['edu_institution[]'] || [];
+        if (Array.isArray(educInst) && educInst.length > 0 && educInst[0]) {
+            html += '<p><strong>Educação:</strong></p><ul>';
+            educInst.forEach(function(e, i) {
+                if (e) {
+                    var inicio = dados['edu_start[]'] ? new Date(dados['edu_start[]'][i]).toLocaleDateString('pt-BR') : '';
+                    var fim = dados['edu_end[]'] ? new Date(dados['edu_end[]'][i]).toLocaleDateString('pt-BR') : '';
+                    html += '<li>' + e + ' - ' + (dados['edu_course[]'] ? dados['edu_course[]'][i] : '') + ' (' + inicio + ' - ' + fim + ')</li>';
+                }
+            });
+            html += '</ul>';
+        }
+    }
+    
+    var idiomas = dados['languages[]'] || [];
+    if (Array.isArray(idiomas) && idiomas.length > 0 && idiomas[0]) {
+        html += '<p><strong>Idiomas (além do Português):</strong> ' + idiomas.filter(function(i) { return i; }).join(', ') + '</p>';
+    } else {
+        html += '<p><strong>Idiomas (além do Português):</strong> Nenhum informado</p>';
+    }
+    
+    var paises = dados['traveled_countries[]'] || [];
+    if (Array.isArray(paises) && paises.length > 0 && paises[0]) {
+        html += '<p><strong>Países Visitados (últimos 5 anos):</strong> ' + paises.filter(function(p) { return p; }).join(', ') + '</p>';
+    }
+    
+    html += '<p><strong>Treinamento Especializado:</strong> ' + (dados['radio-specialized'] === 'YES' ? 'Sim - ' + (dados.specialized_description || '') : 'Não') + '</p>';
+    html += '<p><strong>Serviço Militar:</strong> ' + (dados['radio-military'] === 'YES' ? 'Sim' : 'Não') + '</p>';
+    if (dados['radio-military'] === 'YES') {
+        html += '<p><strong>Ramo:</strong> ' + (dados.military_branch || '-') + '</p>';
+        html += '<p><strong>Patente:</strong> ' + (dados.military_rank || '-') + '</p>';
+        html += '<p><strong>Especialidade:</strong> ' + (dados.military_specialty || '-') + '</p>';
+        html += '<p><strong>Data Início:</strong> ' + (dados.military_start ? new Date(dados.military_start).toLocaleDateString('pt-BR') : '-') + '</p>';
+        html += '<p><strong>Data Saída:</strong> ' + (dados.military_end ? new Date(dados.military_end).toLocaleDateString('pt-BR') : '-') + '</p>';
+    }
+    html += '</div>';
+    
+    // 11. SEGURANÇA
+    html += '<h4 style="color:#003366;margin-bottom:10px;">🔒 Segurança</h4>';
+    html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
+    html += '<p><strong>Preso/Condenado:</strong> ' + (dados['radio-arrested'] === 'YES' ? 'Sim - ' + (dados.arrested_explanation || '') : 'Não') + '</p>';
+    html += '<p><strong>Deportado:</strong> ' + (dados['radio-deported'] === 'YES' ? 'Sim - ' + (dados.deported_explanation || '') : 'Não') + '</p>';
+    html += '</div>';
+    
+    // BOTÕES DE CORREÇÃO
+    html += '<div class="btn-group-correcao">';
+    for (var i = 1; i <= 11; i++) {
+        html += '<button type="button" class="btn btn-secondary btn-sm" onclick="goToStep(' + i + ')">⬅️ Passo ' + i + '</button>';
+    }
+    html += '</div>';
+    html += '</div>';
+    
+    document.getElementById('resumoDados').innerHTML = html;
+}
+
+// ============================================================
+// FUNÇÃO PARA IR PARA UM PASSO ESPECÍFICO (CORREÇÃO)
+// ============================================================
+function goToStep(step) {
+    showStep(step);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function showAlert(message, type) {
+    var container = document.getElementById('alertContainer');
+    var alert = document.createElement('div');
+    alert.className = 'alert alert-' + type;
+    alert.textContent = message;
+    container.appendChild(alert);
+    setTimeout(function() { alert.remove(); }, 5000);
+}
+
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.conditional-trigger, input[type="radio"]').forEach(function(el) {
+        el.addEventListener('change', toggleConditionals);
+        el.addEventListener('click', toggleConditionals);
+    });
+
+    document.querySelectorAll('.conditional-trigger-work').forEach(function(el) {
+        el.addEventListener('change', toggleConditionals);
+        el.addEventListener('click', toggleConditionals);
+    });
+
+    document.querySelectorAll('select').forEach(function(el) {
+        el.addEventListener('change', toggleConditionals);
+    });
+
+    document.querySelectorAll('.cpf-mask').forEach(function(el) {
+        el.addEventListener('input', function() { mascaraCPF(this); });
+    });
+    document.querySelectorAll('.phone-mask').forEach(function(el) {
+        el.addEventListener('input', function() { mascaraTelefone(this); });
+    });
+    document.querySelectorAll('.cep-mask').forEach(function(el) {
+        el.addEventListener('input', function() { mascaraCEP(this); });
+    });
+    document.querySelectorAll('.moeda-mask').forEach(function(el) {
+        el.addEventListener('input', function() { mascaraMoeda(this); });
+    });
+
+    document.querySelectorAll('.repeatable-item .remove-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var item = this.closest('.repeatable-item');
+            var container = item.parentElement;
+            if (container.querySelectorAll('.repeatable-item').length > 1) {
+                item.remove();
+            }
+        });
+    });
+
+    toggleConditionals();
+    showStep(1);
+});
+
+// ============================================================
+// ENVIO DO FORMULÁRIO
+// ============================================================
+document.getElementById('ds160Form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    if (!document.getElementById('aceito_termos').checked) {
+        showAlert('⚠️ Você precisa aceitar os termos para enviar o formulário.', 'error');
+        return;
+    }
+
+    var dados = getFormData();
+    var submitBtn = document.getElementById('submitBtn');
+    var loading = document.getElementById('loading');
+
+    submitBtn.disabled = true;
+    loading.classList.remove('hidden');
+
+    try {
+        var response = await fetch('/api/submit-ds160', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dados)
+        });
+
+        var result = await response.json();
+
+        if (result.success) {
+            document.getElementById('ds160Form').classList.add('hidden');
+            document.getElementById('resultado').classList.remove('hidden');
+            showAlert('✅ Formulário enviado com sucesso!', 'success');
+        } else {
+            showAlert('❌ Erro: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showAlert('❌ Erro ao enviar formulário. Tente novamente.', 'error');
+    } finally {
+        submitBtn.disabled = false;
+        loading.classList.add('hidden');
+    }
+});
+</script>
+</body>
+</html>
