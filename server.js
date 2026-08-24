@@ -205,14 +205,11 @@ app.get('/', (req, res) => {
     if (fs.existsSync(formPath)) {
         res.sendFile(formPath);
     } else {
-        res.send(`
-            <h1>📋 Formulário DS-160</h1>
-            <p>Arquivo formulario-ds160.html não encontrado na pasta public.</p>
-            <p>Por favor, copie o arquivo para a pasta public/</p>
-        `);
+        res.status(404).send('Formulário não encontrado');
     }
 });
 
+// Rota alternativa para o formulário
 app.get('/formulario-ds160', (req, res) => {
     res.redirect('/');
 });
