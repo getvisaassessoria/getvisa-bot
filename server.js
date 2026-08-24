@@ -14,6 +14,7 @@ const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
 const multer = require('multer');
+const auth = require('./middleware/auth');
 
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY || '');
@@ -27,7 +28,7 @@ supabaseUrl = supabaseUrl.replace(/\/rest\/v1.*$/, '').replace(/\/+$/, '');
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 if (!supabaseUrl || !supabaseKey) {
-    console.warn('⚠️ SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurados. O sistema funcionará em modo limitado.');
+    console.warn('⚠️ SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurados.');
 }
 
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
@@ -35,13 +36,59 @@ console.log('✅ URL do Supabase:', supabaseUrl || 'NÃO CONFIGURADO');
 console.log('✅ Cliente Supabase:', supabase ? 'INICIALIZADO' : 'NÃO DISPONÍVEL');
 
 // ============================================================
-// 3. MIDDLEWARES (SEMPRE FUNCIONAM)
+// 3. MIDDLEWARES
 // ============================================================
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(auth.logAcesso);
 
-// Servir arquivos estáticos da pasta public
+app.use((req, res, next) => {
+    console.log(`📨 ${req.method} ${req.url}`);
+    next();
+});
+
+// ============================================================
+// 4. ROTAS PROTEGIDAS (DEVEM VIR ANTES DO STATIC)
+// ============================================================
+
+// 4.1 Admin protegido
+app.get('/admin.html', auth.verificarAdmin, (req, res) => {
+    const adminPath = path.join(__dirname, 'public', 'admin.html');
+    if (fs.existsSync(adminPath)) {
+        res.sendFile(adminPath);
+    } else {
+        res.send('<h1>🔐 Admin Panel</h1><p>Arquivo admin.html não encontrado.</p>');
+    }
+});
+
+// 4.2 Painel protegido
+app.get('/painel.html', auth.verificarAdmin, (req, res) => {
+    const painelPath = path.join(__dirname, 'public', 'painel.html');
+    if (fs.existsSync(painelPath)) {
+        res.sendFile(painelPath);
+    } else {
+        res.send('<h1>📊 Painel</h1><p>Arquivo painel.html não encontrado.</p>');
+    }
+});
+
+// 4.3 Página de login (pública)
+app.get('/admin-login.html', (req, res) => {
+    const loginPath = path.join(__dirname, 'public', 'admin-login.html');
+    if (fs.existsSync(loginPath)) {
+        res.sendFile(loginPath);
+    } else {
+        res.send(`
+            <h1>🔐 Admin Login</h1>
+            <p>Arquivo admin-login.html não encontrado.</p>
+            <p>Use a chave: <strong>admin123</strong></p>
+        `);
+    }
+});
+
+// ============================================================
+// 5. SERVIR ARQUIVOS ESTÁTICOS (DEPOIS DAS ROTAS PROTEGIDAS)
+// ============================================================
 const publicPath = path.join(__dirname, 'public');
 if (fs.existsSync(publicPath)) {
     app.use(express.static(publicPath));
@@ -52,15 +99,10 @@ if (fs.existsSync(publicPath)) {
     app.use(express.static(publicPath));
 }
 
-app.use((req, res, next) => {
-    console.log(`📨 ${req.method} ${req.url}`);
-    next();
-});
-
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ============================================================
-// 4. FUNÇÃO PARA IMPORTAR MÓDULOS COM SEGURANÇA
+// 6. FUNÇÃO PARA IMPORTAR MÓDULOS COM SEGURANÇA
 // ============================================================
 function safeRequire(modulePath, fallback) {
     try {
@@ -84,10 +126,10 @@ function safeRequire(modulePath, fallback) {
 }
 
 // ============================================================
-// 5. ROTAS DA API (COM FALLBACK SEGURO)
+// 7. ROTAS DA API
 // ============================================================
 
-// 5.1 ROTA DS-160
+// 7.1 ROTA DS-160 (PÚBLICA)
 console.log('🔧 Carregando rotas DS-160...');
 try {
     const ds160Routes = require('./routes/ds160Routes');
@@ -101,21 +143,26 @@ try {
     });
 }
 
-// 5.2 ROTA DE AGENDAMENTOS
+// 7.2 ROTA DE AGENDAMENTOS (PROTEGIDA)
 console.log('🔧 Carregando rotas de Agendamentos...');
+
+// Proteger rotas de agendamento
+app.use('/api/agendamentos', auth.verificarApiKey);
+app.use('/api/admin/agendamentos', auth.verificarApiKey);
+
 try {
     const agendamentoRoutes = require('./routes/agendamentoRoutes');
     app.use('/api/agendamentos', agendamentoRoutes);
     app.use('/api/admin/agendamentos', agendamentoRoutes);
-    console.log('✅ Rotas /api/agendamentos montadas.');
+    console.log('✅ Rotas /api/agendamentos montadas (PROTEGIDAS).');
 } catch (error) {
     console.log('⚠️ Erro ao carregar agendamentoRoutes:', error.message);
-    app.get('/api/agendamentos', (req, res) => {
+    app.get('/api/agendamentos', auth.verificarApiKey, (req, res) => {
         res.json({ success: true, message: 'Agendamentos API (fallback)' });
     });
 }
 
-// 5.3 ROTA WEBHOOK
+// 7.3 ROTA WEBHOOK (PÚBLICA)
 console.log('🔧 Carregando rotas Webhook...');
 try {
     const webhookRoutes = require('./routes/webhookRoutesNew');
@@ -129,23 +176,10 @@ try {
     });
 }
 
-// 5.4 ROTA ADMIN HTML
-const adminPath = path.join(__dirname, 'public', 'admin.html');
-if (fs.existsSync(adminPath)) {
-    app.get('/admin.html', (req, res) => {
-        res.sendFile(adminPath);
-    });
-    console.log('✅ Rota /admin.html montada.');
-} else {
-    console.log('⚠️ admin.html não encontrado. Criando rota alternativa.');
-    app.get('/admin.html', (req, res) => {
-        res.send('<h1>Admin Panel</h1><p>Arquivo admin.html não encontrado.</p>');
-    });
-}
 // ============================================================
-// 6. ROTA DE UPLOAD DE PDF (COM SEGURANÇA)
+// 8. ROTA DE UPLOAD DE PDF (PROTEGIDA)
 // ============================================================
-console.log('🔧 REGISTRANDO ROTA /api/upload-pdf...');
+console.log('🔧 Registrando rota /api/upload-pdf...');
 
 const uploadMemory = multer({
     storage: multer.memoryStorage(),
@@ -159,67 +193,56 @@ const uploadMemory = multer({
     }
 });
 
-// Mudando a rota para não conflitar com as rotas de agendamento
-app.post('/api/upload-pdf', uploadMemory.single('pdfFile'), async (req, res) => {
+app.post('/api/upload-pdf', auth.verificarApiKey, uploadMemory.single('pdfFile'), async (req, res) => {
     console.log('🔥 ROTA /api/upload-pdf CHAMADA');
-    
     try {
         if (!req.file) {
             return res.status(400).json({ 
                 success: false, 
-                message: 'Nenhum arquivo enviado. Use o campo "pdfFile".' 
+                message: 'Nenhum arquivo enviado.' 
             });
         }
-
-        console.log(`📄 PDF recebido: ${req.file.originalname}, ${req.file.size} bytes`);
-
-        // Resposta simulada para teste
-        res.json({
-            success: true,
+        console.log(`📄 PDF: ${req.file.originalname}, ${req.file.size} bytes`);
+        res.json({ 
+            success: true, 
             message: 'PDF recebido com sucesso!',
             data: {
                 filename: req.file.originalname,
-                size: req.file.size,
-                originalname: req.file.originalname,
-                mimetype: req.file.mimetype
+                size: req.file.size
             }
         });
-
     } catch (error) {
-        console.error('❌ Erro no upload do PDF:', error);
+        console.error('❌ Erro:', error);
         res.status(500).json({ 
             success: false, 
             message: 'Erro ao processar PDF', 
-            error: error.message
+            error: error.message 
         });
     }
 });
 
-console.log('✅ ROTA /api/upload-pdf REGISTRADA');
+console.log('✅ ROTA /api/upload-pdf REGISTRADA (PROTEGIDA)');
 
 // ============================================================
-// 7. ROTA PRINCIPAL DO FORMULÁRIO
+// 9. ROTA PRINCIPAL DO FORMULÁRIO (PÚBLICA)
 // ============================================================
 app.get('/', (req, res) => {
     const formPath = path.join(__dirname, 'public', 'formulario-ds160.html');
     if (fs.existsSync(formPath)) {
         res.sendFile(formPath);
     } else {
-        res.status(404).send('Formulário não encontrado');
+        res.send(`
+            <h1>📋 Formulário DS-160</h1>
+            <p>Arquivo não encontrado. Copie <code>formulario-ds160.html</code> para a pasta <code>public/</code></p>
+        `);
     }
 });
 
-// Rota alternativa para o formulário
-app.get('/formulario-ds160', (req, res) => {
-    res.redirect('/');
-});
-
-app.get('/formulario-ds160.html', (req, res) => {
-    res.redirect('/');
-});
+app.get('/formulario-ds160', (req, res) => res.redirect('/'));
+app.get('/formulario-ds160.html', (req, res) => res.redirect('/'));
 
 // ============================================================
-// 8. HEALTH CHECKS
+// 10. HEALTH CHECKS (PÚBLICOS)
 // ============================================================
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', timestamp: new Date().toISOString(), supabase: !!supabase });
@@ -237,16 +260,16 @@ app.get('/api/status', (req, res) => {
             home: '/',
             formulario: '/formulario-ds160',
             submit: '/api/submit-ds160',
-            webhook: '/api/webhook',
+            webhook: '/api/webhook/zapi',
             agendamentos: '/api/agendamentos',
-            upload_pdf: '/api/agendamentos/upload-pdf',
+            upload_pdf: '/api/upload-pdf',
             health: '/health'
         }
     });
 });
 
 // ============================================================
-// 9. INICIALIZAÇÃO
+// 11. INICIALIZAÇÃO
 // ============================================================
 app.listen(PORT, '0.0.0.0', () => {
     console.log('\n' + '='.repeat(50));
@@ -262,6 +285,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📱 Z-API: ${process.env.ZAPI_TOKEN ? '✅' : '❌'}`);
     console.log(`🗄️ Supabase: ${supabase ? '✅' : '❌'}`);
     console.log(`📧 Resend: ${process.env.RESEND_API_KEY ? '✅' : '❌'}`);
+    console.log(`🔑 ADMIN_API_KEY: ${process.env.ADMIN_API_KEY ? '✅' : '❌'}`);
     console.log('='.repeat(50) + '\n');
 });
 // =============================================

@@ -1,0 +1,115 @@
+cat > public/admin-login.html << 'EOF'
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Admin - GetVisa</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #003366 0%, #005599 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-container h1 {
+            color: #003366;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .form-group input:focus {
+            border-color: #003366;
+            outline: none;
+        }
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            background: #003366;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-login:hover {
+            background: #005599;
+        }
+        .error-message {
+            color: #dc3545;
+            text-align: center;
+            margin-top: 15px;
+            display: none;
+        }
+        .logo { text-align: center; font-size: 48px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">🇺🇸</div>
+        <h1>GetVisa Admin</h1>
+        <p style="text-align:center;color:#666;margin-bottom:30px;">Digite sua chave de acesso</p>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="apiKey">🔑 Chave de Acesso (API Key)</label>
+                <input type="password" id="apiKey" placeholder="Digite sua chave" required>
+            </div>
+            <button type="submit" class="btn-login">Entrar</button>
+            <div id="errorMessage" class="error-message">❌ Chave inválida. Tente novamente.</div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const errorMsg = document.getElementById('errorMessage');
+            
+            if (!apiKey) {
+                errorMsg.textContent = '❌ Por favor, digite a chave.';
+                errorMsg.style.display = 'block';
+                return;
+            }
+            
+            // Salvar no localStorage
+            localStorage.setItem('admin_api_key', apiKey);
+            
+            // Redirecionar
+            window.location.href = `/admin.html?api_key=${encodeURIComponent(apiKey)}`;
+        });
+        
+        // Preencher com chave salva
+        const savedKey = localStorage.getItem('admin_api_key');
+        if (savedKey) {
+            document.getElementById('apiKey').value = savedKey;
+        }
+    </script>
+</body>
+</html>
+EOF
