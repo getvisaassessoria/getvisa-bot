@@ -1,4 +1,4 @@
-// routes/ds160Routes.js - CORRIGIDO (com ENUM correto)
+// routes/ds160Routes.js - VERSÃO COMPLETA COM WHATSAPP
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
@@ -9,6 +9,62 @@ supabaseUrl = supabaseUrl.replace(/\/rest\/v1.*$/, '').replace(/\/+$/, '');
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
+// ============================================================
+// FUNÇÃO PARA ENVIAR WHATSAPP VIA Z-API
+// ============================================================
+async function enviarWhatsApp(telefone, mensagem) {
+    try {
+        const token = process.env.ZAPI_TOKEN;
+        const instance = process.env.ZAPI_INSTANCE || process.env.ZAPI_INSTANCE_ID;
+        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
+
+        if (!token || !instance) {
+            console.log('⚠️ Z-API não configurada. Mensagem não enviada.');
+            console.log('📨 Mensagem:', mensagem);
+            return false;
+        }
+
+        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+        const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
+
+        const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-text`;
+
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        if (clientToken) {
+            headers['Client-Token'] = clientToken;
+        }
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                phone: telefoneFormatado,
+                message: mensagem
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ Erro Z-API (${response.status}):`, errorText);
+            return false;
+        }
+
+        const data = await response.json();
+        console.log('✅ WhatsApp enviado para', telefoneFormatado);
+        return true;
+
+    } catch (error) {
+        console.error('❌ Erro ao enviar WhatsApp:', error);
+        return false;
+    }
+}
+
+// ============================================================
+// FUNÇÕES AUXILIARES
+// ============================================================
 function limparTelefone(telefone) {
     if (!telefone) return null;
     const limpo = telefone.toString().replace(/\D/g, '');
@@ -38,6 +94,9 @@ function extractFormFields(data) {
     return { full_name: nomeEncontrado, email, telefone, consulado };
 }
 
+// ============================================================
+// ROTA PRINCIPAL - SUBMIT
+// ============================================================
 router.post('/submit-ds160', async (req, res) => {
     console.log('🔔 Rota /api/submit-ds160 chamada!');
     console.log('📝 Dados recebidos:', JSON.stringify(req.body, null, 2));
@@ -103,8 +162,6 @@ router.post('/submit-ds160', async (req, res) => {
                 .eq('id_cliente', clienteData.id)
                 .maybeSingle();
 
-            let formResult;
-
             if (formExistente) {
                 // ATUALIZAR formulário existente
                 console.log(`🔄 Atualizando formulário existente para cliente: ${clienteData.id}`);
@@ -112,7 +169,7 @@ router.post('/submit-ds160', async (req, res) => {
                     .from('form_ds160')
                     .update({
                         dados_formulario: formData,
-                        status: 'rascunho',  // <-- VALOR CORRETO DO ENUM
+                        status: 'rascunho',
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', formExistente.id)
@@ -127,7 +184,6 @@ router.post('/submit-ds160', async (req, res) => {
                         error: formError.message
                     });
                 }
-                formResult = formData_saved;
                 console.log('✅ Formulário atualizado no Supabase (form_ds160)');
             } else {
                 // CRIAR novo formulário
@@ -137,7 +193,7 @@ router.post('/submit-ds160', async (req, res) => {
                     .insert({
                         id_cliente: clienteData.id,
                         dados_formulario: formData,
-                        status: 'rascunho',  // <-- VALOR CORRETO DO ENUM
+                        status: 'rascunho',
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString()
                     })
@@ -152,8 +208,30 @@ router.post('/submit-ds160', async (req, res) => {
                         error: formError.message
                     });
                 }
-                formResult = formData_saved;
                 console.log('✅ Formulário salvo no Supabase (form_ds160)');
+            }
+
+            // 3. ENVIAR NOTIFICAÇÃO WHATSAPP
+            try {
+                const primeiroNome = nomeValido.split(' ')[0];
+                const mensagemWhats = `🎉 *Olá ${primeiroNome}!*\n\n` +
+                    `Recebemos seu formulário DS-160 com sucesso! ✅\n\n` +
+                    `📋 *Dados recebidos:*\n` +
+                    `👤 Nome: ${nomeValido}\n` +
+                    `📧 Email: ${emailValido}\n` +
+                    `📱 Telefone: ${cleanPhone}\n` +
+                    `🏛️ Consulado: ${consulado || 'Não informado'}\n\n` +
+                    `⏳ *Próximos passos:*\n` +
+                    `1️⃣ Nossa equipe fará a análise dos dados\n` +
+                    `2️⃣ Você receberá a confirmação por e-mail\n` +
+                    `3️⃣ Iniciaremos o agendamento da entrevista\n\n` +
+                    `📱 Dúvidas? Fale conosco: https://wa.me/5521974601812\n\n` +
+                    `🌟 *GetVisa Assessoria - Seu visto americano com segurança!* 🇺🇸`;
+
+                await enviarWhatsApp(cleanPhone, mensagemWhats);
+                console.log('📱 Notificação WhatsApp enviada para:', cleanPhone);
+            } catch (whatsError) {
+                console.error('❌ Erro ao enviar notificação WhatsApp:', whatsError);
             }
 
         }
@@ -178,7 +256,9 @@ router.post('/submit-ds160', async (req, res) => {
     }
 });
 
-// Rota para buscar formulário por telefone
+// ============================================================
+// ROTA PARA BUSCAR FORMULÁRIO POR TELEFONE
+// ============================================================
 router.get('/buscar/:telefone', async (req, res) => {
     try {
         const { telefone } = req.params;
@@ -220,7 +300,9 @@ router.get('/buscar/:telefone', async (req, res) => {
     }
 });
 
-// Rota para atualizar status do processo por telefone
+// ============================================================
+// ROTA PARA ATUALIZAR STATUS DO PROCESSO
+// ============================================================
 router.patch('/atualizar-status/:telefone', async (req, res) => {
     try {
         const { telefone } = req.params;
@@ -252,12 +334,30 @@ router.patch('/atualizar-status/:telefone', async (req, res) => {
         await supabase
             .from('form_ds160')
             .update({
-                status: 'rascunho',  // <-- VALOR CORRETO DO ENUM
+                status: 'rascunho',
                 updated_at: new Date().toISOString()
             })
             .eq('id_cliente', cliente.id);
 
         console.log(`✅ Status atualizado para cliente ${cleanPhone}`);
+
+        // ENVIAR NOTIFICAÇÃO DE STATUS
+        try {
+            const primeiroNome = cliente.nome?.split(' ')[0] || 'Cliente';
+            const mensagemStatus = `📢 *Atualização do seu processo - GetVisa*\n\n` +
+                `Olá ${primeiroNome}! 👋\n\n` +
+                `✅ Seu processo foi atualizado para:\n` +
+                `📌 *${status || 'Em andamento'}*\n` +
+                `${etapa ? `📍 Etapa: ${etapa}\n` : ''}` +
+                `${observacao ? `📝 Observação: ${observacao}\n` : ''}\n\n` +
+                `📱 Acompanhe pelo nosso painel ou entre em contato conosco.\n\n` +
+                `🌟 *GetVisa Assessoria*`;
+
+            await enviarWhatsApp(cleanPhone, mensagemStatus);
+            console.log('📱 Notificação de status enviada para:', cleanPhone);
+        } catch (whatsError) {
+            console.error('❌ Erro ao enviar notificação de status:', whatsError);
+        }
 
         res.json({
             success: true,
@@ -271,6 +371,9 @@ router.patch('/atualizar-status/:telefone', async (req, res) => {
     }
 });
 
+// ============================================================
+// ROTA DE TESTE
+// ============================================================
 router.get('/test', (req, res) => {
     res.json({ 
         status: 'OK', 
