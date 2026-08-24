@@ -259,7 +259,7 @@
 
     <div id="alertContainer"></div>
 
-    <form id="ds160Form">
+    <form id="ds160Form" novalidate>
 
         <!-- ============================================================ -->
         <!-- PASSO 1: INÍCIO DO PREENCHIMENTO -->
@@ -306,8 +306,7 @@
 
             <div id="other-names" class="conditional" data-condition="radio-other-names" data-value="one">
                 <div class="form-row">
-                    <div class="field"><label>Outros Sobrenomes <span class="required">*</span></label><input type="text" name="other_surnames" placeholder="Ex: SILVA"></div>
-                    <div class="field"><label>Outros Nomes Próprios <span class="required">*</span></label><input type="text" name="other_given_names" placeholder="Ex: MARIA"></div>
+                    <div class="field"><label>Nome completo <span class="required">*</span></label><input type="text" name="other_surnames" placeholder="Ex:MARIA DA SILVA"></div>
                 </div>
             </div>
 
@@ -367,7 +366,7 @@
             <div id="other-nat" class="conditional" data-condition="radio-other-nat" data-value="one">
                 <div class="form-row">
                     <div class="field"><label>País da outra nacionalidade <span class="required">*</span></label><input type="text" name="other_nat_country" placeholder="Ex: ITALIA"></div>
-                    <div class="field"><label>Número do passaporte da outra nacionalidade <span class="required">*</span></label><input type="text" name="other_nat_passport" placeholder="Ex: AA123456"></div>
+                    
                 </div>
             </div>
 
@@ -431,51 +430,73 @@
             <div id="travel-plans" class="conditional" data-condition="radio-travel-plans" data-value="one">
                 <div class="form-row">
                     <div class="field"><label>Data de Chegada nos EUA <span class="required">*</span></label><input type="date" name="arrival_date"></div>
-                    
                 </div>
-                
                 <div class="field"><label>Locais a Serem Visitados nos EUA </label><input type="text" name="places_to_visit" placeholder="Ex: ORLANDO, MIAMI, NEW YORK"></div>
             </div>
 
-            <div class="field">
-                <label>Endereço Onde Ficará Hospedado nos EUA (Hotel ou residência) </label>
-                <input type="text" name="us_address" placeholder="Se não tiver, deixe em branco">
-            </div>
-
-            <div class="field">
-                <label>Pessoa ou Entidade Responsável pelo Pagamento da Viagem <span class="required">*</span></label>
-                <div class="radio-group">
-                    <label><input type="radio" name="radio-payer" class="conditional-trigger" data-target="payer-info" value="OTHER"> Outra Pessoa</label>
-                    <label><input type="radio" name="radio-payer" class="conditional-trigger" data-target="payer-info" value="COMPANY"> Empresa/Organização</label>
-                    <label><input type="radio" name="radio-payer" value="SELF" checked> Próprio Solicitante</label>
-                </div>
-            </div>
-
-            <div id="payer-info" class="conditional" data-condition="radio-payer" data-value="OTHER,COMPANY">
-                <div class="form-row">
-                    <div class="field"><label>Nome Completo <span class="required">*</span></label><input type="text" name="payer_name" placeholder="Ex: JOAO DA SILVA"></div>
-                    <div class="field"><label>Telefone <span class="required">*</span></label><input type="tel" name="payer_phone" class="phone-mask" placeholder="(21) 99999-9999"></div>
-                </div>
-                <div class="form-row">
-                    <div class="field"><label>E-mail <span class="required">*</span></label><input type="email" name="payer_email" placeholder="exemplo@email.com"></div>
-                    <div class="field"><label>Grau de Parentesco/Relação <span class="required">*</span></label><input type="text" name="payer_relationship" placeholder="Ex: PAI, IRMAO, EMPREGADOR"></div>
-                </div>
+            <!-- ============================================================ -->
+            <!-- NOVO: PESSOA RESPONSÁVEL PELO PAGAMENTO (substitui o antigo bloco) -->
+            <!-- ============================================================ -->
+            <div class="form-section" style="display:block; padding:0; background:transparent; border:none;">
+                <h3 style="color:#003366; margin-top:20px;">💰 Pessoa ou Entidade Responsável pelo Pagamento da Viagem</h3>
+                
                 <div class="field">
-                    <label>Reside no mesmo endereço? <span class="required">*</span></label>
-                    <div class="radio-group">
-                        <label><input type="radio" name="radio-payer-address" value="YES" checked> Sim</label>
-                        <label><input type="radio" name="radio-payer-address" class="conditional-trigger" data-target="payer-address-detail" value="NO"> Não</label>
-                    </div>
+                    <label>Quem é o responsável pelo pagamento da viagem? *</label>
+                    <select id="radio-payer" name="radio-payer" required>
+                        <option value="">Selecione...</option>
+                        <option value="SELF">Próprio solicitante</option>
+                        <option value="OTHER">Outra pessoa/empresa/organização</option>
+                    </select>
                 </div>
-                <div id="payer-address-detail" class="conditional" data-condition="radio-payer-address" data-value="NO">
-                    <div class="field"><label>Endereço do Pagador <span class="required">*</span></label><input type="text" name="payer_address"></div>
-                    <div class="form-row">
-                        <div class="field"><label>Cidade <span class="required">*</span></label><input type="text" name="payer_city"></div>
-                        <div class="field"><label>Estado <span class="required">*</span></label><input type="text" name="payer_state"></div>
+
+                <div id="payer-fields" style="display: none; border: 1px solid #ddd; padding: 15px; margin-top: 10px; border-radius: 5px;">
+                    <h4>📋 Dados do Responsável pelo Pagamento</h4>
+                    
+                    <div class="field">
+                        <label>Nome do Responsável *</label>
+                        <input type="text" id="payer_name" name="payer_name" placeholder="Nome completo ou razão social">
                     </div>
+
+                    <div class="field">
+                        <label>Endereço *</label>
+                        <input type="text" id="payer_address" name="payer_address" placeholder="Rua, número, complemento">
+                    </div>
+
                     <div class="form-row">
-                        <div class="field"><label>CEP <span class="required">*</span></label><input type="text" name="payer_zip" class="cep-mask"></div>
-                        <div class="field"><label>País <span class="required">*</span></label><input type="text" name="payer_country" value="BRASIL"></div>
+                        <div class="field">
+                            <label>CEP *</label>
+                            <input type="text" id="payer_zip" name="payer_zip" placeholder="00000-000">
+                        </div>
+                        <div class="field">
+                            <label>Cidade *</label>
+                            <input type="text" id="payer_city" name="payer_city" placeholder="Cidade">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="field">
+                            <label>Estado/Província *</label>
+                            <input type="text" id="payer_state" name="payer_state" placeholder="Estado/Província">
+                        </div>
+                        <div class="field">
+                            <label>País *</label>
+                            <select id="payer_country" name="payer_country">
+                                <option value="BRASIL">Brasil</option>
+                                <option value="ESTADOS_UNIDOS">Estados Unidos</option>
+                                <option value="OUTRO">Outro</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="field">
+                            <label>Telefone *</label>
+                            <input type="tel" id="payer_phone" name="payer_phone" placeholder="(00) 00000-0000">
+                        </div>
+                        <div class="field">
+                            <label>Email *</label>
+                            <input type="email" id="payer_email" name="payer_email" placeholder="email@exemplo.com">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -542,39 +563,111 @@
         </div>
 
         <!-- ============================================================ -->
-        <!-- PASSO 5: VIAGENS ANTERIORES AOS EUA -->
-        <!-- ============================================================ -->
-        <div class="form-section" data-step="5">
-            <h2 class="section-title">🛬 Viagens Anteriores aos EUA</h2>
+<!-- PASSO 5: VIAGENS ANTERIORES AOS EUA -->
+<!-- ============================================================ -->
+<div class="form-section" data-step="5">
+    <h2 class="section-title">🛬 Viagens Anteriores aos EUA</h2>
 
+    <div class="field">
+        <label>Você já esteve nos EUA? <span class="required">*</span></label>
+        <div class="radio-group">
+            <label><input type="radio" name="radio-us-travel" class="conditional-trigger" data-target="us-travel-details" value="one"> Sim</label>
+            <label><input type="radio" name="radio-us-travel" value="two" checked> Não</label>
+        </div>
+    </div>
+
+    <div id="us-travel-details" class="conditional" data-condition="radio-us-travel" data-value="one">
+        <div id="us-travel-container">
+            <div class="repeatable-item us-travel-item">
+                <div class="form-row">
+                    <div class="field"><label>Data de Chegada <span class="required">*</span></label><input type="date" name="us_travel_date[]"></div>
+                    <div class="field"><label>Tempo de Permanência (dias) <span class="required">*</span></label><input type="text" name="us_travel_duration[]" placeholder="Ex: 15"></div>
+                </div>
+                <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
+            </div>
+        </div>
+        <button type="button" class="add-btn" onclick="addItem('us-travel-container', 'us-travel-item', usTravelHTML)">+ Adicionar Viagem</button>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- CARTEIRA DE HABILITAÇÃO DOS EUA (FORA DO CONDICIONAL) -->
+    <!-- ============================================================ -->
+    <div class="form-section" style="display:block; padding:0; background:transparent; border:none; margin-top:20px;">
+
+                <div class="field">
+            <label>Possui carteira de habilitação dos EUA? *</label>
+            <div class="radio-group">
+                <label><input type="radio" name="radio-us-driver" value="SIM" required> Sim</label>
+                <label><input type="radio" name="radio-us-driver" value="NAO" required> Não</label>
+            </div>
+        </div>
+
+        <div id="us-driver-fields" style="display: none;">
             <div class="field">
-                <label>Você já esteve nos EUA? <span class="required">*</span></label>
-                <div class="radio-group">
-                    <label><input type="radio" name="radio-us-travel" class="conditional-trigger" data-target="us-travel-details" value="one"> Sim</label>
-                    <label><input type="radio" name="radio-us-travel" value="two" checked> Não</label>
-                </div>
+                <label>Número da Habilitação</label>
+                <input type="text" id="us_driver_number" name="us_driver_number" placeholder="Número da carteira de motorista">
             </div>
-
-            <div id="us-travel-details" class="conditional" data-condition="radio-us-travel" data-value="one">
-                <div id="us-travel-container">
-                    <div class="repeatable-item us-travel-item">
-                        <div class="form-row">
-                            <div class="field"><label>Data de Chegada <span class="required">*</span></label><input type="date" name="us_travel_date[]"></div>
-                            <div class="field"><label>Tempo de Permanência (dias) <span class="required">*</span></label><input type="text" name="us_travel_duration[]" placeholder="Ex: 15"></div>
-                        </div>
-                        <button type="button" class="remove-btn" onclick="removeItem(this)">Remover</button>
-                    </div>
-                </div>
-                <button type="button" class="add-btn" onclick="addItem('us-travel-container', 'us-travel-item', usTravelHTML)">+ Adicionar Viagem</button>
-
-                <div class="field" style="margin-top:20px;">
-                    <label>Informações sobre Carteira de Habilitação dos EUA</label>
-                    <div class="form-row">
-                        <div class="field"><label>Número da Habilitação</label><input type="text" name="us_driver_license" placeholder="Se não tiver, deixe em branco"></div>
-                        <div class="field"><label>Estado Emissor</label><input type="text" name="us_driver_state" placeholder="Ex: FL"></div>
-                    </div>
-                </div>
+            <div class="field">
+                <label>Estado de Emissão</label>
+                <select id="us_driver_state" name="us_driver_state">
+                    <option value="">Selecione...</option>
+                    <option value="AL">Alabama</option>
+                    <option value="AK">Alaska</option>
+                    <option value="AZ">Arizona</option>
+                    <option value="AR">Arkansas</option>
+                    <option value="CA">California</option>
+                    <option value="CO">Colorado</option>
+                    <option value="CT">Connecticut</option>
+                    <option value="DE">Delaware</option>
+                    <option value="FL">Florida</option>
+                    <option value="GA">Georgia</option>
+                    <option value="HI">Hawaii</option>
+                    <option value="ID">Idaho</option>
+                    <option value="IL">Illinois</option>
+                    <option value="IN">Indiana</option>
+                    <option value="IA">Iowa</option>
+                    <option value="KS">Kansas</option>
+                    <option value="KY">Kentucky</option>
+                    <option value="LA">Louisiana</option>
+                    <option value="ME">Maine</option>
+                    <option value="MD">Maryland</option>
+                    <option value="MA">Massachusetts</option>
+                    <option value="MI">Michigan</option>
+                    <option value="MN">Minnesota</option>
+                    <option value="MS">Mississippi</option>
+                    <option value="MO">Missouri</option>
+                    <option value="MT">Montana</option>
+                    <option value="NE">Nebraska</option>
+                    <option value="NV">Nevada</option>
+                    <option value="NH">New Hampshire</option>
+                    <option value="NJ">New Jersey</option>
+                    <option value="NM">New Mexico</option>
+                    <option value="NY">New York</option>
+                    <option value="NC">North Carolina</option>
+                    <option value="ND">North Dakota</option>
+                    <option value="OH">Ohio</option>
+                    <option value="OK">Oklahoma</option>
+                    <option value="OR">Oregon</option>
+                    <option value="PA">Pennsylvania</option>
+                    <option value="RI">Rhode Island</option>
+                    <option value="SC">South Carolina</option>
+                    <option value="SD">South Dakota</option>
+                    <option value="TN">Tennessee</option>
+                    <option value="TX">Texas</option>
+                    <option value="UT">Utah</option>
+                    <option value="VT">Vermont</option>
+                    <option value="VA">Virginia</option>
+                    <option value="WA">Washington</option>
+                    <option value="WV">West Virginia</option>
+                    <option value="WI">Wisconsin</option>
+                    <option value="WY">Wyoming</option>
+                    <option value="DC">Washington D.C.</option>
+                </select>
             </div>
+        </div>
+    </div>
+
+    
 
             <div class="field">
                 <label>Você já teve um visto americano emitido? <span class="required">*</span></label>
@@ -710,7 +803,7 @@
             <div class="form-row">
                 <div class="field">
                     <label>Telefone Principal (Celular) <span class="required">*</span></label>
-                    <input type="tel" name="telefone" class="phone-mask" placeholder="(21) 99999-9999" required>
+                    <input type="tel" name="phone" class="phone-mask" placeholder="(21) 99999-9999" required>
                 </div>
                 <div class="field">
                     <label>Telefone Secundário (Fixo ou alternativo)</label>
@@ -838,18 +931,37 @@
                 </div>
             </div>
 
-            <div class="field">
-                <label>Você já perdeu um passaporte ou teve um passaporte roubado? <span class="required">*</span></label>
-                <div class="radio-group">
-                    <label><input type="radio" name="radio-passport-lost" class="conditional-trigger" data-target="passport-lost" value="one"> Sim</label>
-                    <label><input type="radio" name="radio-passport-lost" value="two" checked> Não</label>
+            <!-- ============================================================ -->
+            <!-- NOVO: PASSAPORTE PERDIDO/ROUBADO -->
+            <!-- ============================================================ -->
+            <div class="form-section" style="display:block; padding:0; background:transparent; border:none; margin-top:20px;">
+                <h3 style="color:#003366;">🛂 Passaporte Perdido/Roubado</h3>
+                
+                <div class="field">
+                    <label>Você já perdeu um passaporte ou teve um passaporte roubado? *</label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="radio-passport-lost" value="SIM" required> Sim</label>
+                        <label><input type="radio" name="radio-passport-lost" value="NAO" required> Não</label>
+                    </div>
                 </div>
-            </div>
 
-            <div id="passport-lost" class="conditional" data-condition="radio-passport-lost" data-value="one">
-                <div class="form-row">
-                    <div class="field"><label>Número do passaporte perdido <span class="required">*</span></label><input type="text" name="passport_lost_number" placeholder="Ex: AB123456"></div>
-                    <div class="field"><label>País de emissão <span class="required">*</span></label><input type="text" name="passport_lost_country" placeholder="Ex: BRASIL"></div>
+                <div id="passport-lost-fields" style="display: none;">
+                    <div class="field">
+                        <label>Número do BO (Boletim de Ocorrência) ou Observações</label>
+                        <textarea id="passport_lost_obs" name="passport_lost_obs" rows="3" placeholder="Número do BO, data, local do ocorrido, circunstâncias, etc."></textarea>
+                    </div>
+                    <div class="field">
+                        <label>Número do Passaporte Perdido/Roubado</label>
+                        <input type="text" id="passport_lost_number" name="passport_lost_number" placeholder="Número do passaporte perdido/roubado">
+                    </div>
+                    <div class="field">
+                        <label>Data do Ocorrido</label>
+                        <input type="date" id="passport_lost_date" name="passport_lost_date">
+                    </div>
+                    <div class="field">
+                        <label>Local do Ocorrido</label>
+                        <input type="text" id="passport_lost_location" name="passport_lost_location" placeholder="Cidade/País onde ocorreu">
+                    </div>
                 </div>
             </div>
 
@@ -917,7 +1029,7 @@
 
             <div class="field">
                 <label>Nome completo do Pai </label>
-                <input type="text" name="father_name" placeholder="Ex: MANOEL DA SILVA" >
+                <input type="text" name="father_name" placeholder="Ex: MANOEL DA SILVA">
             </div>
 
             <div class="form-row">
@@ -927,7 +1039,7 @@
                 </div>
                 <div class="field">
                     <label>O pai está nos EUA? </label>
-                    <select name="father_in_us" required>
+                    <select name="father_in_us">
                         <option value="NO">Não</option>
                         <option value="YES">Sim</option>
                     </select>
@@ -935,8 +1047,8 @@
             </div>
 
             <div id="father-status" class="conditional" data-condition="father_in_us" data-value="YES">
-                <div class="field"><label>Qual a situação legal do pai nos EUA? <span class="required">*</span></label>
-                    <select name="father_status" required>
+                <div class="field"><label>Qual a situação legal do pai nos EUA? </label>
+                    <select name="father_status">
                         <option value="">Selecione...</option>
                         <option value="Naturalizado">Naturalizado</option>
                         <option value="Residente">Residente Permanente</option>
@@ -960,7 +1072,7 @@
                 </div>
                 <div class="field">
                     <label>A mãe está nos EUA? <span class="required">*</span></label>
-                    <select name="mother_in_us" required>
+                    <select name="mother_in_us">
                         <option value="NO">Não</option>
                         <option value="YES">Sim</option>
                     </select>
@@ -968,8 +1080,8 @@
             </div>
 
             <div id="mother-status" class="conditional" data-condition="mother_in_us" data-value="YES">
-                <div class="field"><label>Qual a situação legal da mãe nos EUA? <span class="required">*</span></label>
-                    <select name="mother_status" required>
+                <div class="field"><label>Qual a situação legal da mãe nos EUA? </label>
+                    <select name="mother_status">
                         <option value="">Selecione...</option>
                         <option value="Naturalizado">Naturalizada</option>
                         <option value="Residente">Residente Permanente</option>
@@ -1032,35 +1144,31 @@
             <!-- INFORMAÇÕES DO CÔNJUGE - SOMENTE PARA NÃO SOLTEIROS -->
             <div id="spouse-section" class="conditional" data-condition="marital_status" data-value="MARRIED,UNION,DIVORCED,WIDOWED,SEPARATED,OTHER">
                 <div class="sub-section-title">💑 Informações do Cônjuge ou Ex-Cônjuge</div>
-
                 <div class="field">
                     <label>Se casado(a), separado(a), divorciado(a) ou viúvo(a), preencha os dados abaixo</label>
                 </div>
-
                 <div class="field">
                     <label>Nome do Cônjuge/Ex-Cônjuge <span class="required">*</span></label>
-                    <input type="text" name="spouse_name" placeholder="Ex: DENIZE REZENDE VITORIO ALVES" required>
+                    <input type="text" name="spouse_name" placeholder="Ex: DENIZE REZENDE VITORIO ALVES">
                 </div>
-
                 <div class="form-row">
                     <div class="field">
                         <label>Data de Nascimento <span class="required">*</span></label>
-                        <input type="date" name="spouse_dob" required>
+                        <input type="date" name="spouse_dob">
                     </div>
                     <div class="field">
                         <label>Nacionalidade <span class="required">*</span></label>
-                        <input type="text" name="spouse_nationality" value="BRASIL" required>
+                        <input type="text" name="spouse_nationality" value="BRASIL">
                     </div>
                 </div>
-
                 <div class="form-row">
                     <div class="field">
                         <label>Local de Nascimento - Cidade <span class="required">*</span></label>
-                        <input type="text" name="spouse_birth_city" placeholder="Ex: CACHOEIRO ITAPEMIRIM" required>
+                        <input type="text" name="spouse_birth_city" placeholder="Ex: CACHOEIRO ITAPEMIRIM">
                     </div>
                     <div class="field">
                         <label>Local de Nascimento - País <span class="required">*</span></label>
-                        <input type="text" name="spouse_birth_country" value="BRASIL" required>
+                        <input type="text" name="spouse_birth_country" value="BRASIL">
                     </div>
                 </div>
 
@@ -1399,7 +1507,7 @@ let currentStep = 1;
 const totalSteps = 12;
 
 // ============================================================
-// HTML DOS ITENS REPETÍVEIS
+// HTML DOS ITENS REPETÍVEIS - SEM required no HTML
 // ============================================================
 const companionHTML = `
     <div class="form-row">
@@ -1605,6 +1713,20 @@ function toggleConditionals() {
         c.style.display = shouldShow ? 'block' : 'none';
         if (shouldShow) c.classList.add('active');
         else c.classList.remove('active');
+
+        // Gerenciar required dos campos dentro do condicional
+        var requiredFields = c.querySelectorAll('input, select, textarea');
+        requiredFields.forEach(function(field) {
+            if (shouldShow) {
+                // Se o condicional está visível, adicionar required (exceto campos de idiomas)
+                if (!field.closest('#languages-container') && !field.closest('.language-item')) {
+                    field.setAttribute('required', 'required');
+                }
+            } else {
+                // Se o condicional está oculto, remover required
+                field.removeAttribute('required');
+            }
+        });
     });
 
     // Trabalho - apenas para Profissional e Estudante
@@ -1612,17 +1734,58 @@ function toggleConditionals() {
     var workTrigger = document.querySelector('[name="radio-occupation"]:checked');
     if (workTrigger && ['Profissional', 'Estudante'].includes(workTrigger.value)) {
         work.style.display = 'block';
-        // Tornar campos obrigatórios
         work.querySelectorAll('input, select, textarea').forEach(function(el) {
             el.setAttribute('required', 'required');
         });
     } else {
         work.style.display = 'none';
-        // Remover required dos campos de trabalho
         work.querySelectorAll('input, select, textarea').forEach(function(el) {
             el.removeAttribute('required');
         });
     }
+
+    // ============================================================
+    // CONTROLE DOS CAMPOS CONDICIONAIS NOVOS
+    // ============================================================
+
+    // 1. Responsável pelo Pagamento (radio-payer)
+    const payerSelect = document.getElementById('radio-payer');
+    if (payerSelect) {
+        const payerFields = document.getElementById('payer-fields');
+        if (payerSelect.value === 'OTHER') {
+            payerFields.style.display = 'block';
+            document.querySelectorAll('#payer-fields input, #payer-fields select').forEach(el => {
+                if (el.type !== 'hidden') el.required = true;
+            });
+        } else {
+            payerFields.style.display = 'none';
+            document.querySelectorAll('#payer-fields input, #payer-fields select').forEach(el => {
+                el.required = false;
+            });
+        }
+    }
+
+    // 2. Carteira de Habilitação dos EUA (radio-us-driver)
+    const driverRadios = document.querySelectorAll('input[name="radio-us-driver"]');
+    const driverFields = document.getElementById('us-driver-fields');
+    driverRadios.forEach(radio => {
+        if (radio.checked && radio.value === 'SIM') {
+            driverFields.style.display = 'block';
+        } else if (radio.checked && radio.value === 'NAO') {
+            driverFields.style.display = 'none';
+        }
+    });
+
+    // 3. Passaporte Perdido/Roubado (radio-passport-lost)
+    const lostRadios = document.querySelectorAll('input[name="radio-passport-lost"]');
+    const lostFields = document.getElementById('passport-lost-fields');
+    lostRadios.forEach(radio => {
+        if (radio.checked && radio.value === 'SIM') {
+            lostFields.style.display = 'block';
+        } else if (radio.checked && radio.value === 'NAO') {
+            lostFields.style.display = 'none';
+        }
+    });
 }
 
 // ============================================================
@@ -1667,7 +1830,6 @@ function applyMasks(container) {
 // NAVEGAÇÃO
 // ============================================================
 function nextStep(step) {
-    // Validar o passo atual antes de avançar
     if (validateStep(currentStep)) {
         showStep(step);
     }
@@ -1705,20 +1867,14 @@ function validateStep(step) {
     var section = document.querySelector('.form-section[data-step="' + step + '"]');
     if (!section) return true;
     
-    // Buscar todos os campos obrigatórios na seção atual
-    var inputs = section.querySelectorAll('input[required], select[required]');
-    
-    // Também buscar campos obrigatórios dentro de condicionais visíveis
-    var conditionalInputs = section.querySelectorAll('.conditional.active input[required], .conditional.active select[required]');
-    
-    var allInputs = Array.from(inputs).concat(Array.from(conditionalInputs));
-
+    // Buscar apenas campos obrigatórios que estão VISÍVEIS
+    var allInputs = section.querySelectorAll('input, select, textarea');
     var valid = true;
     var firstInvalid = null;
 
     allInputs.forEach(function(input) {
-        // Verificar se o input está visível e habilitado
-        if (input.offsetParent !== null || input.type === 'hidden') {
+        // Verificar se o input está visível e tem required
+        if (input.hasAttribute('required') && input.offsetParent !== null && input.type !== 'hidden') {
             var value = input.value.trim();
             if (value === '' || value === null) {
                 input.style.borderColor = '#dc3545';
@@ -1752,7 +1908,7 @@ function getFormData() {
 }
 
 // ============================================================
-// FUNÇÃO DE REVISÃO COMPLETA
+// FUNÇÃO DE REVISÃO COMPLETA - CORRIGIDA
 // ============================================================
 function updateResumo() {
     var dados = getFormData();
@@ -1769,7 +1925,6 @@ function updateResumo() {
     html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
     html += '<p><strong>Nome Completo:</strong> ' + (dados.full_name || '-') + '</p>';
     html += '<p><strong>Outros Sobrenomes:</strong> ' + (dados.other_surnames || 'Não informado') + '</p>';
-    html += '<p><strong>Outros Nomes Próprios:</strong> ' + (dados.other_given_names || 'Não informado') + '</p>';
     html += '<p><strong>Gênero:</strong> ' + (dados['radio-genero'] === 'MALE' ? 'Masculino' : dados['radio-genero'] === 'FEMALE' ? 'Feminino' : '-') + '</p>';
     html += '<p><strong>Estado Civil:</strong> ' + (dados.marital_status === 'MARRIED' ? 'Casado(a)' : dados.marital_status === 'UNION' ? 'União Estável' : dados.marital_status === 'SINGLE' ? 'Solteiro(a)' : dados.marital_status === 'DIVORCED' ? 'Divorciado(a)' : dados.marital_status === 'WIDOWED' ? 'Viúvo(a)' : dados.marital_status === 'SEPARATED' ? 'Separado(a) Judicialmente' : dados.marital_status === 'OTHER' ? 'Outro' : '-') + '</p>';
     html += '<p><strong>Data de Nascimento:</strong> ' + (dados.dob ? new Date(dados.dob).toLocaleDateString('pt-BR') : '-') + '</p>';
@@ -1777,9 +1932,6 @@ function updateResumo() {
     html += '<p><strong>Estado/Província:</strong> ' + (dados.birth_state || '-') + '</p>';
     html += '<p><strong>País de Nascimento:</strong> ' + (dados.birth_country || '-') + '</p>';
     html += '<p><strong>Outra Nacionalidade:</strong> ' + (dados.other_nat_country || 'Não') + '</p>';
-    if (dados.other_nat_country) {
-        html += '<p><strong>Número do Passaporte da Outra Nacionalidade:</strong> ' + (dados.other_nat_passport || '-') + '</p>';
-    }
     html += '<p><strong>Residente Permanente de outro país:</strong> ' + (dados['radio-resident'] === 'one' ? 'Sim - ' + (dados.resident_country || '') : 'Não') + '</p>';
     html += '<p><strong>CPF:</strong> ' + (dados.cpf || '-') + '</p>';
     html += '<p><strong>SSN:</strong> ' + (dados.ssn || 'Não informado') + '</p>';
@@ -1795,13 +1947,16 @@ function updateResumo() {
         html += '<p><strong>Data de Chegada:</strong> ' + (dados.arrival_date ? new Date(dados.arrival_date).toLocaleDateString('pt-BR') : '-') + '</p>';
         html += '<p><strong>Locais a Visitar:</strong> ' + (dados.places_to_visit || '-') + '</p>';
     }
-    html += '<p><strong>Endereço nos EUA:</strong> ' + (dados.us_address || '-') + '</p>';
-    html += '<p><strong>Pagador:</strong> ' + (dados['radio-payer'] === 'SELF' ? 'Próprio Solicitante' : dados['radio-payer'] === 'OTHER' ? 'Outra Pessoa' : 'Empresa/Organização') + '</p>';
-    if (dados['radio-payer'] === 'OTHER' || dados['radio-payer'] === 'COMPANY') {
+    html += '<p><strong>Pagador:</strong> ' + (dados['radio-payer'] === 'SELF' ? 'Próprio Solicitante' : 'Outra pessoa/empresa/organização') + '</p>';
+    if (dados['radio-payer'] === 'OTHER') {
         html += '<p><strong>Nome do Pagador:</strong> ' + (dados.payer_name || '-') + '</p>';
+        html += '<p><strong>Endereço:</strong> ' + (dados.payer_address || '-') + '</p>';
+        html += '<p><strong>CEP:</strong> ' + (dados.payer_zip || '-') + '</p>';
+        html += '<p><strong>Cidade:</strong> ' + (dados.payer_city || '-') + '</p>';
+        html += '<p><strong>Estado:</strong> ' + (dados.payer_state || '-') + '</p>';
+        html += '<p><strong>País:</strong> ' + (dados.payer_country || '-') + '</p>';
         html += '<p><strong>Telefone:</strong> ' + (dados.payer_phone || '-') + '</p>';
         html += '<p><strong>E-mail:</strong> ' + (dados.payer_email || '-') + '</p>';
-        html += '<p><strong>Relação:</strong> ' + (dados.payer_relationship || '-') + '</p>';
     }
     html += '</div>';
     
@@ -1843,8 +1998,12 @@ function updateResumo() {
             });
             html += '</ul>';
         }
-        html += '<p><strong>Carteira de Habilitação dos EUA:</strong> ' + (dados.us_driver_license || 'Não informado') + '</p>';
-        html += '<p><strong>Estado Emissor:</strong> ' + (dados.us_driver_state || 'Não informado') + '</p>';
+        // Carteira de Habilitação dos EUA
+        html += '<p><strong>Possui carteira de habilitação dos EUA:</strong> ' + (dados['radio-us-driver'] === 'SIM' ? 'Sim' : 'Não') + '</p>';
+        if (dados['radio-us-driver'] === 'SIM') {
+            html += '<p><strong>Número da Habilitação:</strong> ' + (dados.us_driver_number || 'Não informado') + '</p>';
+            html += '<p><strong>Estado de Emissão:</strong> ' + (dados.us_driver_state || 'Não informado') + '</p>';
+        }
     }
     html += '<p><strong>Visto emitido anteriormente:</strong> ' + (dados['radio-visa-issued'] === 'one' ? 'Sim' : 'Não') + '</p>';
     if (dados['radio-visa-issued'] === 'one') {
@@ -1899,7 +2058,14 @@ function updateResumo() {
     html += '<p><strong>Estado de Emissão:</strong> ' + (dados.passport_state || '-') + '</p>';
     html += '<p><strong>Data de Emissão:</strong> ' + (dados.passport_issue ? new Date(dados.passport_issue).toLocaleDateString('pt-BR') : '-') + '</p>';
     html += '<p><strong>Data de Validade:</strong> ' + (dados.passport_expiry ? new Date(dados.passport_expiry).toLocaleDateString('pt-BR') : '-') + '</p>';
-    html += '<p><strong>Passaporte Perdido/Roubado:</strong> ' + (dados['radio-passport-lost'] === 'one' ? 'Sim - Número: ' + (dados.passport_lost_number || '') + ' - País: ' + (dados.passport_lost_country || '') : 'Não') + '</p>';
+    // Passaporte Perdido/Roubado
+    html += '<p><strong>Passaporte Perdido/Roubado:</strong> ' + (dados['radio-passport-lost'] === 'SIM' ? 'Sim' : 'Não') + '</p>';
+    if (dados['radio-passport-lost'] === 'SIM') {
+        html += '<p><strong>Número do BO/Observações:</strong> ' + (dados.passport_lost_obs || 'Não informado') + '</p>';
+        html += '<p><strong>Número do Passaporte Perdido:</strong> ' + (dados.passport_lost_number || 'Não informado') + '</p>';
+        html += '<p><strong>Data do Ocorrido:</strong> ' + (dados.passport_lost_date ? new Date(dados.passport_lost_date).toLocaleDateString('pt-BR') : 'Não informado') + '</p>';
+        html += '<p><strong>Local do Ocorrido:</strong> ' + (dados.passport_lost_location || 'Não informado') + '</p>';
+    }
     html += '</div>';
     
     // 8. CONTATO EUA
@@ -1942,7 +2108,6 @@ function updateResumo() {
         }
     }
     html += '<p><strong>Outros Parentes nos EUA:</strong> ' + (dados['radio-other-relatives'] === 'one' ? 'Sim - ' + (dados.other_relatives_desc || '') : 'Não') + '</p>';
-    // Cônjuge (se não for solteiro)
     if (dados.marital_status && dados.marital_status !== 'SINGLE') {
         html += '<p><strong>Cônjuge/Ex-Cônjuge:</strong> ' + (dados.spouse_name || 'Não informado') + '</p>';
         html += '<p><strong>Data de Nascimento do Cônjuge:</strong> ' + (dados.spouse_dob ? new Date(dados.spouse_dob).toLocaleDateString('pt-BR') : 'Não informado') + '</p>';
@@ -1962,10 +2127,15 @@ function updateResumo() {
     html += '</div>';
     
     // 10. TRABALHO E EDUCAÇÃO
-    html += '<h4 style="color:#003366;margin-bottom:10px;">💼 Trabalho e Educação</h4>';
+    html += '<h4 style="color:#003366;margin-bottom:10px;">💼 Trabalho, Educação e Treinamento</h4>';
     html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
-    html += '<p><strong>Ocupação Principal:</strong> ' + (dados['radio-occupation'] || '-') + '</p>';
-    if (['Profissional', 'Estudante'].includes(dados['radio-occupation'])) {
+    
+    // Ocupação Principal
+    var ocupacao = dados['radio-occupation'] || '-';
+    html += '<p><strong>Ocupação Principal:</strong> ' + ocupacao + '</p>';
+    
+    // Para Profissional e Estudante - mostrar campos de trabalho
+    if (['Profissional', 'Estudante'].includes(ocupacao)) {
         html += '<p><strong>Empregador/Instituição:</strong> ' + (dados.employer_name || '-') + '</p>';
         html += '<p><strong>Endereço:</strong> ' + (dados.employer_address || '-') + '</p>';
         html += '<p><strong>Cidade:</strong> ' + (dados.employer_city || '-') + '</p>';
@@ -1975,10 +2145,13 @@ function updateResumo() {
         html += '<p><strong>Data de Início:</strong> ' + (dados.employer_start ? new Date(dados.employer_start).toLocaleDateString('pt-BR') : '-') + '</p>';
         html += '<p><strong>Renda Mensal:</strong> ' + (dados.employer_income || '-') + '</p>';
         html += '<p><strong>Descrição das Funções:</strong> ' + (dados.employer_duties || '-') + '</p>';
-    } else if (['Aposentado', 'Dona de Casa'].includes(dados['radio-occupation'])) {
+    } 
+    // Para Aposentado e Dona de Casa - mostrar mensagem específica
+    else if (['Aposentado', 'Dona de Casa'].includes(ocupacao)) {
         html += '<p><em>Não se aplica preenchimento de dados de trabalho.</em></p>';
     }
     
+    // Outras ocupações
     if (dados['radio-other-occupations'] === 'one') {
         var otherNomes = dados['other_employer_name[]'] || [];
         if (Array.isArray(otherNomes) && otherNomes.length > 0 && otherNomes[0]) {
@@ -1992,6 +2165,7 @@ function updateResumo() {
         }
     }
     
+    // Empregos Anteriores
     if (dados['radio-prev-employment'] === 'YES') {
         var empNomes = dados['prev_employer_name[]'] || [];
         if (Array.isArray(empNomes) && empNomes.length > 0 && empNomes[0]) {
@@ -2007,6 +2181,7 @@ function updateResumo() {
         }
     }
     
+    // Educação
     if (dados['radio-education'] === 'YES') {
         var educInst = dados['edu_institution[]'] || [];
         if (Array.isArray(educInst) && educInst.length > 0 && educInst[0]) {
@@ -2022,19 +2197,25 @@ function updateResumo() {
         }
     }
     
+    // Idiomas
     var idiomas = dados['languages[]'] || [];
-    if (Array.isArray(idiomas) && idiomas.length > 0 && idiomas[0]) {
-        html += '<p><strong>Idiomas (além do Português):</strong> ' + idiomas.filter(function(i) { return i; }).join(', ') + '</p>';
+    var idiomasFiltrados = Array.isArray(idiomas) ? idiomas.filter(function(i) { return i && i.trim() !== ''; }) : [];
+    if (idiomasFiltrados.length > 0) {
+        html += '<p><strong>Idiomas (além do Português):</strong> ' + idiomasFiltrados.join(', ') + '</p>';
     } else {
         html += '<p><strong>Idiomas (além do Português):</strong> Nenhum informado</p>';
     }
     
+    // Países Visitados
     var paises = dados['traveled_countries[]'] || [];
     if (Array.isArray(paises) && paises.length > 0 && paises[0]) {
         html += '<p><strong>Países Visitados (últimos 5 anos):</strong> ' + paises.filter(function(p) { return p; }).join(', ') + '</p>';
     }
     
+    // Treinamento Especializado
     html += '<p><strong>Treinamento Especializado:</strong> ' + (dados['radio-specialized'] === 'YES' ? 'Sim - ' + (dados.specialized_description || '') : 'Não') + '</p>';
+    
+    // Serviço Militar
     html += '<p><strong>Serviço Militar:</strong> ' + (dados['radio-military'] === 'YES' ? 'Sim' : 'Não') + '</p>';
     if (dados['radio-military'] === 'YES') {
         html += '<p><strong>Ramo:</strong> ' + (dados.military_branch || '-') + '</p>';

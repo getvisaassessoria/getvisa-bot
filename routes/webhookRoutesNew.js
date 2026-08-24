@@ -20,6 +20,28 @@ function limparTelefone(phone) {
 // Fila de mensagens para processamento assíncrono
 const messageQueue = [];
 
+// Função para processar mensagens da fila
+async function processMessageQueue() {
+    if (messageQueue.length === 0) return;
+    
+    console.log(`🔄 Processando fila: ${messageQueue.length} mensagens`);
+    
+    while (messageQueue.length > 0) {
+        const item = messageQueue.shift();
+        try {
+            console.log(`📨 Processando mensagem de ${item.phone}: ${item.message}`);
+            // Aqui você pode adicionar a lógica de processamento do bot
+            // Por enquanto, apenas logamos
+        } catch (error) {
+            console.error(`❌ Erro ao processar mensagem:`, error);
+        }
+    }
+}
+
+// Processar fila a cada 5 segundos
+setInterval(processMessageQueue, 5000);
+
+// Rota principal do webhook
 router.post('/zapi', async (req, res) => {
     try {
         console.log('------------------------------------');
@@ -47,26 +69,31 @@ router.post('/zapi', async (req, res) => {
         console.log(`📱 Telefone limpo: ${telefoneLimpo}`);
         
         // Buscar ou criar cliente
-        const { data: clienteExistente } = await supabase
-            .from('clientes')
-            .select('*')
-            .eq('telefone', telefoneLimpo)
-            .maybeSingle();
-
-        if (!clienteExistente) {
-            console.log('🆕 Criando novo cliente...');
-            await supabase
+        try {
+            const { data: clienteExistente } = await supabase
                 .from('clientes')
-                .insert([{
-                    telefone: telefoneLimpo,
-                    nome: 'Cliente',
-                    data_contato: new Date().toISOString(),
-                    status: 'novo',
-                    onboarding_completo: false
-                }]);
-            console.log('✅ Cliente criado com sucesso!');
-        } else {
-            console.log('✅ Cliente já existe.');
+                .select('*')
+                .eq('telefone', telefoneLimpo)
+                .maybeSingle();
+
+            if (!clienteExistente) {
+                console.log('🆕 Criando novo cliente...');
+                await supabase
+                    .from('clientes')
+                    .insert([{
+                        telefone: telefoneLimpo,
+                        nome: 'Cliente',
+                        data_contato: new Date().toISOString(),
+                        status: 'novo',
+                        onboarding_completo: false
+                    }]);
+                console.log('✅ Cliente criado com sucesso!');
+            } else {
+                console.log('✅ Cliente já existe.');
+            }
+        } catch (dbError) {
+            console.error('❌ Erro ao acessar banco de dados:', dbError);
+            // Continua mesmo com erro no banco
         }
 
         // Adicionar à fila para processamento
@@ -88,5 +115,14 @@ router.post('/zapi', async (req, res) => {
     }
 });
 
-// Exportar a fila e o router
-module.exports = { router, messageQueue };
+// Rota para status da fila (debug)
+router.get('/fila-status', (req, res) => {
+    res.json({
+        total: messageQueue.length,
+        fila: messageQueue
+    });
+});
+
+// Exportar o router e a fila
+module.exports = router;
+module.exports.messageQueue = messageQueue;

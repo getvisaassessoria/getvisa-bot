@@ -1,154 +1,282 @@
-// routes/ds160Routes.js
+// routes/ds160Routes.js - CORRIGIDO (com ENUM correto)
 const express = require('express');
 const router = express.Router();
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-const { isSpamData, limparTelefone } = require('../utils/helpers');
-const { gerarPDF_DS160 } = require('../services/pdfService');
-const { enviarPDFWhatsApp } = require('../utils/whatsappClient');
-const { resend } = require('../utils/resendClient'); // Importa a instância da Resend
-const supabase = require('../config/supabase'); // Importa a instância do Supabase
-const { cadastrarCliente } = require('../services/dbService'); // Para garantir que o cliente exista
+let supabaseUrl = process.env.SUPABASE_URL || '';
+supabaseUrl = supabaseUrl.replace(/\/rest\/v1.*$/, '').replace(/\/+$/, '');
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
-// Rota para receber dados do formulário DS-160
+function limparTelefone(telefone) {
+    if (!telefone) return null;
+    const limpo = telefone.toString().replace(/\D/g, '');
+    if (limpo.startsWith('55')) return limpo.substring(2);
+    return limpo;
+}
+
+function extractFormFields(data) {
+    const full_name = data.full_name || data.nome || data['text-84'] || data.fullName || data.name || '';
+    const email = data.email || data['email-1'] || data.emailAddress || '';
+    const telefone = data.telefone_whatsapp || data.telefone || data['text-77'] || data['phone-1'] || data.phone || '';
+    const consulado = data.consulado_cidade || data.consulado || data['text-88'] || data.consulate || '';
+    
+    let nomeEncontrado = full_name;
+    if (!nomeEncontrado) {
+        for (const [key, value] of Object.entries(data)) {
+            if (typeof value === 'string' && value.length > 3 && value.length < 100) {
+                const words = value.trim().split(/\s+/);
+                if (words.length >= 2 && words.every(w => w.length > 1)) {
+                    nomeEncontrado = value;
+                    break;
+                }
+            }
+        }
+    }
+    
+    return { full_name: nomeEncontrado, email, telefone, consulado };
+}
+
 router.post('/submit-ds160', async (req, res) => {
-    console.log('🔔 Requisição POST recebida para /api/submit-ds160');
+    console.log('🔔 Rota /api/submit-ds160 chamada!');
+    console.log('📝 Dados recebidos:', JSON.stringify(req.body, null, 2));
+
     const formData = req.body;
-    // console.log('Dados recebidos:', JSON.stringify(formData, null, 2)); // Descomente para debug completo
+    const { full_name, email, telefone, consulado } = extractFormFields(formData);
 
-    const {
-        full_name,
-        email,
-        telefone_whatsapp,
-        consulado_cidade
-    } = formData;
+    console.log(`📋 Nome: "${full_name}"`);
+    console.log(`📧 Email: "${email}"`);
+    console.log(`📱 Telefone: "${telefone}"`);
+    console.log(`🏛️ Consulado: "${consulado}"`);
 
-    // Validação básica
-    if (!full_name || !email || !telefone_whatsapp || !consulado_cidade) {
-        console.error('❌ Dados mínimos do formulário DS-160 ausentes.');
+    let nomeValido = full_name || formData.nome_completo || formData.fullName || '';
+    let emailValido = email || formData['email-1'] || '';
+    let telefoneValido = telefone || formData['text-77'] || '';
+
+    if (!nomeValido || !emailValido || !telefoneValido) {
+        console.error('❌ Dados obrigatórios faltando');
         return res.status(400).json({
             success: false,
-            message: 'Dados mínimos (nome, email, telefone, consulado) são obrigatórios.'
+            message: 'Nome, email e telefone são obrigatórios.'
         });
     }
 
-    // Limpar telefone
-    const cleanPhone = limparTelefone(telefone_whatsapp);
+    const cleanPhone = limparTelefone(telefoneValido);
     if (!cleanPhone) {
-        console.error('❌ Telefone inválido no formulário DS-160.');
-        return res.status(400).json({
-            success: false,
-            message: 'Número de telefone WhatsApp inválido.'
-        });
-    }
-
-    // Verificar spam
-    if (isSpamData(formData)) {
-        console.warn('⚠️ Dados de spam detectados no formulário DS-160. Ignorando.');
-        return res.status(400).json({
-            success: false,
-            message: 'Dados inválidos ou suspeitos detectados.'
-        });
+        return res.status(400).json({ success: false, message: 'Número de telefone inválido.' });
     }
 
     try {
-        // 1. Gerar o PDF
-        const pdfBuffer = await gerarPDF_DS160(formData);
-        console.log('✅ PDF do DS-160 gerado com sucesso.');
+        if (supabase) {
+            // 1. SALVAR CLIENTE
+            const { data: clienteData, error: clienteError } = await supabase
+                .from('clientes')
+                .upsert({
+                    telefone: cleanPhone,
+                    nome: nomeValido,
+                    email: emailValido,
+                    consulado: consulado || '',
+                    data_contato: new Date().toISOString(),
+                    status: 'formulario_enviado',
+                    onboarding_completo: true,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'telefone' })
+                .select('id, telefone')
+                .single();
 
-        // 2. Salvar os dados no Supabase
-        // Primeiro, garantir que o cliente exista na tabela clientes ou ativos
-        const clienteExistente = await cadastrarCliente(cleanPhone, full_name);
-        if (!clienteExistente) {
-            console.error('❌ Falha ao cadastrar/atualizar cliente no Supabase.');
-            // Continuar mesmo com erro no cadastro do cliente, para não perder o formulário
-        }
-
-        // Salvar os dados completos do formulário DS-160
-        const { data: savedForm, error: saveError } = await supabase
-            .from('formularios_ds160') // Certifique-se de que esta tabela existe no seu Supabase
-            .upsert({
-                telefone: cleanPhone,
-                nome_completo: full_name,
-                email: email,
-                consulado: consulado_cidade,
-                data_envio: new Date().toISOString(),
-                dados_completos: formData // Salva todos os dados do formulário
-            }, { onConflict: 'telefone' })
-            .select()
-            .single();
-
-        if (saveError) {
-            console.error('❌ Erro ao salvar formulário DS-160 no Supabase:', saveError);
-            // Continuar o processo mesmo com erro no salvamento do formulário
-        } else {
-            console.log('✅ Dados do formulário DS-160 salvos no Supabase.');
-        }
-
-        // 3. Enviar e-mail de confirmação para o cliente
-        try {
-            await resend.emails.send({
-                from: 'GetVisa <contato@getvisa.com.br>',
-                to: [email],
-                subject: '✅ Formulário DS-160 Recebido - GetVisa Assessoria',
-                html: `
-                    <strong>Olá ${full_name}!</strong>
-                    <p>Recebemos seu formulário DS-160 com sucesso!</p>
-                    <p>Nossa equipe fará a análise dos dados e em breve entraremos em contato com os próximos passos.</p>
-                    <p>Agradecemos a sua confiança na GetVisa Assessoria.</p>
-                    <p>Atenciosamente,</p>
-                    <p>Equipe GetVisa</p>
-                `,
-                attachments: [{
-                    filename: `DS160_${full_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
-                    content: pdfBuffer.toString('base64')
-                }]
-            });
-            console.log('📧 E-mail de confirmação enviado para o cliente.');
-        } catch (emailError) {
-            console.error('❌ Erro ao enviar e-mail de confirmação:', emailError);
-        }
-
-        // 4. Enviar PDF por WhatsApp para o cliente
-        try {
-            const primeiroNome = full_name.split(' ')[0];
-            await enviarPDFWhatsApp(cleanPhone, pdfBuffer, primeiroNome, 'ds160');
-            console.log('📱 PDF do DS-160 enviado por WhatsApp.');
-        } catch (whatsappError) {
-            console.error('❌ Erro ao enviar PDF por WhatsApp:', whatsappError);
-        }
-
-        // 5. Notificar a equipe interna (opcional, mas recomendado)
-        try {
-            const adminPhone = limparTelefone(process.env.ADMIN_PHONE); // Certifique-se de ter ADMIN_PHONE no .env
-            if (adminPhone) {
-                await enviarWhatsApp(adminPhone,
-                    `🔔 NOVO FORMULÁRIO DS-160 RECEBIDO!\n\n` +
-                    `Nome: ${full_name}\n` +
-                    `Email: ${email}\n` +
-                    `Telefone: ${telefone_whatsapp}\n` +
-                    `Consulado: ${consulado_cidade}\n\n` +
-                    `Verificar no painel ou Supabase.`
-                );
-                console.log('🔔 Notificação interna enviada para o admin.');
+            if (clienteError) {
+                console.error('❌ Erro ao salvar cliente:', clienteError);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Erro ao salvar cliente',
+                    error: clienteError.message
+                });
             }
-        } catch (adminNotifyError) {
-            console.error('❌ Erro ao notificar admin:', adminNotifyError);
+
+            console.log('✅ Cliente salvo no Supabase:', clienteData);
+
+            // 2. VERIFICAR SE JÁ EXISTE FORMULÁRIO
+            const { data: formExistente } = await supabase
+                .from('form_ds160')
+                .select('id, id_cliente')
+                .eq('id_cliente', clienteData.id)
+                .maybeSingle();
+
+            let formResult;
+
+            if (formExistente) {
+                // ATUALIZAR formulário existente
+                console.log(`🔄 Atualizando formulário existente para cliente: ${clienteData.id}`);
+                const { data: formData_saved, error: formError } = await supabase
+                    .from('form_ds160')
+                    .update({
+                        dados_formulario: formData,
+                        status: 'rascunho',  // <-- VALOR CORRETO DO ENUM
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', formExistente.id)
+                    .select()
+                    .single();
+
+                if (formError) {
+                    console.error('❌ Erro ao atualizar formulário:', formError);
+                    return res.status(500).json({
+                        success: false,
+                        message: 'Erro ao atualizar formulário',
+                        error: formError.message
+                    });
+                }
+                formResult = formData_saved;
+                console.log('✅ Formulário atualizado no Supabase (form_ds160)');
+            } else {
+                // CRIAR novo formulário
+                console.log(`🆕 Criando novo formulário para cliente: ${clienteData.id}`);
+                const { data: formData_saved, error: formError } = await supabase
+                    .from('form_ds160')
+                    .insert({
+                        id_cliente: clienteData.id,
+                        dados_formulario: formData,
+                        status: 'rascunho',  // <-- VALOR CORRETO DO ENUM
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    })
+                    .select()
+                    .single();
+
+                if (formError) {
+                    console.error('❌ Erro ao salvar formulário:', formError);
+                    return res.status(500).json({
+                        success: false,
+                        message: 'Erro ao salvar formulário',
+                        error: formError.message
+                    });
+                }
+                formResult = formData_saved;
+                console.log('✅ Formulário salvo no Supabase (form_ds160)');
+            }
+
         }
 
-
-        res.status(200).json({
+        res.json({
             success: true,
-            message: 'Formulário DS-160 recebido e processado com sucesso!'
+            message: 'Formulário recebido com sucesso!',
+            data: {
+                nome: nomeValido,
+                email: emailValido,
+                telefone: cleanPhone
+            }
         });
 
     } catch (error) {
-        console.error('❌ Erro geral ao processar formulário DS-160:', error);
+        console.error('❌ Erro ao processar formulário:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro interno ao processar o formulário.',
+            message: 'Erro ao processar formulário',
             error: error.message
         });
     }
+});
+
+// Rota para buscar formulário por telefone
+router.get('/buscar/:telefone', async (req, res) => {
+    try {
+        const { telefone } = req.params;
+        const cleanPhone = limparTelefone(telefone);
+
+        if (!cleanPhone) {
+            return res.status(400).json({ success: false, message: 'Telefone inválido' });
+        }
+
+        const { data: cliente, error: clienteError } = await supabase
+            .from('clientes')
+            .select('id, nome, telefone, email, status, consulado')
+            .eq('telefone', cleanPhone)
+            .maybeSingle();
+
+        if (clienteError || !cliente) {
+            return res.status(404).json({ success: false, message: 'Cliente não encontrado' });
+        }
+
+        const { data: form, error: formError } = await supabase
+            .from('form_ds160')
+            .select('*')
+            .eq('id_cliente', cliente.id)
+            .maybeSingle();
+
+        if (formError) {
+            return res.status(404).json({ success: false, message: 'Formulário não encontrado' });
+        }
+
+        res.json({
+            success: true,
+            cliente: cliente,
+            formulario: form || null
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao buscar formulário:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Rota para atualizar status do processo por telefone
+router.patch('/atualizar-status/:telefone', async (req, res) => {
+    try {
+        const { telefone } = req.params;
+        const { status, etapa, observacao } = req.body;
+        const cleanPhone = limparTelefone(telefone);
+
+        if (!cleanPhone) {
+            return res.status(400).json({ success: false, message: 'Telefone inválido' });
+        }
+
+        const { data: cliente, error: clienteError } = await supabase
+            .from('clientes')
+            .select('id, nome, telefone')
+            .eq('telefone', cleanPhone)
+            .maybeSingle();
+
+        if (clienteError || !cliente) {
+            return res.status(404).json({ success: false, message: 'Cliente não encontrado' });
+        }
+
+        await supabase
+            .from('clientes')
+            .update({
+                status: status || 'em_andamento',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', cliente.id);
+
+        await supabase
+            .from('form_ds160')
+            .update({
+                status: 'rascunho',  // <-- VALOR CORRETO DO ENUM
+                updated_at: new Date().toISOString()
+            })
+            .eq('id_cliente', cliente.id);
+
+        console.log(`✅ Status atualizado para cliente ${cleanPhone}`);
+
+        res.json({
+            success: true,
+            message: 'Status atualizado com sucesso!',
+            cliente: { id: cliente.id, telefone: cleanPhone, status: status || 'em_andamento' }
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao atualizar status:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+router.get('/test', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        message: 'DS-160 funcionando!',
+        supabase: !!supabase
+    });
 });
 
 module.exports = router;
