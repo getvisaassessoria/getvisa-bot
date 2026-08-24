@@ -1,3 +1,4 @@
+<!-- admin-login.html -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -5,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login Admin - GetVisa</title>
     <style>
+        /* Seu CSS existente */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: Arial, sans-serif;
@@ -115,10 +117,11 @@
     </div>
 
     <script>
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
+        document.getElementById('loginForm').addEventListener('submit', async function(e) { // Adicionado 'async' aqui
             e.preventDefault();
             const apiKey = document.getElementById('apiKey').value.trim();
             const errorMsg = document.getElementById('errorMessage');
+            errorMsg.style.display = 'none'; // Esconde a mensagem de erro anterior
 
             if (!apiKey) {
                 errorMsg.textContent = '❌ Por favor, digite a chave de acesso.';
@@ -126,14 +129,37 @@
                 return;
             }
 
-            localStorage.setItem('admin_api_key', apiKey);
-            window.location.href = `/admin.html?api_key=${encodeURIComponent(apiKey)}`;
+            try {
+                const response = await fetch('/api/admin/login', { // Faz uma requisição POST para o backend
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ apiKey: apiKey })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Se o login for bem-sucedido, o backend pode ter retornado um token
+                    // Por enquanto, apenas redirecionamos. Mais tarde, armazenaremos o token.
+                    window.location.href = '/admin.html'; // Redireciona para o painel admin (sem a chave na URL!)
+                } else {
+                    errorMsg.textContent = data.message || '❌ Chave inválida. Tente novamente.';
+                    errorMsg.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Erro ao tentar fazer login:', error);
+                errorMsg.textContent = '❌ Erro de conexão. Tente novamente mais tarde.';
+                errorMsg.style.display = 'block';
+            }
         });
 
-        const savedKey = localStorage.getItem('admin_api_key');
-        if (savedKey) {
-            document.getElementById('apiKey').value = savedKey;
-        }
+        // Removido o código que carregava a chave do localStorage, pois não é seguro.
+        // const savedKey = localStorage.getItem('admin_api_key');
+        // if (savedKey) {
+        //     document.getElementById('apiKey').value = savedKey;
+        // }
     </script>
 </body>
 </html>
