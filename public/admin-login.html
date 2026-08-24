@@ -1,4 +1,3 @@
-cat > public/admin-login.html << 'EOF'
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -127,14 +126,10 @@ cat > public/admin-login.html << 'EOF'
                 return;
             }
             
-            // Salvar no localStorage
             localStorage.setItem('admin_api_key', apiKey);
-            
-            // Redirecionar para o admin com a chave na URL
             window.location.href = `/admin.html?api_key=${encodeURIComponent(apiKey)}`;
         });
         
-        // Preencher com chave salva
         const savedKey = localStorage.getItem('admin_api_key');
         if (savedKey) {
             document.getElementById('apiKey').value = savedKey;
@@ -142,4 +137,3 @@ cat > public/admin-login.html << 'EOF'
     </script>
 </body>
 </html>
-EOF
