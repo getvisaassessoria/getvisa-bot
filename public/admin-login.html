@@ -1,3 +1,4 @@
+cat > public/admin-login.html << 'EOF'
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -99,7 +100,7 @@
         <div class="logo">🇺🇸</div>
         <h1>GetVisa Admin</h1>
         <p class="subtitle">Digite sua chave de acesso</p>
-        
+
         <form id="loginForm">
             <div class="form-group">
                 <label for="apiKey">🔑 Chave de Acesso (API Key)</label>
@@ -108,7 +109,7 @@
             <button type="submit" class="btn-login">Entrar</button>
             <div id="errorMessage" class="error-message">❌ Chave inválida. Tente novamente.</div>
         </form>
-        
+
         <div class="footer">
             <p>GetVisa Assessoria - Sistema de Administração</p>
         </div>
@@ -119,17 +120,17 @@
             e.preventDefault();
             const apiKey = document.getElementById('apiKey').value.trim();
             const errorMsg = document.getElementById('errorMessage');
-            
+
             if (!apiKey) {
                 errorMsg.textContent = '❌ Por favor, digite a chave de acesso.';
                 errorMsg.style.display = 'block';
                 return;
             }
-            
+
             localStorage.setItem('admin_api_key', apiKey);
             window.location.href = `/admin.html?api_key=${encodeURIComponent(apiKey)}`;
         });
-        
+
         const savedKey = localStorage.getItem('admin_api_key');
         if (savedKey) {
             document.getElementById('apiKey').value = savedKey;
@@ -137,3 +138,4 @@
     </script>
 </body>
 </html>
+EOF
