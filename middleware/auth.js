@@ -3,15 +3,13 @@ const fs = require('fs');
 const path = require('path');
 
 // ============================================================
-// VARIÁVEIS DE AMBIENTE
+// VARIÁVEIS DE AMBIENTE - FORÇADO PARA admin123
 // ============================================================
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'admin123';
+const ADMIN_API_KEY = 'admin123';  // FORÇADO
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@getvisa.com.br';
 const ADMIN_PHONE = process.env.ADMIN_PHONE || '5521974601812';
 
-console.log('✅ Auth: ADMIN_API_KEY configurada:', ADMIN_API_KEY ? '✅ Sim' : '❌ Não');
-console.log('✅ Auth: ADMIN_EMAIL configurado:', ADMIN_EMAIL || '❌ Não');
-console.log('✅ Auth: ADMIN_PHONE configurado:', ADMIN_PHONE || '❌ Não');
+console.log('✅ Auth: ADMIN_API_KEY =', ADMIN_API_KEY);
 
 // ============================================================
 // VERIFICAR API KEY
@@ -21,6 +19,9 @@ function verificarApiKey(req, res, next) {
                    req.headers['authorization']?.replace('Bearer ', '') ||
                    req.query.api_key || 
                    req.body.api_key;
+    
+    console.log(`🔑 API Key recebida: ${apiKey || 'NENHUMA'}`);
+    console.log(`🔑 API Key esperada: ${ADMIN_API_KEY}`);
     
     if (!apiKey) {
         console.log(`⚠️ Acesso negado: API Key não fornecida - ${req.method} ${req.url}`);
@@ -50,6 +51,9 @@ function verificarApiKey(req, res, next) {
 function verificarAdmin(req, res, next) {
     const apiKey = req.headers['x-api-key'] || req.query.api_key;
     
+    console.log(`🔑 Admin - API Key recebida: ${apiKey || 'NENHUMA'}`);
+    console.log(`🔑 Admin - API Key esperada: ${ADMIN_API_KEY}`);
+    
     if (!apiKey || apiKey !== ADMIN_API_KEY) {
         console.log(`⚠️ Redirecionando para login: ${req.url}`);
         return res.redirect('/admin-login.html');
@@ -61,6 +65,7 @@ function verificarAdmin(req, res, next) {
         authenticated: true
     };
     
+    console.log(`✅ Admin autorizado: ${req.url}`);
     next();
 }
 
