@@ -1,7 +1,9 @@
-// routes/webhookRoutesNew.js - VERSÃO CORRIGIDA PARA Z-API
+// routes/webhookRoutesNew.js - VERSÃO COM IMPORTAÇÃO DINÂMICA
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
+
+console.log('🚀 webhookRoutesNew CARREGADO (NOVA VERSÃO)');
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -17,58 +19,53 @@ function limparTelefone(phone) {
     return cleaned;
 }
 
-// Fila de mensagens para processamento assíncrono
 const messageQueue = [];
 
-// Função para processar mensagens da fila
-async function processMessageQueue() {
+setInterval(async () => {
     if (messageQueue.length === 0) return;
     
+    // Importação dinâmica para evitar erro de inicialização
+    const server = require('../server.js');
+    const processarMensagem = server.processarMensagem;
+    
+    if (typeof processarMensagem !== 'function') {
+        console.error('❌ processarMensagem ainda não disponível');
+        return;
+    }
+
     console.log(`🔄 Processando fila: ${messageQueue.length} mensagens`);
     
     while (messageQueue.length > 0) {
         const item = messageQueue.shift();
         try {
             console.log(`📨 Processando mensagem de ${item.phone}: ${item.message}`);
-            // Aqui você pode adicionar a lógica de processamento do bot
-            // Por enquanto, apenas logamos
+            console.log('📌 Vou chamar processarMensagem agora...');
+            await processarMensagem(item.phone, item.message);
+            console.log('✅ processarMensagem finalizada para', item.phone);
         } catch (error) {
             console.error(`❌ Erro ao processar mensagem:`, error);
         }
     }
-}
+}, 3000);
 
-// Processar fila a cada 5 segundos
-setInterval(processMessageQueue, 5000);
-
-// Rota principal do webhook
 router.post('/zapi', async (req, res) => {
     try {
         console.log('------------------------------------');
         console.log('📨 Webhook Z-API recebido!');
-        console.log('📨 Body:', JSON.stringify(req.body, null, 2));
         
-        // Extrair dados do formato Z-API
         const phone = req.body.phone || req.body.telefone || req.body.from || '';
         const messageText = req.body.text?.message || req.body.message || req.body.text || '';
         
-        console.log(`📱 Telefone extraído: ${phone}`);
-        console.log(`💬 Mensagem extraída: ${messageText}`);
+        console.log(`📱 Telefone: ${phone}`);
+        console.log(`💬 Mensagem: ${messageText}`);
         
-        if (!phone || phone.trim() === '') {
-            console.error('❌ Telefone ausente');
-            return res.status(400).json({ error: 'Telefone é obrigatório' });
-        }
-
-        if (!messageText || messageText.trim() === '') {
-            console.error('❌ Mensagem ausente');
-            return res.status(400).json({ error: 'Mensagem é obrigatória' });
+        if (!phone || !messageText) {
+            return res.status(400).json({ error: 'Dados incompletos' });
         }
 
         const telefoneLimpo = limparTelefone(phone);
         console.log(`📱 Telefone limpo: ${telefoneLimpo}`);
         
-        // Buscar ou criar cliente
         try {
             const { data: clienteExistente } = await supabase
                 .from('clientes')
@@ -87,16 +84,14 @@ router.post('/zapi', async (req, res) => {
                         status: 'novo',
                         onboarding_completo: false
                     }]);
-                console.log('✅ Cliente criado com sucesso!');
+                console.log('✅ Cliente criado!');
             } else {
                 console.log('✅ Cliente já existe.');
             }
         } catch (dbError) {
-            console.error('❌ Erro ao acessar banco de dados:', dbError);
-            // Continua mesmo com erro no banco
+            console.error('❌ Erro no banco:', dbError);
         }
 
-        // Adicionar à fila para processamento
         messageQueue.push({
             phone: telefoneLimpo,
             message: messageText,
@@ -105,17 +100,14 @@ router.post('/zapi', async (req, res) => {
         
         console.log(`📥 Mensagem adicionada à fila. Total: ${messageQueue.length}`);
 
-        // Responder imediatamente para a Z-API
         res.status(200).send('OK');
 
     } catch (error) {
-        console.error(`❌ ERRO NO WEBHOOK: ${error.message}`);
-        console.error(`Stack: ${error.stack}`);
-        res.status(500).json({ error: 'Erro interno do servidor' });
+        console.error(`❌ ERRO: ${error.message}`);
+        res.status(500).json({ error: 'Erro interno' });
     }
 });
 
-// Rota para status da fila (debug)
 router.get('/fila-status', (req, res) => {
     res.json({
         total: messageQueue.length,
@@ -123,6 +115,4 @@ router.get('/fila-status', (req, res) => {
     });
 });
 
-// Exportar o router e a fila
 module.exports = router;
-module.exports.messageQueue = messageQueue;
