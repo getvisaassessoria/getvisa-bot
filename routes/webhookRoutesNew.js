@@ -22,20 +22,21 @@ function limparTelefone(phone) {
 const messageQueue = [];
 
 setInterval(async () => {
+    console.log('⏰ setInterval executou, fila:', messageQueue.length);
+    
     if (messageQueue.length === 0) return;
     
-    // Importação dinâmica para evitar erro de inicialização
+    console.log('🔄 Importando server.js...');
     const server = require('../server.js');
-    console.log('🔍 server carregado:', typeof server);
+    console.log('🔍 server:', typeof server);
     console.log('🔍 server.processarMensagem:', typeof server.processarMensagem);
     
     const processarMensagem = server.processarMensagem;
-    
     if (typeof processarMensagem !== 'function') {
-        console.error('❌ processarMensagem ainda não disponível');
+        console.error('❌ processarMensagem não é função!');
         return;
     }
-
+    
     console.log(`🔄 Processando fila: ${messageQueue.length} mensagens`);
     
     while (messageQueue.length > 0) {
