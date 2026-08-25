@@ -26,6 +26,9 @@ setInterval(async () => {
     
     // Importação dinâmica para evitar erro de inicialização
     const server = require('../server.js');
+    console.log('🔍 server carregado:', typeof server);
+    console.log('🔍 server.processarMensagem:', typeof server.processarMensagem);
+    
     const processarMensagem = server.processarMensagem;
     
     if (typeof processarMensagem !== 'function') {
