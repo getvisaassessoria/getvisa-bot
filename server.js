@@ -1034,7 +1034,7 @@ function getMensagemFormularioParaBot(nomeCliente) {
     return `🌟 *ÓTIMO, ${primeiroNome.toUpperCase()}!* 🌟\n\n` +
            `Para iniciarmos seu processo, preciso que você preencha nosso formulário com os dados do visto americano.\n\n` +
            `📋 *LINK DO FORMULÁRIO:*\n` +
-           `🔗 <a href="https://getvisa.com.br/formulario-ds160" target="_blank" style="text-decoration: underline;">https://getvisa.com.br/formulario-ds160</a>\n\n` +
+           `🔗 <a href="https://getvisa-bot-production.up.railway.app/formulario-ds160" target="_blank" style="text-decoration: underline;">https://getvisa-bot-production.up.railway.app/formulario-ds160</a>\n\n` +
            `⏱️ *Tempo estimado:* 15-20 minutos\n` +
            `📱 *Pode preencher pelo celular ou computador*\n\n` +
            `✅ *Depois de preencher:*\n` +
@@ -1059,7 +1059,7 @@ function getMensagemFormularioComEspecialista(nomeCliente) {
     return `🎯 *Perfeito, ${primeiroNome}!* 🎯\n\n` +
            `Seu especialista já está aguardando o formulário para dar início ao seu processo.\n\n` +
            `📋 *Preencha agora mesmo o DS-160:*\n` +
-           `🔗 <a href="https://getvisa.com.br/formulario-ds160" target="_blank">https://getvisa.com.br/formulario-ds160</a>\n\n` +
+           `🔗 <a href="https://getvisa-bot-production.up.railway.app/formulario-ds160" target="_blank">https://getvisa-bot-production.up.railway.app/formulario-ds160</a>\n\n` +
            `⏱️ *Em até 20 minutos* você conclui.\n` +
            `📱 Pode preencher pelo celular ou computador.\n\n` +
            `✅ *Quando terminar:*\n` +
@@ -1680,7 +1680,7 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
         await sendReply(cleanPhone, mensagemFormulario);
     } catch (err) {
         console.error('❌ Erro ao gerar mensagem do formulário:', err);
-        await sendReply(cleanPhone, '🌟 Vamos iniciar seu processo!\n\n📋 Preencha nosso formulário:\n🔗 <a href="https://getvisa.com.br/formulario-ds160" target="_blank" style="text-decoration: underline;">https://getvisa.com.br/formulario-ds160</a>\n\n📱 Dúvidas? <a href="https://wa.me/5521974601812" target="_blank" style="text-decoration: underline;">https://wa.me/5521974601812</a>');
+        await sendReply(cleanPhone, '🌟 Vamos iniciar seu processo!\n\n📋 Preencha nosso formulário:\n🔗 <a href="https://getvisa-bot-production.up.railway.app/formulario-ds160" target="_blank" style="text-decoration: underline;">https://getvisa-bot-production.up.railway.app/formulario-ds160</a>\n\n📱 Dúvidas? <a href="https://wa.me/5521974601812" target="_blank" style="text-decoration: underline;">https://wa.me/5521974601812</a>');
     }
     return;
 }
@@ -4102,7 +4102,7 @@ app.post('/api/submit-simulador', async (req, res) => {
 
         // 3. Enviar mensagem automática para o lead com base na classificação
         const mensagens = {
-            'Perfil Forte': `🌟 *Ótimo perfil, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\n✅ Você está muito bem preparado! Já pode iniciar o processo do visto.\n\n📋 Vou te enviar o link do formulário DS-160 para começar agora mesmo.\n\n🔗 https://getvisa.com.br/formulario-ds160\n\nVamos em frente! 🚀`,
+            'Perfil Forte': `🌟 *Ótimo perfil, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\n✅ Você está muito bem preparado! Já pode iniciar o processo do visto.\n\n📋 Vou te enviar o link do formulário DS-160 para começar agora mesmo.\n\n🔗 https://getvisa-bot-production.up.railway.app/formulario-ds160\n\nVamos em frente! 🚀`,
             'Perfil Moderado': `📊 *Perfil moderado, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nSeu perfil é bom, mas uma análise com especialista pode aumentar suas chances.\n\n🧑‍💼 Quer agendar uma consultoria gratuita agora?\n\nResponda *SIM* e já te encaminho.`,
             'Perfil Regular': `📉 *Perfil regular, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nAlguns pontos precisam ser ajustados para melhorar suas chances.\n\n🧑‍💼 Recomendo agendar uma consultoria com um especialista.\n\nResponda *SIM* para falar com um especialista.`,
             'Requer Atenção': `⚠️ *Perfil requer atenção, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nÉ importante revisar seu perfil antes de iniciar o processo.\n\n🧑‍💼 Vou encaminhar seu caso para um especialista. Ele entrará em contato em breve.\n\n📱 Enquanto isso, fale conosco: https://wa.me/5521974601812`
