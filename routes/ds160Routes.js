@@ -382,4 +382,4 @@ router.get('/test', (req, res) => {
     });
 });
 
-module.exports = { router, messageQueue };x
+module.exports = router;
