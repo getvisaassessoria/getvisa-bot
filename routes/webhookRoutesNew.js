@@ -1,9 +1,9 @@
-// routes/webhookRoutesNew.js - VERSÃO CORRIGIDA (SEM IMPORTAR SERVER.JS)
+// routes/webhookRoutesNew.js - VERSÃO COM setInterval RESTAURADO
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
-console.log('🚀 webhookRoutesNew CARREGADO (VERSÃO CORRIGIDA)');
+console.log('🚀 webhookRoutesNew CARREGADO (COM setInterval)');
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -19,16 +19,40 @@ function limparTelefone(phone) {
     return cleaned;
 }
 
-// 🔥 FILA DE MENSAGENS - EXPORTADA
 const messageQueue = [];
 
-// 🔥 REMOVER O setInterval DAQUI - O SERVER.JS VAI PROCESSAR A FILA
+// 🔥 PROCESSADOR DE FILA (restaurado)
+setInterval(async () => {
+    if (messageQueue.length === 0) return;
+    
+    // Importação dinâmica para evitar erro de inicialização
+    const server = require('../server.js');
+    const processarMensagem = server.processarMensagem;
+    
+    if (typeof processarMensagem !== 'function') {
+        console.error('❌ processarMensagem ainda não disponível');
+        return;
+    }
+
+    console.log(`🔄 Processando fila: ${messageQueue.length} mensagens`);
+    
+    while (messageQueue.length > 0) {
+        const item = messageQueue.shift();
+        try {
+            console.log(`📨 Processando mensagem de ${item.phone}: ${item.message}`);
+            console.log('📌 Vou chamar processarMensagem agora...');
+            await processarMensagem(item.phone, item.message);
+            console.log('✅ processarMensagem finalizada para', item.phone);
+        } catch (error) {
+            console.error(`❌ Erro ao processar mensagem:`, error);
+        }
+    }
+}, 3000);
 
 router.post('/zapi', async (req, res) => {
     try {
         console.log('------------------------------------');
         console.log('📨 Webhook Z-API recebido!');
-        console.log('📨 Body:', JSON.stringify(req.body, null, 2));
         
         const phone = req.body.phone || req.body.telefone || req.body.from || '';
         const messageText = req.body.text?.message || req.body.message || req.body.text || '';
@@ -37,7 +61,6 @@ router.post('/zapi', async (req, res) => {
         console.log(`💬 Mensagem: ${messageText}`);
         
         if (!phone || !messageText) {
-            console.error('❌ Dados incompletos');
             return res.status(400).json({ error: 'Dados incompletos' });
         }
 
@@ -70,7 +93,6 @@ router.post('/zapi', async (req, res) => {
             console.error('❌ Erro no banco:', dbError);
         }
 
-        // 🔥 ADICIONAR À FILA
         messageQueue.push({
             phone: telefoneLimpo,
             message: messageText,
@@ -83,7 +105,6 @@ router.post('/zapi', async (req, res) => {
 
     } catch (error) {
         console.error(`❌ ERRO: ${error.message}`);
-        console.error(`Stack: ${error.stack}`);
         res.status(500).json({ error: 'Erro interno' });
     }
 });
@@ -95,5 +116,4 @@ router.get('/fila-status', (req, res) => {
     });
 });
 
-// 🔥 EXPORTAR A FILA JUNTO COM O ROUTER
-module.exports = { router, messageQueue };
+module.exports = router;  // ⚠️ Exporta só o router (a fila fica interna)
