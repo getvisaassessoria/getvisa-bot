@@ -280,7 +280,7 @@ try {
     const webhookRoutes = require('./routes/webhookRoutesNew');
     app.use('/api/webhook', webhookRoutes);
     console.log('✅ webhookRoutesNew importado com sucesso.');
-    app.use('/api/webhook', webhookRoutesNew);
+   //  app.use('/api/webhook', webhookRoutesNew);
     console.log('✅ Rota /api/webhook montada.');
 } catch (error) {
     console.log('⚠️ Erro ao carregar webhookRoutesNew:', error.message);
