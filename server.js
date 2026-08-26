@@ -49,6 +49,37 @@ app.use((req, res, next) => {
 });
 
 // ============================================================
+// 3.5 ROTA DE LOGIN ADMIN (PÚBLICA)
+// ============================================================
+app.post('/api/admin/login', (req, res) => {
+    const { apiKey } = req.body;
+    const validKey = process.env.ADMIN_API_KEY;
+
+    console.log(`🔑 Tentativa de login admin - IP: ${req.ip}`);
+
+    if (!apiKey) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Chave de acesso não informada.' 
+        });
+    }
+
+    if (apiKey === validKey) {
+        console.log('✅ Login admin autorizado.');
+        return res.json({ 
+            success: true, 
+            message: 'Login autorizado' 
+        });
+    } else {
+        console.warn('❌ Tentativa de login com chave inválida.');
+        return res.status(401).json({ 
+            success: false, 
+            message: 'Chave de acesso inválida.' 
+        });
+    }
+});
+
+// ============================================================
 // 4. ROTAS PROTEGIDAS (DEVEM VIR ANTES DO STATIC)
 // ============================================================
 
@@ -126,6 +157,87 @@ function safeRequire(modulePath, fallback) {
 }
 
 // ============================================================
+// 15. FUNÇÃO PRINCIPAL DE PROCESSAMENTO DE MENSAGENS (BOT)
+// ============================================================
+
+async function processarMensagem(cleanPhone, incomingMessageContent) {
+    console.log('🔍 processarMensagem INICIADA para', cleanPhone);
+    console.log('🔍 incomingMessageContent (raw):', incomingMessageContent);
+
+    let messageText = String(incomingMessageContent || '').trim();
+    console.log('🔍 messageText (após String):', messageText);
+
+    try {
+        let state = userState.get(cleanPhone);
+
+        if (!state) {
+            console.log('🔄 Criando novo estado para:', cleanPhone);
+            state = {
+                nivel: 'onboarding',
+                onboardingStep: ONBOARDING_STEPS.SAUDACAO,
+                onboardingCompleto: false,
+                nome: null,
+                email: null,
+                service: null,
+                lastActivity: Date.now()
+            };
+            userState.set(cleanPhone, state);
+        } else {
+            state.lastActivity = Date.now();
+            userState.set(cleanPhone, state);
+        }
+
+        console.log('🔍 state atual:', state);
+        console.log('🔍 onboardingCompleto:', state.onboardingCompleto);
+
+        if (state.onboardingCompleto === false) {
+            console.log('🔄 INICIANDO ONBOARDING');
+            await processarOnboarding(cleanPhone, messageText, state);
+            return;
+        }
+
+        if (messageText.toLowerCase() === '0' || messageText.toLowerCase() === 'menu') {
+            state.nivel = 'principal';
+            state.service = null;
+            userState.set(cleanPhone, state);
+            const menu = await getMenuPrincipal();
+            await sendReply(cleanPhone, menu);
+            return;
+        }
+
+        try {
+            if (state.nivel === 'submenu' && state.service) {
+                await processarOpcaoNoSubmenu(cleanPhone, messageText, state);
+            } else {
+                await processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state);
+            }
+        } catch (err) {
+            console.error('❌ Erro ao processar opção:', err);
+            try {
+                const menu = await getMenuPrincipal();
+                await sendReply(cleanPhone, menu);
+            } catch (e) {
+                console.error('❌ Erro no fallback do menu:', e);
+                await sendReply(cleanPhone, 'Digite 0 para o menu principal.');
+            }
+        }
+
+    } catch (error) {
+        console.error('❌ ERRO NO processarMensagem (catch principal):', error);
+        console.error('❌ Stack:', error.stack);
+
+        try {
+            await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro. Digite 0 para tentar novamente.');
+        } catch (e) {
+            console.error('❌ Erro ao enviar mensagem de erro (fallback):', e);
+        }
+    }
+}
+
+// 🔥 EXPORTAR A FUNÇÃO PARA OUTROS ARQUIVOS
+module.exports = { processarMensagem };
+
+// ============================================================
 // 7. ROTAS DA API
 // ============================================================
 
@@ -165,7 +277,8 @@ try {
 // 7.3 ROTA WEBHOOK (PÚBLICA)
 console.log('🔧 Carregando rotas Webhook...');
 try {
-    const webhookRoutes = require('./routes/webhookRoutesNew');
+    const { router: webhookRoutesNew, messageQueue } = require('./routes/webhookRoutesNew');
+    console.log('✅ webhookRoutesNew importado com sucesso.');
     app.use('/api/webhook', webhookRoutes);
     console.log('✅ Rota /api/webhook montada.');
 } catch (error) {
@@ -1409,82 +1522,7 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
     }
 }
 
-// ============================================================
-// 15. FUNÇÃO PRINCIPAL DE PROCESSAMENTO DE MENSAGENS (BOT)
-// ============================================================
 
-async function processarMensagem(cleanPhone, incomingMessageContent) {
-    console.log('DEBUG processarMensagem: cleanPhone:', cleanPhone);
-    console.log('DEBUG processarMensagem: incomingMessageContent (raw):', incomingMessageContent);
-
-    let messageText = String(incomingMessageContent || '').trim();
-    console.log('DEBUG processarMensagem: messageText (após String()):', messageText);
-
-    try {
-        let state = userState.get(cleanPhone);
-
-        if (!state) {
-            console.log('🔄 Criando novo estado para:', cleanPhone);
-            state = {
-                nivel: 'onboarding',
-                onboardingStep: ONBOARDING_STEPS.SAUDACAO,
-                onboardingCompleto: false,
-                nome: null,
-                email: null,
-                service: null,
-                lastActivity: Date.now()
-            };
-            userState.set(cleanPhone, state);
-        } else {
-            state.lastActivity = Date.now();
-            userState.set(cleanPhone, state);
-        }
-
-        console.log('Estado atual:', state);
-
-        if (state.onboardingCompleto === false) {
-            console.log('🔄 INICIANDO ONBOARDING');
-            await processarOnboarding(cleanPhone, messageText, state);
-            return;
-        }
-
-        if (messageText.toLowerCase() === '0' || messageText.toLowerCase() === 'menu') {
-            state.nivel = 'principal';
-            state.service = null;
-            userState.set(cleanPhone, state);
-            const menu = await getMenuPrincipal();
-            await sendReply(cleanPhone, menu);
-            return;
-        }
-
-        try {
-            if (state.nivel === 'submenu' && state.service) {
-                await processarOpcaoNoSubmenu(cleanPhone, messageText, state);
-            } else {
-                await processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state);
-            }
-        } catch (err) {
-            console.error('❌ Erro ao processar opção:', err);
-            try {
-                const menu = await getMenuPrincipal();
-                await sendReply(cleanPhone, menu);
-            } catch (e) {
-                console.error('❌ Erro no fallback do menu:', e);
-                await sendReply(cleanPhone, 'Digite 0 para o menu principal.');
-            }
-        }
-
-    } catch (error) {
-        console.error('❌ ERRO NO processarMensagem (catch principal):', error);
-        console.error('❌ Stack:', error.stack);
-
-        try {
-            await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro. Digite 0 para tentar novamente.');
-        } catch (e) {
-            console.error('❌ Erro ao enviar mensagem de erro (fallback):', e);
-        }
-    }
-}
 
 // ============================================================
 // 16. FUNÇÃO DE ENVIO DE RESPOSTA (WHATSAPP)
@@ -1492,8 +1530,8 @@ async function processarMensagem(cleanPhone, incomingMessageContent) {
 
 async function sendReply(phone, message) {
     try {
-        console.log(`📨 Enviando mensagem para ${phone}:`);
-        console.log(message);
+        console.log(`📨 sendReply INICIADA para ${phone}`);
+        console.log(`📨 Mensagem: ${message}`);
         const resultado = await enviarWhatsApp(phone, message);
         console.log(`✅ Mensagem enviada: ${resultado}`);
         return resultado;
@@ -1507,48 +1545,38 @@ async function sendReply(phone, message) {
 // 17. WEBHOOK PRINCIPAL (Z-API)
 // ============================================================
 
+// ============================================================
+// WEBHOOK PRINCIPAL (Z-API) - PROCESSAMENTO DIRETO
+// ============================================================
 app.post('/api/webhook/zapi', async (req, res) => {
-    console.log('--- DEBUG: INICIO WEBHOOK Z-API ---');
-    console.log('Body recebido:', JSON.stringify(req.body, null, 2));
-
+    console.log('📨 Webhook Z-API recebido!');
+    
+    // Responde imediatamente para a Z-API
     res.status(200).send('OK');
 
+    // Processa a mensagem em background
     (async () => {
         try {
             const body = req.body;
-            const telefoneParaZapi = body.phone;
-
-            const rawZapiMessage = body.text && body.text.message ? body.text.message : '';
-            console.log('DEBUG WEBHOOK: rawZapiMessage (extraído):', rawZapiMessage);
-
-            const messageTextForProcessing = String(rawZapiMessage || '').trim();
-            console.log('DEBUG WEBHOOK: messageTextForProcessing:', messageTextForProcessing);
-
-            if (!messageTextForProcessing || !telefoneParaZapi) {
-                console.log('⚠️ Mensagem ou telefone ausentes, ignorando.');
+            const telefone = body.phone || body.from || '';
+            const mensagem = body.text?.message || body.message || body.text || '';
+            
+            console.log(`📱 Telefone: ${telefone}`);
+            console.log(`💬 Mensagem: ${mensagem}`);
+            
+            if (!telefone || !mensagem) {
+                console.log('⚠️ Dados incompletos, ignorando.');
                 return;
             }
 
-            const cleanPhone = limparTelefone(telefoneParaZapi);
+            const telefoneLimpo = limparTelefone(telefone);
+            console.log(`📱 Telefone limpo: ${telefoneLimpo}`);
 
-            let nomeParaSalvar = 'Cliente';
-            try {
-                const { data: clienteExistente } = await supabase
-                    .from('clientes')
-                    .select('nome')
-                    .eq('telefone', cleanPhone)
-                    .maybeSingle();
-                if (clienteExistente && clienteExistente.nome) {
-                    nomeParaSalvar = clienteExistente.nome;
-                }
-            } catch (err) {
-                console.error('Erro ao buscar nome do cliente no webhook:', err);
-            }
-
-            await processarMensagem(cleanPhone, messageTextForProcessing);
+            // Processa diretamente
+            await processarMensagem(telefoneLimpo, mensagem);
 
         } catch (erro) {
-            console.error('❌ Erro geral no processamento do webhook:', erro);
+            console.error('❌ Erro no webhook:', erro);
         }
     })();
 });
@@ -3625,13 +3653,18 @@ cron.schedule('*/5 * * * *', async () => {
 // 24. FUNÇÕES DE WHATSAPP (Z-API)
 // ============================================================
 
+// ============================================================
+// FUNÇÕES DE WHATSAPP (Z-API)
+// ============================================================
+
 async function enviarWhatsApp(telefone, mensagem) {
     try {
+        const instance = process.env.ZAPI_INSTANCE;
         const token = process.env.ZAPI_TOKEN;
-        const instance = process.env.ZAPI_INSTANCE || process.env.ZAPI_CLIENT_TOKEN;
+        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
 
-        if (!token || !instance) {
-            console.error('❌ Z-API não configurada. Faltam ZAPI_TOKEN ou ZAPI_INSTANCE.');
+        if (!instance || !token) {
+            console.error('❌ Z-API não configurada. Faltam ZAPI_INSTANCE ou ZAPI_TOKEN.');
             console.log('📨 Mensagem que seria enviada:', mensagem);
             return false;
         }
@@ -3639,15 +3672,22 @@ async function enviarWhatsApp(telefone, mensagem) {
         const telefoneLimpo = telefone.toString().replace(/\D/g, '');
         const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
 
-        console.log(`📨 Enviando WhatsApp para ${telefoneFormatado}...`);
+        console.log(`📨 enviarWhatsApp INICIADA para ${telefoneFormatado}`);
 
         const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-text`;
 
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        if (clientToken) {
+            headers['Client-Token'] = clientToken;
+            console.log('🔐 Client-Token adicionado ao header');
+        }
+
         const response = await fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: headers,
             body: JSON.stringify({
                 phone: telefoneFormatado,
                 message: mensagem
@@ -3672,10 +3712,11 @@ async function enviarWhatsApp(telefone, mensagem) {
 
 async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
     try {
+        const instance = process.env.ZAPI_INSTANCE;
         const token = process.env.ZAPI_TOKEN;
-        const instance = process.env.ZAPI_INSTANCE || process.env.ZAPI_CLIENT_TOKEN;
+        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
 
-        if (!token || !instance) {
+        if (!instance || !token) {
             console.error('❌ Z-API não configurada para envio de PDF.');
             return false;
         }
@@ -3687,11 +3728,18 @@ async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
 
         const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-document`;
 
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        if (clientToken) {
+            headers['Client-Token'] = clientToken;
+            console.log('🔐 Client-Token adicionado ao header do PDF');
+        }
+
         const response = await fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: headers,
             body: JSON.stringify({
                 phone: telefoneFormatado,
                 document: base64PDF,
@@ -3714,6 +3762,83 @@ async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
         return false;
     }
 }
+
+async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
+    try {
+        const instance = process.env.ZAPI_INSTANCE;
+        const token = process.env.ZAPI_TOKEN;
+        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
+
+        if (!instance || !token) {
+            console.error('❌ Z-API não configurada para envio de PDF.');
+            return false;
+        }
+
+        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+        const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
+
+        const base64PDF = pdfBuffer.toString('base64');
+
+        const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-document`;
+
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        // 🔐 Adiciona o Client-Token se estiver configurado
+        if (clientToken) {
+            headers['Client-Token'] = clientToken;
+            console.log('🔐 Client-Token adicionado ao header do PDF');
+        }
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                phone: telefoneFormatado,
+                document: base64PDF,
+                fileName: `DS160_${nomeCliente || 'cliente'}.pdf`,
+                mimeType: 'application/pdf'
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ Erro Z-API PDF (${response.status}):`, errorText);
+            return false;
+        }
+
+        console.log('✅ PDF enviado por WhatsApp com sucesso');
+        return true;
+
+    } catch (error) {
+        console.error('❌ Erro ao enviar PDF por WhatsApp:', error);
+        return false;
+    }
+}
+
+// ============================================================
+// PROCESSADOR DA FILA DE MENSAGENS
+// ============================================================
+// setInterval(async () => {
+    //if (messageQueue.length === 0) return;
+    
+   // console.log(`🔄 Processando fila (${messageQueue.length} mensagens)...`);
+    
+    //while (messageQueue.length > 0) {
+      //  const item = messageQueue.shift();
+        //try {
+          //  console.log(`📨 Processando mensagem de ${item.phone}: "${item.message}"`);
+            //await processarMensagem(item.phone, item.message);
+            //console.log(`✅ Mensagem processada para ${item.phone}`);
+       // } catch (err) {
+         //   console.error(`❌ Erro ao processar mensagem:`, err.message);
+           // messageQueue.push(item);
+           // break;
+        //}
+   // }
+// }, 3000);
+
 
 // ============================================================
 // 25. INICIALIZAÇÃO DO SERVIDOR
