@@ -1544,7 +1544,7 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
     if (intencao === 'solicitar_ds160' || intencao === 'iniciar_processo') {
         console.log('🚀 Cliente quer o formulário DS-160 (saindo do submenu)');
         const nomeCliente2 = state.nome || 'Cliente';
-        const mensagemFormulario = getMensagemFormularioComEspecialista(nomeCliente2);
+        const mensagemFormulario = getMensagemFormularioComEspecialista(nomeCliente);
         await sendReply(cleanPhone, mensagemFormulario);
         
         // Atualiza status no Supabase
