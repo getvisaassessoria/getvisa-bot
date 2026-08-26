@@ -1652,27 +1652,38 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
         }
 
         if (intent === 'iniciar_processo' || intent === 'solicitar_ds160') {
-            console.log('🚀 Cliente quer iniciar o processo ou o formulário DS-160!');
-
-            let nomeCliente = 'Cliente';
-            try {
-                if (state && state.nome && typeof state.nome === 'string' && state.nome.trim().length > 0) {
-                    nomeCliente = state.nome;
-                }
-            } catch (err) {
-                console.error('❌ Erro ao pegar nome:', err);
-                nomeCliente = 'Cliente';
-            }
-
-            try {
-                const mensagemFormulario = getMensagemFormularioParaBot(nomeCliente);
-                await sendReply(cleanPhone, mensagemFormulario);
-            } catch (err) {
-                console.error('❌ Erro ao gerar mensagem do formulário:', err);
-                await sendReply(cleanPhone, '🌟 Vamos iniciar seu processo!\n\n📋 Preencha nosso formulário:\n🔗 <a href="https://getvisa.com.br/formulario-ds160" target="_blank" style="text-decoration: underline;">https://getvisa.com.br/formulario-ds160</a>\n\n📱 Dúvidas? <a href="https://wa.me/5521974601812" target="_blank" style="text-decoration: underline;">https://wa.me/5521974601812</a>');
-            }
-            return;
+    console.log('🚀 Cliente quer iniciar o processo ou o formulário DS-160!');
+    let nomeCliente = 'Cliente';
+    try {
+        if (state && state.nome && typeof state.nome === 'string' && state.nome.trim().length > 0) {
+            nomeCliente = state.nome;
         }
+    } catch (err) {
+        nomeCliente = 'Cliente';
+    }
+    
+    // Verifica se o cliente já tem nome e email (está cadastrado)
+    const isCadastrado = state && state.nome && state.email;
+    
+    let mensagemFormulario;
+    if (isCadastrado) {
+        // Usa a mensagem personalizada com especialista
+        mensagemFormulario = getMensagemFormularioComEspecialista(nomeCliente);
+        console.log('📨 Usando mensagem personalizada (com especialista)');
+    } else {
+        // Usa a mensagem padrão
+        mensagemFormulario = getMensagemFormularioParaBot(nomeCliente);
+        console.log('📨 Usando mensagem padrão (cliente não cadastrado)');
+    }
+    
+    try {
+        await sendReply(cleanPhone, mensagemFormulario);
+    } catch (err) {
+        console.error('❌ Erro ao gerar mensagem do formulário:', err);
+        await sendReply(cleanPhone, '🌟 Vamos iniciar seu processo!\n\n📋 Preencha nosso formulário:\n🔗 <a href="https://getvisa.com.br/formulario-ds160" target="_blank" style="text-decoration: underline;">https://getvisa.com.br/formulario-ds160</a>\n\n📱 Dúvidas? <a href="https://wa.me/5521974601812" target="_blank" style="text-decoration: underline;">https://wa.me/5521974601812</a>');
+    }
+    return;
+}
 
         if (intent === 'visto_americano') {
             state.nivel = 'submenu';
