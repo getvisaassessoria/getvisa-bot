@@ -1034,7 +1034,7 @@ function getMensagemFormularioParaBot(nomeCliente) {
     return `🌟 *ÓTIMO, ${primeiroNome.toUpperCase()}!* 🌟\n\n` +
            `Para iniciarmos seu processo, preciso que você preencha nosso formulário com os dados do visto americano.\n\n` +
            `📋 *LINK DO FORMULÁRIO:*\n` +
-           `🔗 <a href="https://getvisa-bot-production.up.railway.app/formulario-ds160" target="_blank" style="text-decoration: underline;">https://getvisa-bot-production.up.railway.app/formulario-ds160</a>\n\n` +
+           `🔗 https://getvisa-bot-production.up.railway.app/formulario-ds160\n\n` +
            `⏱️ *Tempo estimado:* 15-20 minutos\n` +
            `📱 *Pode preencher pelo celular ou computador*\n\n` +
            `✅ *Depois de preencher:*\n` +
@@ -1059,7 +1059,7 @@ function getMensagemFormularioComEspecialista(nomeCliente) {
     return `🎯 *Perfeito, ${primeiroNome}!* 🎯\n\n` +
            `Seu especialista já está aguardando o formulário para dar início ao seu processo.\n\n` +
            `📋 *Preencha agora mesmo o DS-160:*\n` +
-           `🔗 <a href="https://getvisa-bot-production.up.railway.app/formulario-ds160" target="_blank">https://getvisa-bot-production.up.railway.app/formulario-ds160</a>\n\n` +
+           `🔗 https://getvisa-bot-production.up.railway.app/formulario-ds160\n\n` +
            `⏱️ *Em até 20 minutos* você conclui.\n` +
            `📱 Pode preencher pelo celular ou computador.\n\n` +
            `✅ *Quando terminar:*\n` +
@@ -1680,7 +1680,7 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
         await sendReply(cleanPhone, mensagemFormulario);
     } catch (err) {
         console.error('❌ Erro ao gerar mensagem do formulário:', err);
-        await sendReply(cleanPhone, '🌟 Vamos iniciar seu processo!\n\n📋 Preencha nosso formulário:\n🔗 <a href="https://getvisa-bot-production.up.railway.app/formulario-ds160" target="_blank" style="text-decoration: underline;">https://getvisa-bot-production.up.railway.app/formulario-ds160</a>\n\n📱 Dúvidas? <a href="https://wa.me/5521974601812" target="_blank" style="text-decoration: underline;">https://wa.me/5521974601812</a>');
+        await sendReply(cleanPhone, '🌟 Vamos iniciar seu processo!\n\n📋 Preencha nosso formulário:\n🔗 https://getvisa-bot-production.up.railway.app/formulario-ds160\n\n📱 Dúvidas? <a href="https://wa.me/5521974601812" target="_blank" style="text-decoration: underline;">https://wa.me/5521974601812</a>');
     }
     return;
 }
