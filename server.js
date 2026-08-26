@@ -394,8 +394,39 @@ app.get('/', (req, res) => {
     }
 });
 
-app.get('/formulario-ds160', (req, res) => res.redirect('/'));
-app.get('/formulario-ds160.html', (req, res) => res.redirect('/'));
+// ============================================================
+// ROTA DO FORMULÁRIO
+// ============================================================
+app.get('/', (req, res) => {
+    const formPath = path.join(__dirname, 'public', 'formulario-ds160.html');
+    if (fs.existsSync(formPath)) {
+        res.sendFile(formPath);
+    } else {
+        res.send(`
+            <h1>📋 Formulário DS-160</h1>
+            <p>Arquivo não encontrado.</p>
+        `);
+    }
+});
+
+// 🔥 ROTA DIRETA PARA O FORMULÁRIO (SEM REDIRECIONAMENTO)
+app.get('/formulario-ds160', (req, res) => {
+    const formPath = path.join(__dirname, 'public', 'formulario-ds160.html');
+    if (fs.existsSync(formPath)) {
+        res.sendFile(formPath);
+    } else {
+        res.redirect('/');
+    }
+});
+
+app.get('/formulario-ds160.html', (req, res) => {
+    const formPath = path.join(__dirname, 'public', 'formulario-ds160.html');
+    if (fs.existsSync(formPath)) {
+        res.sendFile(formPath);
+    } else {
+        res.redirect('/');
+    }
+});
 
 // ============================================================
 // 10. HEALTH CHECKS (PÚBLICOS)
