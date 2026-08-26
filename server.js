@@ -1065,7 +1065,7 @@ function getMensagemFormularioParaBot(nomeCliente) {
     return `🌟 *ÓTIMO, ${primeiroNome.toUpperCase()}!* 🌟\n\n` +
            `Para iniciarmos seu processo, preciso que você preencha nosso formulário com os dados do visto americano.\n\n` +
            `📋 *LINK DO FORMULÁRIO:*\n` +
-           `🔗 [Clique aqui para preencher o formulário](https://getvisa-bot-production.up.railway.app/formulario-ds160)` +
+           `🔗 [Clique aqui para preencher o formulário](https://bit.ly/4gV1JUQ)` +
            `⏱️ *Tempo estimado:* 15-20 minutos\n` +
            `📱 *Pode preencher pelo celular ou computador*\n\n` +
            `✅ *Depois de preencher:*\n` +
@@ -1073,7 +1073,7 @@ function getMensagemFormularioParaBot(nomeCliente) {
            `• Você receberá a confirmação por e-mail\n` +
            `• Iniciaremos o agendamento da entrevista\n\n` +
            `💡 *Dica:* Tenha seu passaporte em mãos para preencher os dados corretamente.\n\n` +
-           `📱 Dúvidas? Fale com a gente: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+           `📱 Dúvidas? Fale com a gente: [Fale com nosso especialista](https://bit.ly/3SdydAx)\n\n` +
            `⚡ *Vamos realizar seu sonho de viajar para os EUA!* ✈️`;
 }
 
@@ -1090,7 +1090,7 @@ function getMensagemFormularioComEspecialista(nomeCliente) {
     return `🎯 *Perfeito, ${primeiroNome}!* 🎯\n\n` +
            `Seu especialista já está aguardando o formulário para dar início ao seu processo.\n\n` +
            `📋 *Preencha agora mesmo o DS-160:*\n` +
-           `🔗 [Clique aqui para preencher o formulário](https://getvisa-bot-production.up.railway.app/formulario-ds160)\n\n` +
+           `🔗 [Clique aqui para preencher o formulário](https://bit.ly/4gV1JUQ)\n\n` +
            `⏱️ *Em até 20 minutos* você conclui.\n` +
            `📱 Pode preencher pelo celular ou computador.\n\n` +
            `✅ *Quando terminar:*\n` +
@@ -1098,7 +1098,7 @@ function getMensagemFormularioComEspecialista(nomeCliente) {
            `• Você receberá a confirmação por e-mail\n` +
            `• Iniciaremos o agendamento da entrevista\n\n` +
            `💡 *Dica:* Tenha seu passaporte em mãos.\n\n` +
-           `📱 Dúvidas? Chame a gente: <a href="[Fale com nosso especialista](https://wa.me/5521974601812)">[Fale com nosso especialista](https://wa.me/5521974601812)</a>\n\n` +
+           `📱 Dúvidas? Chame a gente: [Fale com nosso especialista](https://bit.ly/3SdydAx)\n\n` +
            `⚡ *Vamos realizar seu sonho!* ✈️`;
 }
 
@@ -1129,7 +1129,7 @@ function gerarRespostaBot(intencao, nome, etapaAtual) {
       `Para informações sobre pagamentos, ${primeiroNome}, preciso saber qual serviço ou etapa do processo você se refere. Você pode me dar mais detalhes?`,
 
     ajuda:
-      `Olá, ${primeiroNome}! Se precisar de ajuda ou quiser falar com um especialista, pode me chamar ou entrar em contato direto pelo WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812).`,
+      `Olá, ${primeiroNome}! Se precisar de ajuda ou quiser falar com um especialista, pode me chamar ou entrar em contato direto pelo WhatsApp: [Fale com nosso especialista](https://bit.ly/3SdydAx).`,
 
     visto_negado:
       `Se o seu visto foi negado, ${primeiroNome}, não se preocupe! Temos um serviço de recuperação. Acesse: <a href="https://getvisa.com.br/visto-americano-negado" target="_blank" style="text-decoration: underline;">getvisa.com.br/visto-americano-negado</a> para uma análise gratuita.`,
@@ -1557,7 +1557,7 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
             case '7':
                 const msgEsp = '👨‍💼 FALAR COM ESPECIALISTA - ' + getServiceName(service).toUpperCase() + '\n\n' +
                               'Meu nome é Moisés e estou aqui para ajudar' + nomeCliente + '!\n\n' +
-                              '📱 WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n' +
+                              '📱 WhatsApp: [Fale com nosso especialista](https://bit.ly/3SdydAx)\n\n' +
                               '📧 E-mail: contato@getvisa.com.br\n\n' +
                               '📌 ' + nomeCliente + ' - Você está em: ' + getServiceName(service).toUpperCase() + '\n' +
                               'Digite outra opção (1-7) ou 0 para menu principal';
@@ -1664,7 +1664,7 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
         if (messageText === '7') {
             const ajudaMsg = '📞 AJUDA / CONTATO GETVISA\n\n' +
                             '👨‍💼 Moisés - Especialista em Vistos\n\n' +
-                            '📱 WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n' +
+                            '📱 WhatsApp: [Fale com nosso especialista](https://bit.ly/3SdydAx)\n\n' +
                             '📧 E-mail: contato@getvisa.com.br\n\n' +
                             '🌐 Site: <a href="https://getvisa.com.br" target="_blank" style="text-decoration: underline;">https://getvisa.com.br</a>\n\n' +
                             '⏰ Horário: Seg-Sex, 9h às 18h\n\n' +
@@ -1711,7 +1711,7 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
         await sendReply(cleanPhone, mensagemFormulario);
     } catch (err) {
         console.error('❌ Erro ao gerar mensagem do formulário:', err);
-        await sendReply(cleanPhone, '🌟 Vamos iniciar seu processo!\n\n📋 Preencha nosso formulário:\n🔗 [Clique aqui para preencher o formulário](https://getvisa-bot-production.up.railway.app/formulario-ds160)\n\n📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)');
+        await sendReply(cleanPhone, '🌟 Vamos iniciar seu processo!\n\n📋 Preencha nosso formulário:\n🔗 [Clique aqui para preencher o formulário](https://bit.ly/4gV1JUQ)\n\n📱 Dúvidas? [Fale com nosso especialista](https://bit.ly/3SdydAx)');
     }
     return;
 }
@@ -1969,7 +1969,7 @@ function getMensagemFormularioDS160ParaCliente(nomeCliente) {
            `• Em breve você receberá um e-mail com o PDF do seu formulário preenchido para revisão.\n` +
            `• Nossa equipe entrará em contato para os próximos passos, incluindo o agendamento da entrevista.\n\n` +
            `🌟 *Sua jornada para os EUA continua!* ✈️\n\n` +
-           `📱 Dúvidas? Fale com a gente: [Fale com nosso especialista](https://wa.me/5521974601812)`;
+           `📱 Dúvidas? Fale com a gente: [Fale com nosso especialista](https://bit.ly/3SdydAx)`;
 }
 
 // ============================================================
@@ -2087,7 +2087,7 @@ async function gerarMensagemEtapa(clienteTelefone, etapaId) {
             break;
     }
 
-    mensagem += `\n\nEm caso de dúvidas, fale com a gente: [Fale com nosso especialista](https://wa.me/5521974601812)`;
+    mensagem += `\n\nEm caso de dúvidas, fale com a gente: [Fale com nosso especialista](https://bit.ly/3SdydAx)`;
     return mensagem;
 }
 
@@ -2359,7 +2359,7 @@ app.post('/api/clientes/finalizar', async function(req, res) {
                           `É importante entender: a decisão final do visto acontece no momento da entrevista, e depende muito da avaliação pessoal do oficial consular naquele instante — algo que vai além da documentação e da preparação, por mais completa que tenha sido.\n\n` +
                           `🔍 Vamos analisar com você os detalhes da entrevista para entender o que pesou na decisão e ajustar a estratégia para a próxima tentativa.\n\n` +
                           `📱 Fale com a gente agora para uma análise gratuita:\n` +
-                          `[Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+                          `[Fale com nosso especialista](https://bit.ly/3SdydAx)\n\n` +
                           `💪 Isso não muda o seu objetivo. Vamos trabalhar juntos para reverter esse cenário!`;
             } else {
                 mensagem = `🎉 PARABÉNS, ${nomeCliente}! 🎉\n\n` +
@@ -2605,7 +2605,7 @@ app.post('/api/etapas/finalizar', async function(req, res) {
                           `É importante entender: a decisão final do visto acontece no momento da entrevista, e depende muito da avaliação pessoal do oficial consular naquele instante — algo que vai além da documentação e da preparação, por mais completa que tenha sido.\n\n` +
                           `🔍 Vamos analisar com você os detalhes da entrevista para entender o que pesou na decisão e ajustar a estratégia para a próxima tentativa.\n\n` +
                           `📱 Fale com a gente agora para uma análise gratuita:\n` +
-                          `[Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+                          `[Fale com nosso especialista](https://bit.ly/3SdydAx)\n\n` +
                           `💪 Isso não muda o seu objetivo. Vamos trabalhar juntos para reverter esse cenário!`;
             } else {
                 mensagem = `🎉 PARABÉNS, ${nomeCliente}! 🎉\n\n` +
@@ -2842,7 +2842,7 @@ app.post('/api/clientes/reabrir', async function(req, res) {
                            `📋 Status: Em andamento\n` +
                            `📍 Etapa atual: Formulário recebido\n\n` +
                            `Em breve nossa equipe entrará em contato com os próximos passos.\n\n` +
-                           `📱 Dúvidas? Fale conosco pelo WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812)`;
+                           `📱 Dúvidas? Fale conosco pelo WhatsApp: [Fale com nosso especialista](https://bit.ly/3SdydAx)`;
 
             await enviarWhatsApp(cliente.telefone, mensagem);
             console.log(`✅ Mensagem de reabertura enviada`);
@@ -3313,7 +3313,7 @@ app.post('/api/admin/notificar-cliente', async function(req, res) {
                      `📋 Status: Em andamento\n` +
                      `📍 Etapa atual: Formulário recebido\n\n` +
                      `Em breve nossa equipe entrará em contato com os próximos passos.\n\n` +
-                     `📱 Dúvidas? Fale conosco pelo WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+                     `📱 Dúvidas? Fale conosco pelo WhatsApp: [Fale com nosso especialista](https://bit.ly/3SdydAx)\n\n` +
                      `🌟 Estamos aqui para ajudar você a realizar seu sonho de viajar!`;
 
         const enviado = await enviarWhatsApp(telefone, texto);
@@ -3402,7 +3402,7 @@ app.post('/api/painel/mover-com-notificacao', async function(req, res) {
                                    `📋 Status: Em andamento\n` +
                                    `📍 Etapa atual: Formulário recebido\n\n` +
                                    `Em breve nossa equipe entrará em contato com os próximos passos.\n\n` +
-                                   `📱 Dúvidas? Fale conosco pelo WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+                                   `📱 Dúvidas? Fale conosco pelo WhatsApp: [Fale com nosso especialista](https://bit.ly/3SdydAx)\n\n` +
                                    `🌟 Estamos aqui para ajudar você a realizar seu sonho de viajar!`;
 
                     await enviarWhatsApp(cliente.telefone, mensagem);
@@ -4133,10 +4133,10 @@ app.post('/api/submit-simulador', async (req, res) => {
 
         // 3. Enviar mensagem automática para o lead com base na classificação
         const mensagens = {
-            'Perfil Forte': `🌟 *Ótimo perfil, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\n✅ Você está muito bem preparado! Já pode iniciar o processo do visto.\n\n📋 Vou te enviar o link do formulário DS-160 para começar agora mesmo.\n\n🔗 [Clique aqui para preencher o formulário](https://getvisa-bot-production.up.railway.app/formulario-ds160)\n\nVamos em frente! 🚀`,
+            'Perfil Forte': `🌟 *Ótimo perfil, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\n✅ Você está muito bem preparado! Já pode iniciar o processo do visto.\n\n📋 Vou te enviar o link do formulário DS-160 para começar agora mesmo.\n\n🔗 [Clique aqui para preencher o formulário](https://bit.ly/4gV1JUQ)\n\nVamos em frente! 🚀`,
             'Perfil Moderado': `📊 *Perfil moderado, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nSeu perfil é bom, mas uma análise com especialista pode aumentar suas chances.\n\n🧑‍💼 Quer agendar uma consultoria gratuita agora?\n\nResponda *SIM* e já te encaminho.`,
             'Perfil Regular': `📉 *Perfil regular, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nAlguns pontos precisam ser ajustados para melhorar suas chances.\n\n🧑‍💼 Recomendo agendar uma consultoria com um especialista.\n\nResponda *SIM* para falar com um especialista.`,
-            'Requer Atenção': `⚠️ *Perfil requer atenção, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nÉ importante revisar seu perfil antes de iniciar o processo.\n\n🧑‍💼 Vou encaminhar seu caso para um especialista. Ele entrará em contato em breve.\n\n📱 Enquanto isso, fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)`
+            'Requer Atenção': `⚠️ *Perfil requer atenção, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nÉ importante revisar seu perfil antes de iniciar o processo.\n\n🧑‍💼 Vou encaminhar seu caso para um especialista. Ele entrará em contato em breve.\n\n📱 Enquanto isso, fale conosco: [Fale com nosso especialista](https://bit.ly/3SdydAx)`
         };
 
         const msg = mensagens[classificacao] || `Olá ${nome.split(' ')[0]}! Sua avaliação foi *${classificacao}* com *${score}* pontos. Entre em contato para mais informações.`;
