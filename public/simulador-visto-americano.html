@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Perfil para Visto Americano</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* ============================================================
+           ESTILOS DO SIMULADOR
+           ============================================================ */
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .simulator-container {
+            max-width: 800px;
+            margin: 30px auto;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        .simulator-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eaeaea;
+        }
+        .simulator-header h1 {
+            color: #2c3e50;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        .simulator-header p {
+            color: #7f8c8d;
+            font-size: 16px;
+        }
+        .progress-container {
+            width: 100%;
+            margin-bottom: 30px;
+        }
+        .progress-bar {
+            height: 8px;
+            background-color: #ecf0f1;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress {
+            height: 100%;
+            background-color: #3498db;
+            width: 20%;
+            transition: width 0.5s ease;
+        }
+        .progress-text {
+            text-align: center;
+            margin-top: 8px;
+            font-size: 14px;
+            color: #7f8c8d;
+            font-weight: 600;
+        }
+        .form-section {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+        .form-section.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .question-title {
+            font-size: 20px;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .options-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .option {
+            padding: 18px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+        .option:hover {
+            border-color: #3498db;
+            background-color: #f8fafc;
+        }
+        .option.selected {
+            border-color: #2980b9;
+            background-color: #e3f2fd;
+        }
+        .option input[type="radio"] {
+            margin-right: 12px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .option label {
+            cursor: pointer;
+            font-weight: 500;
+            color: #2c3e50;
+            flex: 1;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+        .input-group input:focus {
+            border-color: #3498db;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+        .buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eaeaea;
+        }
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-back {
+            background-color: #ecf0f1;
+            color: #7f8c8d;
+        }
+        .btn-back:hover:not(:disabled) {
+            background-color: #d5dbdb;
+        }
+        .btn-next {
+            background-color: #3498db;
+            color: #fff;
+        }
+        .btn-next:hover:not(:disabled) {
+            background-color: #2980b9;
+        }
+        .btn-submit {
+            background-color: #2ecc71;
+            color: #fff;
+        }
+        .btn-submit:hover:not(:disabled) {
+            background-color: #27ae60;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .result-container {
+            display: none;
+            padding: 30px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 5px solid #3498db;
+            animation: fadeIn 0.8s ease;
+        }
+        .result-container h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .result-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .result-item {
+            background-color: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+        .result-label {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .result-value {
+            font-size: 16px;
+            color: #2c3e50;
+        }
+        .result-analysis h3 {
+            color: #2c3e50;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .result-analysis p {
+            line-height: 1.6;
+            color: #555;
+        }
+        .result-analysis em {
+            font-size: 13px;
+            color: #7f8c8d;
+            display: block;
+            margin-top: 15px;
+        }
+        .specialist-section {
+            margin-top: 40px;
+            padding: 25px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+        .specialist-section.forte {
+            background-color: #e6ffe6;
+            border: 1px solid #2ecc71;
+        }
+        .specialist-section.moderado {
+            background-color: #fffbe6;
+            border: 1px solid #f39c12;
+        }
+        .specialist-section.regular {
+            background-color: #ffebe6;
+            border: 1px solid #e67e22;
+        }
+        .specialist-section.atencao {
+            background-color: #ffe6e6;
+            border: 1px solid #e74c3c;
+        }
+        .specialist-section h3 {
+            font-size: 22px;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .specialist-section .subtitle {
+            font-size: 16px;
+            color: #555;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .btn-whatsapp {
+            display: inline-flex;
+            align-items: center;
+            background-color: #25D366;
+            color: #fff;
+            padding: 12px 25px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 17px;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 211, 102, 0.3);
+            border: none;
+            cursor: pointer;
+        }
+        .btn-whatsapp:hover {
+            background-color: #1DA851;
+        }
+        .btn-whatsapp i {
+            margin-right: 10px;
+            font-size: 20px;
+        }
+        .footer-note {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eaeaea;
+            color: #7f8c8d;
+            font-size: 13px;
+        }
+        @media (max-width: 600px) {
+            .simulator-container { padding: 15px; }
+            .buttons { flex-wrap: wrap; gap: 10px; }
+            .btn { flex: 1; text-align: center; padding: 10px 15px; font-size: 14px; }
+            .options-container { grid-template-columns: 1fr; }
+            .result-content { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 400px) {
+            .result-content { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="simulator-container">
+    <div class="simulator-header">
+        <h1>Simulador de Perfil para Visto Americano</h1>
+        <p>Responda às perguntas abaixo e veja uma prévia do seu perfil.</p>
+    </div>
+
+    <div class="progress-container">
+        <div class="progress-bar">
+            <div class="progress" id="progress"></div>
+        </div>
+        <div class="progress-text" id="progress-text">Etapa 1 de 5</div>
+    </div>
+
+    <form id="visa-simulator-form">
+        <!-- Seção 1 -->
+        <div class="form-section active" id="section-1">
+            <h2 class="question-title">1. Vínculo Empregatício e Renda</h2>
+            <p><strong>Qual é a sua situação profissional atual?</strong></p>
+            <div class="options-container">
+                <div class="option"><input type="radio" name="situacao_profissional" value="Empregado CLT há mais de 1 ano" id="p1"><label for="p1">Empregado CLT há mais de 1 ano</label></div>
+                <div class="option"><input type="radio" name="situacao_profissional" value="Empregado CLT há menos de 1 ano" id="p2"><label for="p2">Empregado CLT há menos de 1 ano</label></div>
+                <div class="option"><input type="radio" name="situacao_profissional" value="Empresário(a) com CNPJ ativo" id="p3"><label for="p3">Empresário(a) com CNPJ ativo</label></div>
+                <div class="option"><input type="radio" name="situacao_profissional" value="Funcionário(a) Público (estável)" id="p4"><label for="p4">Funcionário(a) Público (estável)</label></div>
+                <div class="option"><input type="radio" name="situacao_profissional" value="Autônomo(a) com renda comprovável" id="p5"><label for="p5">Autônomo(a) com renda comprovável</label></div>
+                <div class="option"><input type="radio" name="situacao_profissional" value="Aposentado(a) com renda comprovável" id="p6"><label for="p6">Aposentado(a) com renda comprovável</label></div>
+                <div class="option"><input type="radio" name="situacao_profissional" value="Estudante" id="p7"><label for="p7">Estudante</label></div>
+                <div class="option"><input type="radio" name="situacao_profissional" value="Desempregado(a) no momento" id="p8"><label for="p8">Desempregado(a) no momento</label></div>
+            </div>
+        </div>
+
+        <!-- Seção 2 -->
+        <div class="form-section" id="section-2">
+            <h2 class="question-title">2. Renda Mensal</h2>
+            <p><strong>Qual é a sua renda mensal aproximada?</strong></p>
+            <div class="options-container">
+                <div class="option"><input type="radio" name="renda_mensal" value="Acima de R$ 15.000" id="r1"><label for="r1">Acima de R$ 15.000</label></div>
+                <div class="option"><input type="radio" name="renda_mensal" value="Entre R$ 7.000 e R$ 15.000" id="r2"><label for="r2">Entre R$ 7.000 e R$ 15.000</label></div>
+                <div class="option"><input type="radio" name="renda_mensal" value="Entre R$ 3.000 e R$ 7.000" id="r3"><label for="r3">Entre R$ 3.000 e R$ 7.000</label></div>
+                <div class="option"><input type="radio" name="renda_mensal" value="Até R$ 3.000" id="r4"><label for="r4">Até R$ 3.000</label></div>
+            </div>
+        </div>
+
+        <!-- Seção 3 -->
+        <div class="form-section" id="section-3">
+            <h2 class="question-title">3. Histórico de Viagens</h2>
+            <p><strong>Qual é o seu histórico de viagens internacionais?</strong></p>
+            <div class="options-container">
+                <div class="option"><input type="radio" name="historico_viagens" value="Já possuo visto americano" id="h1"><label for="h1">Já possuo visto americano</label></div>
+                <div class="option"><input type="radio" name="historico_viagens" value="Tenho visto para outros países" id="h2"><label for="h2">Tenho visto para outros países</label></div>
+                <div class="option"><input type="radio" name="historico_viagens" value="Nunca tive visto, mas já viajei" id="h3"><label for="h3">Nunca tive visto, mas já viajei</label></div>
+                <div class="option"><input type="radio" name="historico_viagens" value="Nunca viajei para fora do Brasil" id="h4"><label for="h4">Nunca viajei para fora do Brasil</label></div>
+            </div>
+        </div>
+
+        <!-- Seção 4 -->
+        <div class="form-section" id="section-4">
+            <h2 class="question-title">4. Propósito da Viagem</h2>
+            <p><strong>Qual é o principal motivo da sua viagem?</strong></p>
+            <div class="options-container">
+                <div class="option"><input type="radio" name="motivo_viagem" value="Turismo e lazer" id="m1"><label for="m1">Turismo e lazer</label></div>
+                <div class="option"><input type="radio" name="motivo_viagem" value="Negócios" id="m2"><label for="m2">Negócios</label></div>
+                <div class="option"><input type="radio" name="motivo_viagem" value="Visitar familiares ou amigos" id="m3"><label for="m3">Visitar familiares ou amigos</label></div>
+                <div class="option"><input type="radio" name="motivo_viagem" value="Estudos ou intercâmbio" id="m4"><label for="m4">Estudos ou intercâmbio</label></div>
+            </div>
+        </div>
+
+        <!-- Seção 5 -->
+        <div class="form-section" id="section-5">
+            <h2 class="question-title">5. Seus Dados de Contato</h2>
+            <p>Preencha seus dados para que um especialista possa entrar em contato:</p>
+            <div style="display:block;">
+                <div class="input-group">
+                    <label for="campo_nome_cliente">Seu Nome Completo:</label>
+                    <input type="text" id="campo_nome_cliente" placeholder="Ex: João da Silva">
+                </div>
+                <div class="input-group">
+                    <label for="campo_telefone_whatsapp">Telefone/WhatsApp:</label>
+                    <input type="tel" id="campo_telefone_whatsapp" placeholder="(21) 99999-9999" required>
+                </div>
+                <div class="input-group">
+                    <label for="campo_email">E-mail:</label>
+                    <input type="email" id="campo_email" placeholder="seuemail@exemplo.com">
+                </div>
+            </div>
+        </div>
+
+        <!-- Botões -->
+        <div class="buttons">
+            <button type="button" class="btn btn-back" id="back-btn" disabled>Voltar</button>
+            <button type="button" class="btn btn-next" id="next-btn" disabled>Próximo</button>
+            <button type="button" class="btn btn-submit" id="submit-btn" style="display:none;" onclick="enviarFormulario()">Ver Resultado</button>
+        </div>
+    </form>
+
+    <!-- Resultado -->
+    <div class="result-container" id="result-container">
+        <h2>📊 Resultado da sua avaliação</h2>
+        <div class="result-content" id="result-content"></div>
+        <div class="result-analysis" id="result-analysis"></div>
+        <div class="specialist-section" id="specialist-section"></div>
+    </div>
+
+    <div class="footer-note">
+        <p>Este simulador fornece uma prévia do seu perfil. Para uma avaliação completa, fale com um especialista.</p>
+    </div>
+</div>
+
+<script>
+// ============================================================
+//  FUNÇÃO PRINCIPAL - ENVIAR FORMULÁRIO
+// ============================================================
+function enviarFormulario() {
+    console.log('🚀 Botão "Ver Resultado" clicado!');
+    
+    // Validar telefone
+    const telefoneInput = document.getElementById('campo_telefone_whatsapp');
+    if (!telefoneInput || telefoneInput.value.trim() === '') {
+        alert('Por favor, preencha o Telefone/WhatsApp.');
+        return;
+    }
+    
+    // Coletar dados
+    const nome = document.getElementById('campo_nome_cliente').value || '';
+    const telefone = telefoneInput.value;
+    const email = document.getElementById('campo_email').value || '';
+    
+    const situacao = document.querySelector('input[name="situacao_profissional"]:checked')?.value || '';
+    const renda = document.querySelector('input[name="renda_mensal"]:checked')?.value || '';
+    const historico = document.querySelector('input[name="historico_viagens"]:checked')?.value || '';
+    const motivo = document.querySelector('input[name="motivo_viagem"]:checked')?.value || '';
+    
+    // Calcular pontuação
+    const scores = {
+        situacao: {
+            'Empregado CLT há mais de 1 ano': 25,
+            'Funcionário(a) Público (estável)': 25,
+            'Empresário(a) com CNPJ ativo': 25,
+            'Empregado CLT há menos de 1 ano': 20,
+            'Autônomo(a) com renda comprovável': 18,
+            'Estudante': 15,
+            'Desempregado(a) no momento': 5
+        },
+        renda: {
+            'Acima de R$ 15.000': 25,
+            'Entre R$ 7.000 e R$ 15.000': 20,
+            'Entre R$ 3.000 e R$ 7.000': 15,
+            'Até R$ 3.000': 10
+        },
+        historico: {
+            'Já possuo visto americano': 25,
+            'Tenho visto para outros países': 20,
+            'Nunca tive visto, mas já viajei': 15,
+            'Nunca viajei para fora do Brasil': 10
+        },
+        motivo: {
+            'Negócios': 25,
+            'Turismo e lazer': 20,
+            'Visitar familiares ou amigos': 18,
+            'Estudos ou intercâmbio': 15
+        }
+    };
+    
+    let situacaoScore = scores.situacao[situacao] || 5;
+    if (situacao === 'Aposentado(a) com renda comprovável') {
+        const rendaScores = {
+            'Acima de R$ 15.000': 25,
+            'Entre R$ 7.000 e R$ 15.000': 22,
+            'Entre R$ 3.000 e R$ 7.000': 18,
+            'Até R$ 3.000': 14
+        };
+        situacaoScore = rendaScores[renda] || 14;
+    }
+    
+    const score = situacaoScore + (scores.renda[renda] || 10) + (scores.historico[historico] || 10) + (scores.motivo[motivo] || 15);
+    
+    let classification = 'Perfil Regular';
+    if (score >= 85) classification = 'Perfil Forte';
+    else if (score >= 70) classification = 'Perfil Moderado';
+    else if (score >= 50) classification = 'Perfil Regular';
+    else classification = 'Requer Atenção';
+    
+    console.log('📊 Pontuação:', score, 'Classificação:', classification);
+    
+    // Enviar para o servidor
+    fetch('/api/submit-simulador', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            nome: nome,
+            telefone: telefone,
+            email: email,
+            situacao_profissional: situacao,
+            renda: renda,
+            historico_viagens: historico,
+            proposito_viagem: motivo,
+            score: score,
+            classificacao: classification
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('✅ Dados enviados com sucesso:', data);
+    })
+    .catch(err => {
+        console.warn('⚠️ Erro ao enviar dados:', err);
+    });
+    
+    // Mostrar resultado
+    mostrarResultado(situacao, renda, historico, motivo, score, classification, nome, telefone, email);
+}
+
+// ============================================================
+//  MOSTRAR RESULTADO
+// ============================================================
+function mostrarResultado(situacao, renda, historico, motivo, score, classification, nome, telefone, email) {
+    document.getElementById('visa-simulator-form').style.display = 'none';
+    document.querySelector('.progress-container').style.display = 'none';
+    
+    const resultDiv = document.getElementById('result-container');
+    resultDiv.style.display = 'block';
+    
+    const resultContent = document.getElementById('result-content');
+    resultContent.innerHTML = '';
+    
+    const items = [
+        { label: 'Situação Profissional', value: situacao },
+        { label: 'Renda Mensal', value: renda },
+        { label: 'Histórico de Viagens', value: historico },
+        { label: 'Propósito da Viagem', value: motivo },
+        { label: 'Pontuação', value: score + '/100' },
+        { label: 'Classificação', value: classification }
+    ];
+    
+    const colors = {
+        'Perfil Forte': '#27ae60',
+        'Perfil Moderado': '#f39c12',
+        'Perfil Regular': '#e67e22',
+        'Requer Atenção': '#e74c3c'
+    };
+    
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'result-item';
+        const isClass = item.label === 'Classificação';
+        div.innerHTML = `
+            <div class="result-label">${item.label}</div>
+            <div class="result-value" ${isClass ? `style="color:${colors[classification] || '#3498db'};font-size:18px;font-weight:bold;"` : ''}>
+                ${item.value}
+            </div>
+        `;
+        resultContent.appendChild(div);
+    });
+    
+    const texts = {
+        'Perfil Forte': 'Seu perfil apresenta pontos muito consistentes. Situação profissional estável, renda compatível e histórico de viagens contribuem positivamente para sua entrevista.',
+        'Perfil Moderado': 'Seu perfil tem aspectos positivos, mas também alguns pontos que podem gerar dúvidas. Com o preparo certo, você chega ao consulado em uma posição sólida.',
+        'Perfil Regular': 'Seu perfil apresenta pontos que merecem atenção. Vínculos com o Brasil, documentação financeira e clareza sobre o propósito da viagem são aspectos que podem ser trabalhados.',
+        'Requer Atenção': 'Seu perfil apresenta pontos que merecem atenção. Isso não significa que o visto está fora do alcance — significa que o preparo precisa ser mais cuidadoso.'
+    };
+    
+    document.getElementById('result-analysis').innerHTML = `
+        <h3>📋 Análise do Seu Perfil</h3>
+        <p>${texts[classification] || texts['Perfil Regular']}</p>
+        <em>Esta análise é informativa. Para uma avaliação personalizada, fale com um especialista.</em>
+    `;
+    
+    // Seção Especialista
+    const specialistDiv = document.getElementById('specialist-section');
+    const phone = '5521974601812';
+    let msg = `Olá! Fiz a avaliação de perfil e recebi a classificação *${classification}*.\n\n*Meus dados:*\n*Perfil:* ${situacao}\n*Renda:* ${renda}\n*Histórico:* ${historico}\n*Motivo:* ${motivo}`;
+    if (nome) msg += `\n*Nome:* ${nome}`;
+    if (telefone) msg += `\n*WhatsApp:* ${telefone}`;
+    if (email) msg += `\n*Email:* ${email}`;
+    msg += `\nQuero iniciar meu processo.`;
+    
+    const encoded = encodeURIComponent(msg);
+    const classes = {
+        'Perfil Forte': 'forte',
+        'Perfil Moderado': 'moderado',
+        'Perfil Regular': 'regular',
+        'Requer Atenção': 'atencao'
+    };
+    
+    const titles = {
+        'Perfil Forte': 'Perfil forte. Agora é executar bem.',
+        'Perfil Moderado': 'Um bom preparo faz a diferença.',
+        'Perfil Regular': 'Vale uma análise mais detalhada.',
+        'Requer Atenção': 'Antes de agendar, vale conversar.'
+    };
+    
+    specialistDiv.className = 'specialist-section ' + (classes[classification] || 'regular');
+    specialistDiv.innerHTML = `
+        <h3>${titles[classification] || 'Vale uma análise mais detalhada.'}</h3>
+        <p class="subtitle">${classification === 'Perfil Forte' ? 'A GetVisa pode cuidar de toda a organização do seu processo.' : 'Nossos especialistas podem te ajudar.'}</p>
+        <button onclick="window.open('https://wa.me/${phone}?text=${encoded}','_blank')" class="btn-whatsapp">
+            <i class="fab fa-whatsapp"></i> Quero iniciar meu processo →
+        </button>
+    `;
+    
+    // Scroll para o resultado
+    document.querySelector('.simulator-container').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ============================================================
+//  NAVEGAÇÃO ENTRE ETAPAS
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    const sections = document.querySelectorAll('.form-section');
+    const backBtn = document.getElementById('back-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const submitBtn = document.getElementById('submit-btn');
+    const progress = document.getElementById('progress');
+    const progressText = document.getElementById('progress-text');
+    let current = 0;
+    const total = sections.length;
+    
+    function updateProgress() {
+        const pct = ((current + 1) / total) * 100;
+        progress.style.width = pct + '%';
+        progressText.textContent = 'Etapa ' + (current + 1) + ' de ' + total;
+    }
+    
+    function goTo(index) {
+        sections.forEach((s, i) => s.classList.toggle('active', i === index));
+        current = index;
+        updateProgress();
+        backBtn.disabled = (index === 0);
+        const isLast = (index === total - 1);
+        nextBtn.style.display = isLast ? 'none' : 'block';
+        submitBtn.style.display = isLast ? 'block' : 'none';
+        validate();
+    }
+    
+    function validate() {
+        const sec = sections[current];
+        const isLast = (current === total - 1);
+        if (isLast) {
+            const tel = document.getElementById('campo_telefone_whatsapp');
+            submitBtn.disabled = !(tel && tel.value.trim() !== '');
+        } else {
+            const radios = sec.querySelectorAll('input[type="radio"]');
+            const checked = Array.from(radios).some(r => r.checked);
+            nextBtn.disabled = !checked;
+        }
+    }
+    
+    // Seleção de opções
+    document.querySelectorAll('.option').forEach(opt => {
+        opt.addEventListener('click', function() {
+            const radio = this.querySelector('input[type="radio"]');
+            if (radio) {
+                radio.checked = true;
+                const parent = this.closest('.options-container');
+                parent.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+                this.classList.add('selected');
+                validate();
+            }
+        });
+    });
+    
+    document.querySelectorAll('#section-5 input').forEach(inp => inp.addEventListener('input', validate));
+    
+    nextBtn.addEventListener('click', function() {
+        if (current < total - 1) goTo(current + 1);
+    });
+    
+    backBtn.addEventListener('click', function() {
+        if (current > 0) goTo(current - 1);
+    });
+    
+    // Inicializar
+    goTo(0);
+});
+</script>
+</body>
+</html>
