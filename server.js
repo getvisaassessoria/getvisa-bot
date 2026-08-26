@@ -279,7 +279,7 @@ console.log('🔧 Carregando rotas Webhook...');
 try {
     const { router: webhookRoutesNew, messageQueue } = require('./routes/webhookRoutesNew');
     console.log('✅ webhookRoutesNew importado com sucesso.');
-    app.use('/api/webhook', webhookRoutes);
+    app.use('/api/webhook', webhookRoutesNew);
     console.log('✅ Rota /api/webhook montada.');
 } catch (error) {
     console.log('⚠️ Erro ao carregar webhookRoutesNew:', error.message);
@@ -782,6 +782,64 @@ function isSpamData(dados) {
 }
 
 // ============================================================
+// FUNÇÕES DE STATUS DO CLIENTE
+// ============================================================
+
+async function atualizarStatusCliente(telefone, novoStatus, dadosAdicionais = {}) {
+    try {
+        const updateData = {
+            status: novoStatus,
+            updated_at: new Date().toISOString(),
+            ...dadosAdicionais
+        };
+
+        const { data, error } = await supabase
+            .from('clientes')
+            .update(updateData)
+            .eq('telefone', telefone)
+            .select()
+            .single();
+
+        if (error) {
+            console.error(`❌ Erro ao atualizar status para ${novoStatus}:`, error);
+            return { success: false, error };
+        }
+
+        console.log(`✅ Status atualizado para "${novoStatus}" para ${telefone}`);
+        
+        // Enviar notificação WhatsApp sobre a mudança de status
+        await enviarNotificacaoStatus(telefone, novoStatus, data.nome);
+        
+        return { success: true, data };
+    } catch (error) {
+        console.error('❌ Erro ao atualizar status:', error);
+        return { success: false, error };
+    }
+}
+
+async function enviarNotificacaoStatus(telefone, status, nome) {
+    const mensagens = {
+        'lead': `👋 Olá ${nome}! Seu cadastro foi iniciado. Em breve enviaremos o formulário DS-160.`,
+        'formulario_enviado': `📋 Olá ${nome}! Recebemos seu formulário DS-160 e já estamos analisando.\n\nEm breve entraremos em contato com os próximos passos.`,
+        'em_analise': `🔍 Olá ${nome}! Estamos analisando seus documentos.\n\nEm breve iniciaremos o agendamento.`,
+        'processo_aberto': `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\nAgora vamos agendar sua coleta biométrica (CASV).`,
+        'agendado_casv': `📅 Olá ${nome}! Seu CASV foi agendado!\n\nVerifique seu e-mail para mais detalhes.`,
+        'agendado_entrevista': `🎤 Olá ${nome}! Sua entrevista foi agendada!\n\nVerifique seu e-mail para mais detalhes.`,
+        'visto_aprovado': `🎉 PARABÉNS ${nome}! Seu visto foi aprovado!\n\nSeu passaporte será liberado em breve.`,
+        'visto_recusado': `😔 Olá ${nome}! Infelizmente seu visto foi recusado.\n\nEntre em contato para entendermos os motivos.`
+    };
+
+    const mensagem = mensagens[status] || `🔄 Seu status foi atualizado para: ${status}`;
+    
+    try {
+        await enviarWhatsApp(telefone, mensagem);
+        console.log(`📱 Notificação de status enviada para ${telefone}`);
+    } catch (error) {
+        console.error('❌ Erro ao enviar notificação de status:', error);
+    }
+}
+
+// ============================================================
 // 12. FUNÇÕES DE CLASSIFICAÇÃO E RESPOSTAS DO BOT
 // ============================================================
 
@@ -1279,6 +1337,29 @@ async function processarOnboarding(cleanPhone, messageText, state) {
             state.service = null;
             userState.set(cleanPhone, state);
             console.log('✅ Estado atualizado para: COMPLETO');
+
+            // 🔥 ADICIONE ESTE BLOCO: Atualizar status do cliente para "lead"
+            try {
+                const { data: clienteAtualizado, error: updateError } = await supabase
+                    .from('clientes')
+                    .update({ 
+                        status: 'lead',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('telefone', telefoneLimpo)
+                    .select()
+                    .single();
+
+                if (updateError) {
+                    console.error('❌ Erro ao atualizar status do cliente:', updateError);
+                } else {
+                    console.log(`✅ Status atualizado para "lead" para ${telefoneLimpo}`);
+                    // Enviar notificação de status
+                    await enviarNotificacaoStatus(telefoneLimpo, 'lead', clienteAtualizado.nome);
+                }
+            } catch (statusError) {
+                console.error('❌ Erro ao atualizar status:', statusError);
+            }
 
             const primeiroNome = nome.split(' ')[0];
             const mensagemFinal = `✅ Perfeito, ${primeiroNome}! Seus dados foram salvos com sucesso!\n\n` +
@@ -3805,59 +3886,67 @@ async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
     }
 }
 
-async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
+// ============================================================
+// ROTA PARA ATUALIZAR STATUS DO CLIENTE (ADMIN)
+// ============================================================
+app.post('/api/admin/atualizar-status', async (req, res) => {
     try {
-        const instance = process.env.ZAPI_INSTANCE;
-        const token = process.env.ZAPI_TOKEN;
-        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
-
-        if (!instance || !token) {
-            console.error('❌ Z-API não configurada para envio de PDF.');
-            return false;
+        const adminKey = req.headers['x-admin-key'];
+        if (adminKey !== ADMIN_API_KEY) {
+            return res.status(401).json({ error: 'Não autorizado' });
         }
 
-        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
-        const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
+        const { telefone, status, observacao } = req.body;
 
-        const base64PDF = pdfBuffer.toString('base64');
-
-        const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-document`;
-
-        const headers = {
-            'Content-Type': 'application/json'
-        };
-
-        // 🔐 Adiciona o Client-Token se estiver configurado
-        if (clientToken) {
-            headers['Client-Token'] = clientToken;
-            console.log('🔐 Client-Token adicionado ao header do PDF');
+        if (!telefone || !status) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Telefone e status são obrigatórios' 
+            });
         }
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({
-                phone: telefoneFormatado,
-                document: base64PDF,
-                fileName: `DS160_${nomeCliente || 'cliente'}.pdf`,
-                mimeType: 'application/pdf'
-            })
+        // Buscar cliente
+        const { data: cliente, error: buscaError } = await supabase
+            .from('clientes')
+            .select('*')
+            .eq('telefone', telefone)
+            .maybeSingle();
+
+        if (buscaError || !cliente) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Cliente não encontrado' 
+            });
+        }
+
+        // Atualizar status
+        const resultado = await atualizarStatusCliente(telefone, status, { 
+            observacao: observacao || null,
+            data_status: new Date().toISOString()
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`❌ Erro Z-API PDF (${response.status}):`, errorText);
-            return false;
+        if (resultado.success) {
+            res.json({
+                success: true,
+                message: `Status atualizado para "${status}"`,
+                cliente: resultado.data
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: 'Erro ao atualizar status',
+                error: resultado.error
+            });
         }
 
-        console.log('✅ PDF enviado por WhatsApp com sucesso');
-        return true;
-
     } catch (error) {
-        console.error('❌ Erro ao enviar PDF por WhatsApp:', error);
-        return false;
+        console.error('❌ Erro ao atualizar status:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
     }
-}
+});
 
 // ============================================================
 // PROCESSADOR DA FILA DE MENSAGENS
