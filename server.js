@@ -3970,6 +3970,105 @@ app.post('/api/admin/atualizar-status', async (req, res) => {
    // }
 // }, 3000);
 
+// ============================================================
+// ROTA PARA RECEBER DADOS DO SIMULADOR
+// ============================================================
+app.post('/api/submit-simulador', async (req, res) => {
+    try {
+        const dados = req.body;
+        console.log('📊 Nova avaliação recebida:', dados);
+
+        const { nome, telefone, email, situacao_profissional, renda, historico_viagens, proposito_viagem, score, classificacao } = dados;
+
+        // 1. Salvar no Supabase (tabela: avaliacoes)
+        const { data: avaliacao, error } = await supabase
+            .from('avaliacoes')
+            .insert({
+                nome,
+                telefone,
+                email,
+                situacao_profissional,
+                renda,
+                historico_viagens,
+                proposito_viagem,
+                score,
+                classificacao,
+                created_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ Erro ao salvar avaliação:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        // 2. Atualizar cliente (se já existir)
+        const cleanPhone = limparTelefone(telefone);
+        if (cleanPhone) {
+            await supabase
+                .from('clientes')
+                .upsert({
+                    telefone: cleanPhone,
+                    nome: nome || 'Cliente',
+                    email: email || '',
+                    status: 'avaliado',
+                    classificacao: classificacao,
+                    score: score,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'telefone' });
+        }
+
+        // 3. Enviar mensagem automática para o lead com base na classificação
+        const mensagens = {
+            'Perfil Forte': `🌟 *Ótimo perfil, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\n✅ Você está muito bem preparado! Já pode iniciar o processo do visto.\n\n📋 Vou te enviar o link do formulário DS-160 para começar agora mesmo.\n\n🔗 https://getvisa.com.br/formulario-ds160\n\nVamos em frente! 🚀`,
+            'Perfil Moderado': `📊 *Perfil moderado, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nSeu perfil é bom, mas uma análise com especialista pode aumentar suas chances.\n\n🧑‍💼 Quer agendar uma consultoria gratuita agora?\n\nResponda *SIM* e já te encaminho.`,
+            'Perfil Regular': `📉 *Perfil regular, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nAlguns pontos precisam ser ajustados para melhorar suas chances.\n\n🧑‍💼 Recomendo agendar uma consultoria com um especialista.\n\nResponda *SIM* para falar com um especialista.`,
+            'Requer Atenção': `⚠️ *Perfil requer atenção, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nÉ importante revisar seu perfil antes de iniciar o processo.\n\n🧑‍💼 Vou encaminhar seu caso para um especialista. Ele entrará em contato em breve.\n\n📱 Enquanto isso, fale conosco: https://wa.me/5521974601812`
+        };
+
+        const msg = mensagens[classificacao] || `Olá ${nome.split(' ')[0]}! Sua avaliação foi *${classificacao}* com *${score}* pontos. Entre em contato para mais informações.`;
+        
+        if (cleanPhone) {
+            await enviarWhatsApp(cleanPhone, msg);
+            console.log('📱 Mensagem automática enviada para', cleanPhone);
+        }
+
+        // 4. Notificar você (especialista)
+        const notificacao = `🔔 *Nova avaliação recebida!*\n\n` +
+            `👤 Nome: ${nome}\n` +
+            `📱 Telefone: ${telefone}\n` +
+            `📧 Email: ${email || 'Não informado'}\n` +
+            `📊 Classificação: ${classificacao}\n` +
+            `🎯 Score: ${score}/100\n` +
+            `📈 Situação: ${situacao_profissional}\n` +
+            `💵 Renda: ${renda}\n` +
+            `✈️ Histórico: ${historico_viagens}\n` +
+            `🎯 Propósito: ${proposito_viagem}\n\n` +
+            `Acesse o painel para ver mais detalhes.`;
+
+        // Enviar notificação para você (ex: e-mail ou WhatsApp)
+        // Você pode usar o Resend para enviar e-mail ou enviar WhatsApp para seu número
+        await enviarWhatsApp(process.env.ADMIN_PHONE, notificacao);
+        console.log('📨 Notificação enviada para o especialista.');
+
+        res.json({ success: true, message: 'Avaliação recebida com sucesso!' });
+
+    } catch (error) {
+        console.error('❌ Erro ao processar avaliação:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Rota para o simulador (sem .html)
+app.get('/simulador-visto-americano', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'simulador-visto-americano.html'));
+});
+// Redirecionar com barra também
+app.get('/simulador-visto-americano/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'simulador-visto-americano.html'));
+});
+
 
 // ============================================================
 // 25. INICIALIZAÇÃO DO SERVIDOR
