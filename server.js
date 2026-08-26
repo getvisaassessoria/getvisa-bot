@@ -1046,6 +1046,31 @@ function getMensagemFormularioParaBot(nomeCliente) {
            `⚡ *Vamos realizar seu sonho de viajar para os EUA!* ✈️`;
 }
 
+function getMensagemFormularioComEspecialista(nomeCliente) {
+    let primeiroNome = 'Cliente';
+    try {
+        if (nomeCliente && typeof nomeCliente === 'string' && nomeCliente.trim().length > 0) {
+            primeiroNome = nomeCliente.trim().split(' ')[0];
+        }
+    } catch (err) {
+        primeiroNome = 'Cliente';
+    }
+
+    return `🎯 *Perfeito, ${primeiroNome}!* 🎯\n\n` +
+           `Seu especialista já está aguardando o formulário para dar início ao seu processo.\n\n` +
+           `📋 *Preencha agora mesmo o DS-160:*\n` +
+           `🔗 <a href="https://getvisa.com.br/formulario-ds160" target="_blank">https://getvisa.com.br/formulario-ds160</a>\n\n` +
+           `⏱️ *Em até 20 minutos* você conclui.\n` +
+           `📱 Pode preencher pelo celular ou computador.\n\n` +
+           `✅ *Quando terminar:*\n` +
+           `• Nossa equipe fará a análise dos dados em até 24h\n` +
+           `• Você receberá a confirmação por e-mail\n` +
+           `• Iniciaremos o agendamento da entrevista\n\n` +
+           `💡 *Dica:* Tenha seu passaporte em mãos.\n\n` +
+           `📱 Dúvidas? Chame a gente: <a href="https://wa.me/5521974601812">https://wa.me/5521974601812</a>\n\n` +
+           `⚡ *Vamos realizar seu sonho!* ✈️`;
+}
+
 function gerarRespostaBot(intencao, nome, etapaAtual) {
   console.log('--- DEBUG: INICIO gerarRespostaBot (VERSAO UNIFICADA) ---');
   console.log('Intencao recebida em gerarRespostaBot:', intencao);
@@ -1414,6 +1439,7 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
         '7': 'especialista'
     };
 
+    // 1. Primeiro, verifica se é uma opção válida do submenu (1 a 7)
     if (opcoesSubmenu[messageText]) {
         console.log('Processando opção ' + messageText + ' do submenu de ' + service);
 
@@ -1510,17 +1536,60 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
         return;
     }
 
-    const intencaoDetectada = detectarIntencao(messageText);
-    console.log('DEBUG processarOpcaoNoSubmenu: Tentando detectar intenção geral:', intencaoDetectada);
+    // 2. Se não for opção, detecta intenção (prioridade)
+    const intencao = detectarIntencao(messageText);
+    console.log('Intenção detectada no submenu:', intencao);
 
-    if (intencaoDetectada && intencaoDetectada !== 'desconhecida') {
-        const respostaIntencao = gerarRespostaBot(intencaoDetectada, state.nome, null);
-        if (respostaIntencao) {
-            await sendReply(cleanPhone, respostaIntencao);
-            return;
+    // 3. Se for uma intenção de formulário/início, interrompe o submenu e responde diretamente
+    if (intencao === 'solicitar_ds160' || intencao === 'iniciar_processo') {
+        console.log('🚀 Cliente quer o formulário DS-160 (saindo do submenu)');
+        const nomeCliente2 = state.nome || 'Cliente';
+        const mensagemFormulario = getMensagemFormularioComEspecialista(nomeCliente2);
+        await sendReply(cleanPhone, mensagemFormulario);
+        
+        // Atualiza status no Supabase
+        try {
+            await supabase
+                .from('clientes')
+                .update({ 
+                    status: 'formulario_solicitado',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('telefone', cleanPhone);
+            console.log('📋 Status atualizado para "formulario_solicitado"');
+        } catch (err) {
+            console.error('Erro ao atualizar status:', err);
         }
+        
+        // Notifica especialista (opcional)
+        try {
+            await enviarWhatsApp(process.env.ADMIN_PHONE, 
+                `📋 *Cliente solicitou o formulário DS-160!*\n\n` +
+                `👤 Nome: ${state.nome || 'Não informado'}\n` +
+                `📱 Telefone: ${cleanPhone}\n\n` +
+                `Acesse o painel para mais detalhes.`
+            );
+            console.log('📨 Notificação enviada para o especialista.');
+        } catch (err) {
+            console.error('Erro ao notificar especialista:', err);
+        }
+        
+        // Opcional: volta para o menu principal após enviar o formulário
+        state.nivel = 'principal';
+        state.service = null;
+        userState.set(cleanPhone, state);
+        
+        return;
     }
 
+    // 4. Se for outra intenção, responde com a resposta genérica
+    if (intencao && intencao !== 'desconhecida') {
+        const respostaIntencao = gerarRespostaBot(intencao, state.nome, null);
+        await sendReply(cleanPhone, respostaIntencao);
+        return;
+    }
+
+    // 5. Se nada disso, exibe a mensagem de erro
     const erroMsg = '❌ Opção inválida' + nomeCliente + '!\n\n' +
                    'Você está no menu: ' + getServiceName(service).toUpperCase() + '\n\n' +
                    'Opções disponíveis:\n' +
