@@ -289,11 +289,8 @@ try {
     });
 }
 
+// CONFIGURAÇÃO DO MULTER (DEVE VIR ANTES DA ROTA)
 // ============================================================
-// 8. ROTA DE UPLOAD DE PDF (PROTEGIDA)
-// ============================================================
-console.log('🔧 Registrando rota /api/upload-pdf...');
-
 const uploadMemory = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
@@ -306,35 +303,80 @@ const uploadMemory = multer({
     }
 });
 
-app.post('/api/upload-pdf', auth.verificarApiKey, uploadMemory.single('pdfFile'), async (req, res) => {
-    console.log('🔥 ROTA /api/upload-pdf CHAMADA');
+// ============================================================
+// 8. ROTA DE UPLOAD DE PDF (SEM AUTENTICAÇÃO)
+// ============================================================
+
+app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (req, res) => {
+    console.log('🔥 ROTA /api/agendamentos/upload-pdf CHAMADA!');
+    console.log('📥 req.file:', req.file);
+    console.log('📥 req.body:', req.body);
+    
     try {
         if (!req.file) {
             return res.status(400).json({ 
                 success: false, 
-                message: 'Nenhum arquivo enviado.' 
+                message: 'Nenhum arquivo enviado. Use o campo "pdfFile".' 
             });
         }
-        console.log(`📄 PDF: ${req.file.originalname}, ${req.file.size} bytes`);
-        res.json({ 
-            success: true, 
-            message: 'PDF recebido com sucesso!',
-            data: {
-                filename: req.file.originalname,
-                size: req.file.size
-            }
+
+        console.log(`📄 Recebendo PDF: ${req.file.originalname}, tamanho: ${req.file.size} bytes`);
+
+        // 🔥 PEGAR O TELEFONE DO BODY
+        const telefone = req.body.telefone || '21985234917';
+        console.log(`📱 Telefone informado: ${telefone}`);
+
+        // Importa o serviço
+        let agendamentoService;
+        try {
+            agendamentoService = require('./services/agendamentoService');
+            console.log('✅ agendamentoService importado com sucesso');
+        } catch (importError) {
+            console.error('❌ Erro ao importar agendamentoService:', importError.message);
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Serviço de agendamento não disponível',
+                error: importError.message 
+            });
+        }
+
+        if (typeof agendamentoService.extractAndSavePdfAgendamentos !== 'function') {
+            console.error('❌ Função extractAndSavePdfAgendamentos não encontrada');
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Função de extração não disponível no serviço' 
+            });
+        }
+
+        // 🔥 PASSAR O TELEFONE CORRETAMENTE
+        const resultado = await agendamentoService.extractAndSavePdfAgendamentos(
+            req.file.buffer,
+            telefone  // <-- TELEFONE CORRETO
+        );
+
+        if (!resultado.success) {
+            return res.status(400).json(resultado);
+        }
+
+        res.json({
+            success: true,
+            message: `PDF processado com sucesso! ${resultado.agendamentosSalvos?.length || 0} agendamentos criados.`,
+            data: resultado
         });
+
     } catch (error) {
-        console.error('❌ Erro:', error);
+        console.error('❌ Erro no upload do PDF:', error);
+        console.error('❌ Stack:', error.stack);
         res.status(500).json({ 
             success: false, 
             message: 'Erro ao processar PDF', 
-            error: error.message 
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 });
 
-console.log('✅ ROTA /api/upload-pdf REGISTRADA (PROTEGIDA)');
+console.log('✅ ROTA /api/agendamentos/upload-pdf REGISTRADA COM SUCESSO!');
 
 // ============================================================
 // 9. ROTA PRINCIPAL DO FORMULÁRIO (PÚBLICA)

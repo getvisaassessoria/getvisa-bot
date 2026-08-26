@@ -188,6 +188,8 @@ function gerarMensagemAgendamentos(agendamentos, nomeCliente) {
 // ============================================================
 // FUNÇÃO PRINCIPAL: EXTRAIR E SALVAR PDF
 // ============================================================
+// services/agendamentoService.js
+
 async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente) {
     try {
         if (typeof pdfParse !== 'function') {
@@ -207,51 +209,31 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente) {
             return { success: false, message: 'Nenhum agendamento encontrado no PDF.' };
         }
 
-        // 🔥 BUSCAR O CLIENTE PELO TELEFONE INFORMADO
+        // 🔥 BUSCAR OU CRIAR CLIENTE COM UPSERT
+        const nomeDoCliente = agendamentosExtraidos[0]?.nomeCliente || 'Cliente';
+        
         const { data: cliente, error: clienteError } = await supabase
             .from('clientes')
-            .select('id, nome, telefone')
-            .eq('telefone', telefoneCliente)
-            .maybeSingle();
+            .upsert({
+                nome: nomeDoCliente,
+                telefone: telefoneCliente,
+                status: 'lead',
+                data_contato: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            }, {
+                onConflict: 'telefone'
+            })
+            .select()
+            .single();
 
         if (clienteError) {
-            console.error('❌ Erro ao buscar cliente:', clienteError);
-            return { success: false, message: 'Erro ao buscar cliente.' };
+            console.error('❌ Erro ao buscar/criar cliente:', clienteError);
+            return { success: false, message: 'Erro ao buscar/criar cliente.' };
         }
 
-        let clienteId;
-        let clienteNome;
-
-        if (cliente) {
-            // ✅ Cliente existe
-            clienteId = cliente.id;
-            clienteNome = cliente.nome;
-            console.log(`✅ Cliente encontrado: ${cliente.nome} (${cliente.telefone})`);
-        } else {
-            // 🆕 Cliente não existe, criar novo
-            const nomeDoCliente = agendamentosExtraidos[0]?.nomeCliente || 'Cliente';
-            console.log(`🆕 Criando novo cliente: ${nomeDoCliente} (${telefoneCliente})`);
-            
-            const { data: novoCliente, error: insertError } = await supabase
-                .from('clientes')
-                .insert([{
-                    nome: nomeDoCliente,
-                    telefone: telefoneCliente,
-                    status: 'lead',
-                    data_contato: new Date().toISOString()
-                }])
-                .select()
-                .single();
-            
-            if (insertError) {
-                console.error('❌ Erro ao criar cliente:', insertError);
-                return { success: false, message: 'Erro ao criar cliente.' };
-            }
-            
-            clienteId = novoCliente.id;
-            clienteNome = novoCliente.nome;
-            console.log(`✅ Cliente criado com sucesso: ${clienteId}`);
-        }
+        const clienteId = cliente.id;
+        const clienteNome = cliente.nome;
+        console.log(`✅ Cliente encontrado/criado: ${cliente.nome} (${cliente.telefone})`);
 
         // 🔥 SALVAR AGENDAMENTOS USANDO O CLIENTE_ID
         const agendamentosSalvos = [];
