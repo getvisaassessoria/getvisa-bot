@@ -2202,8 +2202,8 @@ async function gerarPDF_DS160(dados) {
             'Email do Pagador': dados.payer_email || '',
 
             // ========== PASSO 4 - ACOMPANHANTES ==========
-            'Acompanhantes': dados['companion_name[]'] ? dados['companion_name[]'].filter(Boolean).join(', ') : '',
-            'Relação dos Acompanhantes': dados['companion_relationship[]'] ? dados['companion_relationship[]'].filter(Boolean).join(', ') : '',
+            'Acompanhantes': Array.isArray(dados['companion_name[]']) ? dados['companion_name[]'].filter(Boolean).join(', ') : dados['companion_name[]'] || '',
+            'Relação dos Acompanhantes': Array.isArray(dados['companion_relationship[]']) ? dados['companion_relationship[]'].filter(Boolean).join(', ') : dados['companion_relationship[]'] || '',
             'Nome do Grupo': dados.group_name || '',
 
             // ========== PASSO 5 - VIAGENS ANTERIORES ==========
