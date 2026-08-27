@@ -2167,103 +2167,143 @@ async function gerarPDF_DS160(dados) {
         doc.fontSize(20).text('Formulário DS-160 - GetVisa Assessoria', { align: 'center' });
         doc.moveDown();
 
-        drawSectionTitle(doc, 'Dados Pessoais');
-        doc.fontSize(10).text(`Nome Completo: ${dados['full_name'] || ''}`);
-        doc.text(`Data de Nascimento: ${formatValue('text-5', dados['text-5']) || ''}`);
-        doc.text(`Gênero: ${formatValue('radio-3', dados['radio-3']) || ''}`);
-        doc.text(`Estado Civil: ${formatValue('select-4', dados['select-4']) || ''}`);
-        doc.text(`Nacionalidade: ${dados['nacionalidade'] || ''}`);
-        doc.text(`País de Nascimento: ${dados['pais_nascimento'] || ''}`);
-        doc.text(`Cidade de Nascimento: ${dados['cidade_nascimento'] || ''}`);
-        doc.text(`Possui outra nacionalidade? ${formatValue('radio-outra-nac', dados['radio-outra-nac']) || ''}`);
-        doc.text(`É residente permanente de outro país? ${formatValue('radio-residente', dados['radio-residente']) || ''}`);
-        doc.moveDown();
+        // 🔥 MAPEAMENTO CORRETO DOS CAMPOS DO FORMULÁRIO
+        const campos = {
+            // Dados Pessoais
+            'Nome Completo': dados.full_name || dados['text-84'] || dados.nome || '',
+            'Data de Nascimento': dados.dob || dados['text-5'] || '',
+            'Gênero': dados['radio-genero'] || dados['radio-3'] || '',
+            'Estado Civil': dados.marital_status || dados['select-4'] || '',
+            'Nacionalidade': dados.birth_country || dados.nacionalidade || '',
+            'País de Nascimento': dados.birth_country || dados.pais_nascimento || '',
+            'Cidade de Nascimento': dados.birth_city || dados.cidade_nascimento || '',
+            'CPF': dados.cpf || '',
+            'SSN': dados.ssn || 'Não informado',
+            'Tax ID': dados.tax_id || 'Não informado',
+            
+            // Contato
+            'Telefone': dados.phone || dados.telefone || '',
+            'Email': dados.email || '',
+            'Endereço': dados.address || dados.endereco || '',
+            'Cidade': dados.city || dados.cidade || '',
+            'Estado': dados.state || dados.estado || '',
+            'CEP': dados.zip || dados.cep || '',
+            'País': dados.country || dados.pais || '',
+            
+            // Passaporte
+            'Número do Passaporte': dados.passport_number || dados['passaporte_numero'] || '',
+            'Data de Emissão': dados.passport_issue || dados['text-21'] || '',
+            'Data de Validade': dados.passport_expiry || dados['text-35'] || '',
+            'Local de Emissão': dados.passport_city || dados['passaporte_local_emissao'] || '',
+            
+            // Viagem
+            'Tipo de Visto': dados.travel_purpose || dados['radio-28'] || '',
+            'Data de Chegada': dados.arrival_date || dados['text-66'] || '',
+            'Duração da Estadia': dados['us_travel_duration[]'] || dados['text-67'] || '',
+            'Endereço nos EUA': dados.us_contact_address || dados['text-69'] || '',
+            
+            // Informações do Cônjuge
+            'Nome do Cônjuge': dados.spouse_name || '',
+            'Data de Nascimento do Cônjuge': dados.spouse_dob || '',
+            'Nacionalidade do Cônjuge': dados.spouse_nationality || '',
+            
+            // Familiares
+            'Nome do Pai': dados.father_name || '',
+            'Data de Nascimento do Pai': dados.father_dob || '',
+            'Nome da Mãe': dados.mother_name || '',
+            'Data de Nascimento da Mãe': dados.mother_dob || '',
+            
+            // Trabalho
+            'Ocupação': dados['radio-occupation'] || '',
+            'Empregador': dados.employer_name || '',
+            'Endereço do Empregador': dados.employer_address || '',
+            'Renda Mensal': dados.employer_income || '',
+            
+            // Outros
+            'Consulado': dados.consulado || '',
+            'Motivo da Viagem': dados.travel_purpose || '',
+        };
 
-        drawSectionTitle(doc, 'Informações de Contato');
-        doc.text(`Telefone: ${formatarTelefone(dados['telefone']) || ''}`);
-        doc.text(`Email: ${dados['email'] || ''}`);
-        doc.text(`Endereço: ${dados['endereco'] || ''}, ${dados['numero'] || ''}`);
-        doc.text(`Bairro: ${dados['bairro'] || ''}`);
-        doc.text(`Cidade: ${dados['cidade'] || ''}`);
-        doc.text(`Estado: ${dados['estado'] || ''}`);
-        doc.text(`CEP: ${dados['cep'] || ''}`);
-        doc.text(`País: ${dados['pais'] || ''}`);
-        doc.moveDown();
-
-        drawSectionTitle(doc, 'Informações do Passaporte');
-        doc.text(`Número do Passaporte: ${dados['passaporte_numero'] || ''}`);
-        doc.text(`Data de Emissão: ${formatValue('text-21', dados['text-21']) || ''}`);
-        doc.text(`Data de Expiração: ${formatValue('text-35', dados['text-35']) || ''}`);
-        doc.text(`Local de Emissão: ${dados['passaporte_local_emissao'] || ''}`);
-        doc.moveDown();
-
-        drawSectionTitle(doc, 'Informações de Viagem');
-        doc.text(`Tipo de Visto Solicitado: ${formatValue('radio-28', dados['radio-28']) || ''}`);
-        doc.text(`Data de Chegada Pretendida: ${formatValue('text-66', dados['text-66']) || ''}`);
-        doc.text(`Duração da Estadia: ${dados['text-67'] || ''} dias`);
-        doc.text(`Endereço nos EUA: ${dados['text-69'] || ''}`);
-        doc.text(`Quem paga a viagem? ${formatValue('radio-6', dados['radio-6']) || ''}`);
-        doc.text(`Já viajou para os EUA? ${formatValue('radio-7', dados['radio-7']) || ''}`);
-        if (dados['radio-7'] === 'one') {
-            doc.text(`Viagens anteriores: ${groupTravels(dados).join('; ') || ''}`);
+        // Seção: Dados Pessoais
+        doc.fontSize(14).fillColor('#003366').text('📌 Dados Pessoais', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10).fillColor('#000000');
+        for (const [label, value] of Object.entries(campos)) {
+            if (value && value !== '') {
+                // Pular campos que já foram exibidos em outras seções
+                if (['Telefone', 'Email', 'Endereço', 'Cidade', 'Estado', 'CEP', 'País', 
+                     'Número do Passaporte', 'Data de Emissão', 'Data de Validade', 'Local de Emissão',
+                     'Tipo de Visto', 'Data de Chegada', 'Duração da Estadia', 'Endereço nos EUA',
+                     'Nome do Cônjuge', 'Data de Nascimento do Cônjuge', 'Nacionalidade do Cônjuge',
+                     'Nome do Pai', 'Data de Nascimento do Pai', 'Nome da Mãe', 'Data de Nascimento da Mãe',
+                     'Ocupação', 'Empregador', 'Endereço do Empregador', 'Renda Mensal',
+                     'Consulado', 'Motivo da Viagem', 'CPF', 'SSN', 'Tax ID'].includes(label)) {
+                    continue;
+                }
+                doc.text(`• ${label}: ${value}`);
+            }
         }
-        doc.text(`Já teve visto americano? ${formatValue('radio-8', dados['radio-8']) || ''}`);
-        if (dados['radio-8'] === 'one') {
-            doc.text(`Número do Visto Anterior: ${dados['text-61'] || ''}`);
-            doc.text(`Data de Expiração do Visto Anterior: ${formatValue('text-62', dados['text-62']) || ''}`);
-            doc.text(`Visto anterior é o mesmo tipo? ${formatValue('radio-9', dados['radio-9']) || ''}`);
-            doc.text(`Visto anterior foi emitido no mesmo país? ${formatValue('radio-10', dados['radio-10']) || ''}`);
-            doc.text(`Já teve as digitais coletadas? ${formatValue('radio-11', dados['radio-11']) || ''}`);
-            doc.text(`Visto anterior foi cancelado ou revogado? ${formatValue('radio-12', dados['radio-12']) || ''}`);
+
+        // Seção: Contato
+        doc.moveDown(1);
+        doc.fontSize(14).fillColor('#003366').text('📞 Informações de Contato', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10).fillColor('#000000');
+        const contatoCampos = ['Telefone', 'Email', 'Endereço', 'Cidade', 'Estado', 'CEP', 'País'];
+        for (const label of contatoCampos) {
+            if (campos[label]) {
+                doc.text(`• ${label}: ${campos[label]}`);
+            }
         }
-        doc.text(`Já teve visto negado? ${formatValue('radio-visto-negado', dados['radio-visto-negado']) || ''}`);
-        doc.text(`Já teve entrada negada nos EUA? ${formatValue('radio-entrada-negada', dados['radio-entrada-negada']) || ''}`);
-        doc.text(`Já foi deportado? ${formatValue('radio-deportado', dados['radio-deportado']) || ''}`);
-        doc.moveDown();
 
-        drawSectionTitle(doc, 'Informações Familiares');
-        doc.text(`Nome Completo do Pai: ${dados['father_full_name'] || ''}`);
-        doc.text(`Data de Nascimento do Pai: ${formatValue('text-50', dados['text-50']) || ''}`);
-        doc.text(`Nome Completo da Mãe: ${dados['mother_full_name'] || ''}`);
-        doc.text(`Data de Nascimento da Mãe: ${formatValue('text-44', dados['text-44']) || ''}`);
-        doc.text(`Nome Completo do Cônjuge: ${dados['spouse_full_name'] || ''}`);
-        doc.text(`Data de Nascimento do Cônjuge: ${formatValue('spouse-dob', dados['spouse-dob']) || ''}`);
-        doc.text(`Nacionalidade do Cônjuge: ${dados['spouse_nationality'] || ''}`);
-        doc.text(`País de Nascimento do Cônjuge: ${dados['spouse_country_birth'] || ''}`);
-        doc.text(`Endereço do Cônjuge: ${formatValue('spouse-address-same', dados['spouse-address-same']) || ''}`);
-        if (dados['spouse-address-same'] === 'two') {
-            doc.text(`Endereço Detalhado do Cônjuge: ${dados['spouse_address_details'] || ''}`);
+        // Seção: Passaporte
+        doc.moveDown(1);
+        doc.fontSize(14).fillColor('#003366').text('🛂 Passaporte', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10).fillColor('#000000');
+        const passaporteCampos = ['Número do Passaporte', 'Data de Emissão', 'Data de Validade', 'Local de Emissão'];
+        for (const label of passaporteCampos) {
+            if (campos[label]) {
+                doc.text(`• ${label}: ${campos[label]}`);
+            }
         }
-        doc.text(`Data de Casamento: ${formatValue('data_casamento_div', dados['data_casamento_div']) || ''}`);
-        doc.text(`Data de Divórcio: ${formatValue('data_divorcio', dados['data_divorcio']) || ''}`);
-        doc.text(`Data de Falecimento: ${formatValue('data_falecimento', dados['data_falecimento']) || ''}`);
-        doc.text(`Filhos: ${groupParallelArrays(dados, 'child_name[]', 'child_dob[]').join('; ') || ''}`);
-        doc.moveDown();
 
-        drawSectionTitle(doc, 'Informações de Emprego/Educação');
-        doc.text(`Ocupação: ${formatValue('radio-27', dados['radio-27']) || ''}`);
-        doc.text(`Nome do Empregador/Instituição: ${dados['empregador_nome'] || ''}`);
-        doc.text(`Endereço do Empregador/Instituição: ${dados['empregador_endereco'] || ''}`);
-        doc.text(`Telefone do Empregador/Instituição: ${dados['empregador_telefone'] || ''}`);
-        doc.text(`Renda Mensal: ${dados['renda_mensal'] || ''}`);
-        doc.text(`Descrição das Funções: ${dados['funcoes'] || ''}`);
-        doc.text(`Educação: ${groupParallelArrays(dados, 'education_institution[]', 'education_course[]').join('; ') || ''}`);
-        doc.moveDown();
+        // Seção: Viagem
+        doc.moveDown(1);
+        doc.fontSize(14).fillColor('#003366').text('✈️ Informações de Viagem', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10).fillColor('#000000');
+        const viagemCampos = ['Consulado', 'Motivo da Viagem', 'Tipo de Visto', 'Data de Chegada', 'Duração da Estadia', 'Endereço nos EUA'];
+        for (const label of viagemCampos) {
+            if (campos[label]) {
+                doc.text(`• ${label}: ${campos[label]}`);
+            }
+        }
 
-        drawSectionTitle(doc, 'Segurança e Antecedentes');
-        doc.text(`Possui doenças contagiosas? ${formatValue('radio-17', dados['radio-17']) || ''}`);
-        doc.text(`Possui distúrbios mentais/físicos? ${formatValue('radio-18', dados['radio-18']) || ''}`);
-        doc.text(`É viciado em drogas? ${formatValue('radio-19', dados['radio-19']) || ''}`);
-        doc.text(`Já cometeu crimes? ${formatValue('radio-20', dados['radio-20']) || ''}`);
-        doc.text(`Já esteve envolvido em terrorismo? ${formatValue('radio-14', dados['radio-14']) || ''}`);
-        doc.text(`Já esteve envolvido em genocídio? ${formatValue('radio-15', dados['radio-15']) || ''}`);
-        doc.text(`Já esteve envolvido em trabalho forçado? ${formatValue('radio-16', dados['radio-16']) || ''}`);
-        doc.text(`Já violou leis de imigração? ${formatValue('radio-26', dados['radio-26']) || ''}`);
-        doc.text(`Já serviu em forças armadas? ${formatValue('radio-23', dados['radio-23']) || ''}`);
-        doc.text(`Já esteve envolvido em sequestro de crianças? ${formatValue('radio-29', dados['radio-29']) || ''}`);
-        doc.text(`Já esteve envolvido em tráfico de pessoas? ${formatValue('radio-30', dados['radio-30']) || ''}`);
-        doc.text(`Já esteve envolvido em lavagem de dinheiro? ${formatValue('radio-33', dados['radio-33']) || ''}`);
-        doc.moveDown();
+        // Seção: Família
+        doc.moveDown(1);
+        doc.fontSize(14).fillColor('#003366').text('👨‍👩‍👧‍👦 Informações Familiares', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10).fillColor('#000000');
+        const familiaCampos = ['Nome do Pai', 'Data de Nascimento do Pai', 'Nome da Mãe', 'Data de Nascimento da Mãe', 
+                               'Nome do Cônjuge', 'Data de Nascimento do Cônjuge', 'Nacionalidade do Cônjuge'];
+        for (const label of familiaCampos) {
+            if (campos[label]) {
+                doc.text(`• ${label}: ${campos[label]}`);
+            }
+        }
+
+        // Seção: Trabalho
+        doc.moveDown(1);
+        doc.fontSize(14).fillColor('#003366').text('💼 Trabalho e Educação', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10).fillColor('#000000');
+        const trabalhoCampos = ['Ocupação', 'Empregador', 'Endereço do Empregador', 'Renda Mensal'];
+        for (const label of trabalhoCampos) {
+            if (campos[label]) {
+                doc.text(`• ${label}: ${campos[label]}`);
+            }
+        }
 
         doc.end();
     });
