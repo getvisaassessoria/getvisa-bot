@@ -103,24 +103,20 @@ app.get('/painel.html', auth.verificarAdmin, (req, res) => {
     }
 });
 
-// 4.3 Página de login (pública)
-app.get('/admin-login.html', (req, res) => {
-    const loginPath = path.join(__dirname, 'public', 'admin-login.html');
-    if (fs.existsSync(loginPath)) {
-        res.sendFile(loginPath);
+app.get('/painel.html', auth.verificarAdmin, (req, res) => {
+    const painelPath = path.join(__dirname, 'public', 'painel.html');
+    if (fs.existsSync(painelPath)) {
+        res.sendFile(painelPath);
     } else {
-        res.send(`
-            <h1>🔐 Admin Login</h1>
-            <p>Arquivo admin-login.html não encontrado.</p>
-            <p>Use a chave: <strong>admin123</strong></p>
-        `);
+        res.send('<h1>📊 Painel</h1><p>Arquivo painel.html não encontrado.</p>');
     }
 });
 
-// Rota /painel (sem .html) - redireciona para painel.html
 app.get('/painel', auth.verificarAdmin, (req, res) => {
     res.redirect('/painel.html');
 });
+
+
 
 // ============================================================
 // 5. SERVIR ARQUIVOS ESTÁTICOS (DEPOIS DAS ROTAS PROTEGIDAS)
