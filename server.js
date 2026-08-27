@@ -381,10 +381,38 @@ app.post('/api/submit-ds160', async (req, res) => {
         // ============================================================
 // 📧 ENVIAR E-MAIL PARA A EQUIPE
 // ============================================================
+// ============================================================
+// 📧 ENVIAR E-MAIL PARA A EQUIPE COM PDF
+// ============================================================
 try {
+    console.log('📧 Tentando enviar e-mail com PDF...');
     const emailEquipe = process.env.EMAIL_DESTINO_EQUIPE || 'contato@getvisa.com.br';
     
-    await resend.emails.send({
+    // 🔥 GERAR O PDF COM OS DADOS DO FORMULÁRIO
+    let pdfBuffer = null;
+    try {
+        console.log('📄 Gerando PDF...');
+        // Buscar os dados completos do formulário
+        const { data: formDataSaved, error: formError } = await supabase
+            .from('form_ds160')
+            .select('*')
+            .eq('id_cliente', clienteData.id)
+            .maybeSingle();
+
+        if (formError) {
+            console.error('❌ Erro ao buscar dados do formulário:', formError);
+        } else if (formDataSaved) {
+            // Gerar o PDF usando os dados do formulário
+            const dadosParaPDF = formDataSaved.dados_formulario || formDataSaved;
+            pdfBuffer = await gerarPDF_DS160(dadosParaPDF);
+            console.log('📄 PDF gerado com sucesso, tamanho:', pdfBuffer.length, 'bytes');
+        }
+    } catch (pdfError) {
+        console.error('❌ Erro ao gerar PDF:', pdfError);
+    }
+    
+    // Preparar o e-mail
+    const emailOptions = {
         from: 'GetVisa <contato@getvisa.com.br>',
         to: emailEquipe,
         subject: `🆕 Novo formulário DS-160 - ${nomeValido}`,
@@ -400,10 +428,24 @@ try {
             <p>📱 Entre em contato com o cliente para dar início ao processo.</p>
             <p>🗂️ Acesse o painel: https://getvisa-bot-production.up.railway.app/painel</p>
         `
-    });
-    console.log(`📧 E-mail enviado para a equipe (${emailEquipe})`);
+    };
+
+    // 🔥 ADICIONAR O PDF COMO ANEXO (SE FOI GERADO)
+    if (pdfBuffer) {
+        emailOptions.attachments = [{
+            filename: `DS160_${nomeValido.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`,
+            content: pdfBuffer.toString('base64')
+        }];
+        console.log('📎 PDF anexado ao e-mail');
+    } else {
+        console.log('⚠️ Nenhum PDF para anexar');
+    }
+
+    const emailResult = await resend.emails.send(emailOptions);
+    console.log('📧 E-mail enviado com sucesso:', emailResult);
 } catch (emailError) {
-    console.error('❌ Erro ao enviar e-mail para a equipe:', emailError);
+    console.error('❌ Erro detalhado ao enviar e-mail:', emailError);
+    console.error('❌ Mensagem de erro:', emailError.message);
 }
 
         // 4. AVISAR A EQUIPE (SEM PDF - PARA TESTE)
