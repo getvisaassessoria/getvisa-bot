@@ -93,7 +93,7 @@ app.get('/admin.html', auth.verificarAdmin, (req, res) => {
     }
 });
 
-// 4.2 Painel protegido
+// 4.2 Painel protegido (versão corrigida)
 app.get('/painel.html', auth.verificarAdmin, (req, res) => {
     const painelPath = path.join(__dirname, 'public', 'painel.html');
     if (fs.existsSync(painelPath)) {
@@ -103,13 +103,9 @@ app.get('/painel.html', auth.verificarAdmin, (req, res) => {
     }
 });
 
-app.get('/painel.html', auth.verificarAdmin, (req, res) => {
-    const painelPath = path.join(__dirname, 'public', 'painel.html');
-    if (fs.existsSync(painelPath)) {
-        res.sendFile(painelPath);
-    } else {
-        res.send('<h1>📊 Painel</h1><p>Arquivo painel.html não encontrado.</p>');
-    }
+// Rota /painel (sem .html) - redireciona para painel.html
+app.get('/painel', auth.verificarAdmin, (req, res) => {
+    res.redirect('/painel.html');
 });
 
 app.get('/painel', auth.verificarAdmin, (req, res) => {
