@@ -348,7 +348,7 @@
                             <th>WhatsApp</th>
                         </tr>
                     </thead>
-                    <tbody id="agendamentosBody"></tbody>
+                    <tbody id="clientesBody">></tbody>
                 </table>
             </div>
         </div>
@@ -398,44 +398,45 @@
     <div class="toast" id="toast"></div>
 
     <script>
-        let agendamentosData = [];
+        let clientesData = [];
         let currentAgendamentoId = null;
 
         // ============================================================
         // CARREGAR DADOS
         // ============================================================
-        async function loadAgendamentos() {
-            const loading = document.getElementById('loading');
-            const tableContainer = document.getElementById('tableContainer');
-            const body = document.getElementById('agendamentosBody');
-            
-            loading.style.display = 'block';
-            tableContainer.style.display = 'none';
+        async function loadClientes() {
+    const loading = document.getElementById('loading');
+    const tableContainer = document.getElementById('tableContainer');
+    const body = document.getElementById('clientesBody');
+    
+    loading.style.display = 'block';
+    tableContainer.style.display = 'none';
 
-            try {
-                const response = await fetch('/api/agendamentos');
-                const result = await response.json();
+    try {
+        const response = await fetch('/api/dashboard-data');
+        const result = await response.json();
 
-                if (result.success) {
-                    agendamentosData = result.data || [];
-                    renderAgendamentos(agendamentosData);
-                    updateStats(agendamentosData);
-                    loading.style.display = 'none';
-                    tableContainer.style.display = 'block';
-                } else {
-                    throw new Error(result.message || 'Erro ao carregar dados');
-                }
-            } catch (error) {
-                console.error('❌ Erro:', error);
-                loading.innerHTML = `❌ Erro ao carregar: ${error.message}`;
-            }
+        if (result.success) {
+            clientesData = result.clientes || [];
+            renderClientes(clientesData);
+            updateStats(result);
+        } else {
+            showAlert('Erro ao carregar clientes: ' + (result.message || 'Erro desconhecido'), 'error');
         }
+    } catch (error) {
+        console.error('Erro ao carregar clientes:', error);
+        showAlert('Erro ao carregar clientes. Verifique a conexão.', 'error');
+    } finally {
+        loading.style.display = 'none';
+        tableContainer.style.display = 'block';
+    }
+}
 
         // ============================================================
         // RENDERIZAR AGENDAMENTOS
         // ============================================================
         function renderAgendamentos(data) {
-            const body = document.getElementById('agendamentosBody');
+            const body = document.getElementById('clientesBody');
             
             if (!data || data.length === 0) {
                 body.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:30px; color:#666;">Nenhum agendamento encontrado</td></tr>`;
@@ -508,7 +509,7 @@
             const status = document.getElementById('statusFilter').value;
             const date = document.getElementById('dateFilter').value;
 
-            let filtered = agendamentosData;
+            let filtered = clientesData;
 
             if (search) {
                 filtered = filtered.filter(a => {
@@ -539,8 +540,8 @@
             document.getElementById('searchInput').value = '';
             document.getElementById('statusFilter').value = '';
             document.getElementById('dateFilter').value = '';
-            renderAgendamentos(agendamentosData);
-            updateStats(agendamentosData);
+            renderAgendamentos(clientesData);
+            updateStats(clientesData);
             showToast('🧹 Filtros limpos', 'info');
         }
 
@@ -548,7 +549,7 @@
         // CONCLUIR / REABRIR AGENDAMENTO
         // ============================================================
         async function toggleConcluido(id) {
-            const ag = agendamentosData.find(a => a.id === id);
+            const ag = clientesData.find(a => a.id === id);
             if (!ag) return;
 
             const novoStatus = !ag.concluido;
@@ -557,7 +558,7 @@
             if (!confirm(`Tem certeza que deseja ${acao} este agendamento?`)) return;
 
             try {
-                const response = await fetch(`/api/agendamentos/${id}/toggle`, {
+                const response = await fetch(`/api/dashboard-data/${id}/toggle`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ concluido: novoStatus })
@@ -567,7 +568,7 @@
 
                 if (result.success) {
                     showToast(`✅ Agendamento ${acao}do com sucesso!`, 'success');
-                    loadAgendamentos();
+                    loadClientes();
                 } else {
                     showToast(`❌ Erro: ${result.message}`, 'error');
                 }
@@ -584,7 +585,7 @@
             if (!confirm('🗑️ Tem certeza que deseja excluir este agendamento?')) return;
 
             try {
-                const response = await fetch(`/api/agendamentos/${id}`, {
+                const response = await fetch(`/api/dashboard-data/${id}`, {
                     method: 'DELETE'
                 });
 
@@ -592,7 +593,7 @@
 
                 if (result.success) {
                     showToast('🗑️ Agendamento excluído com sucesso!', 'success');
-                    loadAgendamentos();
+                    loadClientes();
                 } else {
                     showToast(`❌ Erro: ${result.message}`, 'error');
                 }
@@ -629,7 +630,7 @@
             const template = document.getElementById('templateSelect').value;
             const msg = document.getElementById('whatsappMessage');
             const nome = whatsappData.nome || 'Cliente';
-            const ag = agendamentosData.find(a => a.id === whatsappData.agendamentoId);
+            const ag = clientesData.find(a => a.id === whatsappData.agendamentoId);
             const data = ag ? new Date(ag.data_agendamento).toLocaleDateString('pt-BR') : '';
 
             const templates = {
@@ -729,13 +730,13 @@
         // EXPORTAR
         // ============================================================
         function exportCSV() {
-            if (!agendamentosData || agendamentosData.length === 0) {
+            if (!clientesData || clientesData.length === 0) {
                 showToast('❌ Nenhum dado para exportar', 'error');
                 return;
             }
 
             const headers = ['Cliente', 'Telefone', 'Atividade', 'Data', 'Hora', 'Local', 'Protocolo', 'Status'];
-            const rows = agendamentosData.map(a => [
+            const rows = clientesData.map(a => [
                 a.clientes?.nome || '',
                 a.clientes?.telefone || '',
                 a.atividade || '',
@@ -778,7 +779,7 @@
         // ============================================================
         // INICIALIZAR
         // ============================================================
-        document.addEventListener('DOMContentLoaded', loadAgendamentos);
+        document.addEventListener('DOMContentLoaded', loadClientes);
 
         // Fechar modals clicando fora
         document.querySelectorAll('.modal').forEach(modal => {
