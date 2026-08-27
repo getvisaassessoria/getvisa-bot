@@ -14,12 +14,12 @@ const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabase
 // ============================================================
 async function enviarWhatsApp(telefone, mensagem) {
     try {
+        const instance = process.env.ZAPI_INSTANCE;
         const token = process.env.ZAPI_TOKEN;
-        const instance = process.env.ZAPI_INSTANCE || process.env.ZAPI_INSTANCE_ID;
         const clientToken = process.env.ZAPI_CLIENT_TOKEN;
 
-        if (!token || !instance) {
-            console.log('⚠️ Z-API não configurada. Mensagem não enviada.');
+        if (!instance || !token) {
+            console.log('⚠️ Z-API não configurada. Faltam ZAPI_INSTANCE ou ZAPI_TOKEN.');
             console.log('📨 Mensagem:', mensagem);
             return false;
         }
@@ -27,14 +27,18 @@ async function enviarWhatsApp(telefone, mensagem) {
         const telefoneLimpo = telefone.toString().replace(/\D/g, '');
         const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
 
+        console.log(`📨 enviarWhatsApp (ds160Routes) para ${telefoneFormatado}`);
+
         const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-text`;
 
         const headers = {
             'Content-Type': 'application/json'
         };
 
+        // 🔐 ADICIONA O CLIENT-TOKEN
         if (clientToken) {
             headers['Client-Token'] = clientToken;
+            console.log('🔐 Client-Token adicionado ao header');
         }
 
         const response = await fetch(url, {
