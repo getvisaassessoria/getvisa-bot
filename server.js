@@ -117,6 +117,11 @@ app.get('/admin-login.html', (req, res) => {
     }
 });
 
+// Rota /painel (sem .html) - redireciona para painel.html
+app.get('/painel', auth.verificarAdmin, (req, res) => {
+    res.redirect('/painel.html');
+});
+
 // ============================================================
 // 5. SERVIR ARQUIVOS ESTÁTICOS (DEPOIS DAS ROTAS PROTEGIDAS)
 // ============================================================
