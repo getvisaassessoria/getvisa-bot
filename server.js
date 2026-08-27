@@ -104,12 +104,22 @@ app.get('/painel.html', auth.verificarAdmin, (req, res) => {
 });
 
 // Rota /painel (sem .html) - redireciona para painel.html
+// 🔥 PAINEL DE CLIENTES (corrigido)
 app.get('/painel', auth.verificarAdmin, (req, res) => {
-    res.redirect('/painel.html');
+    res.sendFile(path.join(__dirname, 'public', 'painel.html'));
 });
 
-app.get('/painel', auth.verificarAdmin, (req, res) => {
-    res.redirect('/painel.html');
+app.get('/painel.html', auth.verificarAdmin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'painel.html'));
+});
+
+// 🔥 PAINEL DE AGENDAMENTOS (rota separada)
+app.get('/agendar-treinamento', auth.verificarAdmin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'agendar-treinamento.html'));
+});
+
+app.get('/agendar-treinamento.html', auth.verificarAdmin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'agendar-treinamento.html'));
 });
 
 
