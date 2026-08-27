@@ -378,6 +378,34 @@ app.post('/api/submit-ds160', async (req, res) => {
             console.error('❌ Erro ao enviar notificação WhatsApp:', whatsError);
         }
 
+        // ============================================================
+// 📧 ENVIAR E-MAIL PARA A EQUIPE
+// ============================================================
+try {
+    const emailEquipe = process.env.EMAIL_DESTINO_EQUIPE || 'contato@getvisa.com.br';
+    
+    await resend.emails.send({
+        from: 'GetVisa <contato@getvisa.com.br>',
+        to: emailEquipe,
+        subject: `🆕 Novo formulário DS-160 - ${nomeValido}`,
+        html: `
+            <h2>📋 Novo formulário DS-160 recebido!</h2>
+            <p><strong>👤 Nome:</strong> ${nomeValido}</p>
+            <p><strong>📱 Telefone:</strong> ${cleanPhone}</p>
+            <p><strong>📧 E-mail:</strong> ${emailValido}</p>
+            <p><strong>🏛️ Consulado:</strong> ${consulado || 'Não informado'}</p>
+            <p><strong>📅 Data:</strong> ${new Date().toLocaleString('pt-BR')}</p>
+            <hr>
+            <p>📌 <strong>PDF em anexo</strong> com todos os dados do formulário.</p>
+            <p>📱 Entre em contato com o cliente para dar início ao processo.</p>
+            <p>🗂️ Acesse o painel: https://getvisa-bot-production.up.railway.app/painel</p>
+        `
+    });
+    console.log(`📧 E-mail enviado para a equipe (${emailEquipe})`);
+} catch (emailError) {
+    console.error('❌ Erro ao enviar e-mail para a equipe:', emailError);
+}
+
         // 4. AVISAR A EQUIPE (SEM PDF - PARA TESTE)
         try {
             await enviarWhatsApp(process.env.ADMIN_PHONE, 
