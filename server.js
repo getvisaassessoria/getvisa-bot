@@ -325,6 +325,12 @@ app.post('/api/submit-ds160', async (req, res) => {
 
         console.log('✅ Cliente salvo no Supabase:', clienteData);
 
+        // 🔥 CORREÇÃO: Se a ocupação veio como "Dona de Casa" mas é Aposentado
+            if (formData['radio-occupation'] === 'Dona de Casa' && !formData['employer_name']) {
+                formData['radio-occupation'] = 'Aposentado';
+                console.log('✅ Ocupação corrigida de "Dona de Casa" para "Aposentado"');
+            }
+        
         // 2. SALVAR FORMULÁRIO
         const { data: formExistente } = await supabase
             .from('form_ds160')
@@ -378,12 +384,6 @@ app.post('/api/submit-ds160', async (req, res) => {
             console.error('❌ Erro ao enviar notificação WhatsApp:', whatsError);
         }
 
-        // ============================================================
-// 📧 ENVIAR E-MAIL PARA A EQUIPE
-// ============================================================
-// ============================================================
-// 📧 ENVIAR E-MAIL PARA A EQUIPE COM PDF
-// ============================================================
 // ============================================================
 // 📧 ENVIAR E-MAIL PARA A EQUIPE COM PDF
 // ============================================================
