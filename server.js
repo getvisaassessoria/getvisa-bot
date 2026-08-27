@@ -241,18 +241,214 @@ module.exports = { processarMensagem };
 // 7. ROTAS DA API
 // ============================================================
 
-// 7.1 ROTA DS-160 (PÚBLICA)
+// ============================================================
+// 7.1 ROTA DS-160 (COM PDF E NOTIFICAÇÃO PARA EQUIPE)
+// ============================================================
 console.log('🔧 Carregando rotas DS-160...');
+
+// 🔥 ROTA PRINCIPAL - SUBMIT DS-160 (COM PDF E NOTIFICAÇÃO)
+app.post('/api/submit-ds160', async (req, res) => {
+    console.log('🔔 Rota /api/submit-ds160 chamada!');
+    console.log('📝 Dados recebidos:', JSON.stringify(req.body, null, 2));
+
+    try {
+        const formData = req.body;
+        const { full_name, email, telefone, consulado } = extractFormFields(formData);
+
+        console.log(`📋 Nome: "${full_name}"`);
+        console.log(`📧 Email: "${email}"`);
+        console.log(`📱 Telefone: "${telefone}"`);
+        console.log(`🏛️ Consulado: "${consulado}"`);
+
+        // VALIDAÇÃO
+        let nomeValido = full_name || formData.nome_completo || formData.fullName || '';
+        let emailValido = email || formData['email-1'] || '';
+        let telefoneValido = telefone || formData['text-77'] || '';
+
+        if (!nomeValido || !emailValido || !telefoneValido) {
+            console.error('❌ Dados obrigatórios faltando');
+            return res.status(400).json({
+                success: false,
+                message: 'Nome, email e telefone são obrigatórios.'
+            });
+        }
+
+        const cleanPhone = limparTelefone(telefoneValido);
+        if (!cleanPhone) {
+            return res.status(400).json({ success: false, message: 'Número de telefone inválido.' });
+        }
+
+        // 1. SALVAR CLIENTE NO SUPABASE
+        const { data: clienteData, error: clienteError } = await supabase
+            .from('clientes')
+            .upsert({
+                telefone: cleanPhone,
+                nome: nomeValido,
+                email: emailValido,
+                consulado: consulado || '',
+                data_contato: new Date().toISOString(),
+                status: 'formulario_enviado',
+                onboarding_completo: true,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'telefone' })
+            .select('id, telefone')
+            .single();
+
+        if (clienteError) {
+            console.error('❌ Erro ao salvar cliente:', clienteError);
+            return res.status(500).json({ success: false, message: 'Erro ao salvar cliente', error: clienteError.message });
+        }
+
+        console.log('✅ Cliente salvo no Supabase:', clienteData);
+
+        // 2. SALVAR FORMULÁRIO
+        const { data: formExistente } = await supabase
+            .from('form_ds160')
+            .select('id, id_cliente')
+            .eq('id_cliente', clienteData.id)
+            .maybeSingle();
+
+        if (formExistente) {
+            await supabase
+                .from('form_ds160')
+                .update({
+                    dados_formulario: formData,
+                    status: 'rascunho',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', formExistente.id);
+            console.log('✅ Formulário atualizado no Supabase');
+        } else {
+            await supabase
+                .from('form_ds160')
+                .insert({
+                    id_cliente: clienteData.id,
+                    dados_formulario: formData,
+                    status: 'rascunho',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                });
+            console.log('✅ Formulário salvo no Supabase');
+        }
+
+        // ============================================================
+        // 📧 ENVIAR PDF PARA A EQUIPE POR E-MAIL
+        // ============================================================
+        try {
+            const { data: formDataSaved, error: formError } = await supabase
+                .from('form_ds160')
+                .select('*')
+                .eq('id_cliente', clienteData.id)
+                .maybeSingle();
+
+            if (formError) {
+                console.error('❌ Erro ao buscar dados do formulário:', formError);
+            } else if (formDataSaved) {
+                // Gerar o PDF usando os dados do formulário
+                const pdfBuffer = await gerarPDF_DS160(formDataSaved.dados_formulario || formDataSaved);
+                
+                const emailEquipe = process.env.EMAIL_DESTINO_EQUIPE || 'contato@getvisa.com.br';
+                
+                await resend.emails.send({
+                    from: 'GetVisa <contato@getvisa.com.br>',
+                    to: emailEquipe,
+                    subject: `🆕 Novo formulário DS-160 - ${nomeValido}`,
+                    html: `
+                        <h2>📋 Novo formulário DS-160 recebido!</h2>
+                        <p><strong>👤 Nome:</strong> ${nomeValido}</p>
+                        <p><strong>📱 Telefone:</strong> ${cleanPhone}</p>
+                        <p><strong>📧 E-mail:</strong> ${emailValido}</p>
+                        <p><strong>🏛️ Consulado:</strong> ${consulado || 'Não informado'}</p>
+                        <p><strong>📅 Data:</strong> ${new Date().toLocaleString('pt-BR')}</p>
+                        <hr>
+                        <p>📌 <strong>PDF em anexo</strong> com todos os dados do formulário.</p>
+                        <p>📱 Entre em contato com o cliente para dar início ao processo.</p>
+                        <p>🗂️ Acesse o painel: https://getvisa-bot-production.up.railway.app/painel</p>
+                    `,
+                    attachments: [{
+                        filename: `DS160_${nomeValido.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`,
+                        content: pdfBuffer.toString('base64')
+                    }]
+                });
+                console.log(`📧 PDF enviado para a equipe (${emailEquipe})`);
+            }
+        } catch (pdfError) {
+            console.error('❌ Erro ao gerar/enviar PDF para a equipe:', pdfError);
+        }
+
+        // ============================================================
+        // 📱 AVISAR A EQUIPE NO WHATSAPP
+        // ============================================================
+        try {
+            const adminPhone = process.env.ADMIN_PHONE || '5521974601812';
+            
+            const mensagemEquipe = 
+                `📋 *NOVO FORMULÁRIO DS-160 RECEBIDO!*\n\n` +
+                `👤 *Nome:* ${nomeValido}\n` +
+                `📱 *Telefone:* ${cleanPhone}\n` +
+                `📧 *E-mail:* ${emailValido}\n` +
+                `🏛️ *Consulado:* ${consulado || 'Não informado'}\n` +
+                `📅 *Data:* ${new Date().toLocaleString('pt-BR')}\n\n` +
+                `📌 Um e-mail com o PDF foi enviado para a equipe.\n` +
+                `📱 Entre em contato com o cliente para dar início ao processo.\n\n` +
+                `🗂️ *Acesse o painel:* https://getvisa-bot-production.up.railway.app/painel`;
+
+            await enviarWhatsApp(adminPhone, mensagemEquipe);
+            console.log('📱 Aviso enviado para a equipe via WhatsApp:', adminPhone);
+        } catch (whatsError) {
+            console.error('❌ Erro ao enviar aviso para a equipe:', whatsError);
+        }
+
+        // 3. ENVIAR CONFIRMAÇÃO PARA O CLIENTE
+        try {
+            const primeiroNome = nomeValido.split(' ')[0];
+            const mensagemWhats = `🎉 *Olá ${primeiroNome}!*\n\n` +
+                `Recebemos seu formulário DS-160 com sucesso! ✅\n\n` +
+                `📋 *Dados recebidos:*\n` +
+                `👤 Nome: ${nomeValido}\n` +
+                `📧 Email: ${emailValido}\n` +
+                `📱 Telefone: ${cleanPhone}\n` +
+                `🏛️ Consulado: ${consulado || 'Não informado'}\n\n` +
+                `⏳ *Próximos passos:*\n` +
+                `1️⃣ Nossa equipe fará a análise dos dados\n` +
+                `2️⃣ Você receberá a confirmação por e-mail\n` +
+                `3️⃣ Iniciaremos o agendamento da entrevista\n\n` +
+                `📱 Dúvidas? Fale conosco: [Fale com nosso especialista](https://bit.ly/3SdydAx)\n\n` +
+                `🌟 *GetVisa Assessoria - Seu visto americano com segurança!* 🇺🇸`;
+
+            await enviarWhatsApp(cleanPhone, mensagemWhats);
+            console.log('📱 Notificação WhatsApp enviada para:', cleanPhone);
+        } catch (whatsError) {
+            console.error('❌ Erro ao enviar notificação WhatsApp:', whatsError);
+        }
+
+        res.json({
+            success: true,
+            message: 'Formulário recebido com sucesso!',
+            data: {
+                nome: nomeValido,
+                email: emailValido,
+                telefone: cleanPhone
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao processar formulário:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao processar formulário',
+            error: error.message
+        });
+    }
+});
+
+// Carregar outras rotas DS-160 (se houver)
 try {
     const ds160Routes = require('./routes/ds160Routes');
     app.use('/api', ds160Routes);
-    console.log('✅ Rotas DS-160 montadas em /api');
+    console.log('✅ Rotas DS-160 adicionais montadas em /api');
 } catch (error) {
-    console.log('⚠️ Erro ao carregar ds160Routes:', error.message);
-    app.post('/api/submit-ds160', (req, res) => {
-        console.log('📥 Fallback: Formulário DS-160 recebido');
-        res.json({ success: true, message: 'Formulário recebido (fallback)' });
-    });
+    console.log('⚠️ Erro ao carregar ds160Routes adicionais:', error.message);
 }
 
 // 7.2 ROTA DE AGENDAMENTOS (PROTEGIDA)
