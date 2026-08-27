@@ -105,6 +105,18 @@ app.get('/painel.html', auth.verificarAdmin, (req, res) => {
 
 // Rota /painel (sem .html) - redireciona para painel.html
 // 🔥 PAINEL DE CLIENTES (corrigido)
+
+app.get('/painel', auth.verificarAdmin, (req, res) => {
+    const painelPath = path.join(__dirname, 'public', 'painel.html');
+    if (fs.existsSync(painelPath)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.sendFile(painelPath);
+    } else {
+        res.send('<h1>📊 Painel</h1><p>Arquivo painel.html não encontrado.</p>');
+    }
+});
 app.get('/painel', auth.verificarAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'painel.html'));
 });
