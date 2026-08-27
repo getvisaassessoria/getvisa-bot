@@ -244,6 +244,30 @@ module.exports = { processarMensagem };
 // ============================================================
 // 7.1 ROTA DS-160 (COM PDF E NOTIFICAÇÃO PARA EQUIPE)
 // ============================================================
+
+// 🔥 FUNÇÃO AUXILIAR PARA EXTRAIR CAMPOS DO FORMULÁRIO
+function extractFormFields(data) {
+    const full_name = data.full_name || data.nome || data['text-84'] || data.fullName || data.name || '';
+    const email = data.email || data['email-1'] || data.emailAddress || '';
+    const telefone = data.telefone_whatsapp || data.telefone || data['text-77'] || data['phone-1'] || data.phone || '';
+    const consulado = data.consulado_cidade || data.consulado || data['text-88'] || data.consulate || '';
+    
+    let nomeEncontrado = full_name;
+    if (!nomeEncontrado) {
+        for (const [key, value] of Object.entries(data)) {
+            if (typeof value === 'string' && value.length > 3 && value.length < 100) {
+                const words = value.trim().split(/\s+/);
+                if (words.length >= 2 && words.every(w => w.length > 1)) {
+                    nomeEncontrado = value;
+                    break;
+                }
+            }
+        }
+    }
+    
+    return { full_name: nomeEncontrado, email, telefone, consulado };
+}
+
 console.log('🔧 Carregando rotas DS-160...');
 
 // 🔥 ROTA PRINCIPAL - SUBMIT DS-160 (COM PDF E NOTIFICAÇÃO)
@@ -331,74 +355,6 @@ app.post('/api/submit-ds160', async (req, res) => {
             console.log('✅ Formulário salvo no Supabase');
         }
 
-        // ============================================================
-        // 📧 ENVIAR PDF PARA A EQUIPE POR E-MAIL
-        // ============================================================
-        try {
-            const { data: formDataSaved, error: formError } = await supabase
-                .from('form_ds160')
-                .select('*')
-                .eq('id_cliente', clienteData.id)
-                .maybeSingle();
-
-            if (formError) {
-                console.error('❌ Erro ao buscar dados do formulário:', formError);
-            } else if (formDataSaved) {
-                // Gerar o PDF usando os dados do formulário
-                const pdfBuffer = await gerarPDF_DS160(formDataSaved.dados_formulario || formDataSaved);
-                
-                const emailEquipe = process.env.EMAIL_DESTINO_EQUIPE || 'contato@getvisa.com.br';
-                
-                await resend.emails.send({
-                    from: 'GetVisa <contato@getvisa.com.br>',
-                    to: emailEquipe,
-                    subject: `🆕 Novo formulário DS-160 - ${nomeValido}`,
-                    html: `
-                        <h2>📋 Novo formulário DS-160 recebido!</h2>
-                        <p><strong>👤 Nome:</strong> ${nomeValido}</p>
-                        <p><strong>📱 Telefone:</strong> ${cleanPhone}</p>
-                        <p><strong>📧 E-mail:</strong> ${emailValido}</p>
-                        <p><strong>🏛️ Consulado:</strong> ${consulado || 'Não informado'}</p>
-                        <p><strong>📅 Data:</strong> ${new Date().toLocaleString('pt-BR')}</p>
-                        <hr>
-                        <p>📌 <strong>PDF em anexo</strong> com todos os dados do formulário.</p>
-                        <p>📱 Entre em contato com o cliente para dar início ao processo.</p>
-                        <p>🗂️ Acesse o painel: https://getvisa-bot-production.up.railway.app/painel</p>
-                    `,
-                    attachments: [{
-                        filename: `DS160_${nomeValido.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`,
-                        content: pdfBuffer.toString('base64')
-                    }]
-                });
-                console.log(`📧 PDF enviado para a equipe (${emailEquipe})`);
-            }
-        } catch (pdfError) {
-            console.error('❌ Erro ao gerar/enviar PDF para a equipe:', pdfError);
-        }
-
-        // ============================================================
-        // 📱 AVISAR A EQUIPE NO WHATSAPP
-        // ============================================================
-        try {
-            const adminPhone = process.env.ADMIN_PHONE || '5521974601812';
-            
-            const mensagemEquipe = 
-                `📋 *NOVO FORMULÁRIO DS-160 RECEBIDO!*\n\n` +
-                `👤 *Nome:* ${nomeValido}\n` +
-                `📱 *Telefone:* ${cleanPhone}\n` +
-                `📧 *E-mail:* ${emailValido}\n` +
-                `🏛️ *Consulado:* ${consulado || 'Não informado'}\n` +
-                `📅 *Data:* ${new Date().toLocaleString('pt-BR')}\n\n` +
-                `📌 Um e-mail com o PDF foi enviado para a equipe.\n` +
-                `📱 Entre em contato com o cliente para dar início ao processo.\n\n` +
-                `🗂️ *Acesse o painel:* https://getvisa-bot-production.up.railway.app/painel`;
-
-            await enviarWhatsApp(adminPhone, mensagemEquipe);
-            console.log('📱 Aviso enviado para a equipe via WhatsApp:', adminPhone);
-        } catch (whatsError) {
-            console.error('❌ Erro ao enviar aviso para a equipe:', whatsError);
-        }
-
         // 3. ENVIAR CONFIRMAÇÃO PARA O CLIENTE
         try {
             const primeiroNome = nomeValido.split(' ')[0];
@@ -420,6 +376,21 @@ app.post('/api/submit-ds160', async (req, res) => {
             console.log('📱 Notificação WhatsApp enviada para:', cleanPhone);
         } catch (whatsError) {
             console.error('❌ Erro ao enviar notificação WhatsApp:', whatsError);
+        }
+
+        // 4. AVISAR A EQUIPE (SEM PDF - PARA TESTE)
+        try {
+            await enviarWhatsApp(process.env.ADMIN_PHONE, 
+                `📋 *NOVO FORMULÁRIO DS-160 RECEBIDO!*\n\n` +
+                `👤 Nome: ${nomeValido}\n` +
+                `📱 Telefone: ${cleanPhone}\n` +
+                `📧 Email: ${emailValido}\n` +
+                `🏛️ Consulado: ${consulado || 'Não informado'}\n\n` +
+                `📱 Entre em contato com o cliente para dar início ao processo.`
+            );
+            console.log('📱 Aviso enviado para a equipe');
+        } catch (err) {
+            console.error('❌ Erro ao avisar equipe:', err);
         }
 
         res.json({
@@ -650,6 +621,9 @@ app.get('/api/status', (req, res) => {
         }
     });
 });
+
+
+
 
 // ============================================================
 // 11. INICIALIZAÇÃO
