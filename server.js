@@ -2283,7 +2283,7 @@ async function gerarPDF_DS160(dados) {
             'País do Cônjuge': dados.spouse_address_country || '',
 
             // ========== PASSO 10 - TRABALHO ==========
-            'Ocupação Principal': dados['radio-occupation'] || '',
+            'Ocupação Principal': dados['radio-occupation'] === 'Aposentado' ? 'Aposentado(a)' : dados['radio-occupation'] === 'Dona de Casa' ? 'Dona de Casa' : dados['radio-occupation'] === 'Profissional' ? 'Profissional' : dados['radio-occupation'] === 'Estudante' ? 'Estudante' : dados['radio-occupation'] || '',
             'Empregador/Instituição': dados.employer_name || '',
             'Endereço do Empregador': dados.employer_address || '',
             'Cidade do Empregador': dados.employer_city || '',
@@ -2332,26 +2332,26 @@ async function gerarPDF_DS160(dados) {
 
         // Seções do PDF
         const secoes = {
-            '📌 Dados Pessoais': ['Consulado/Embaixada', 'Nome Completo', 'Outros Sobrenomes', 'Gênero', 'Estado Civil', 'Data de Nascimento', 'Cidade de Nascimento', 'Estado/Província de Nascimento', 'País de Nascimento', 'Outra Nacionalidade', 'Residente Permanente de outro país', 'CPF', 'SSN (Seguro Social EUA)', 'Tax ID (ITIN)'],
-            
-            '✈️ Informações da Viagem': ['Propósito da Viagem', 'Data de Chegada nos EUA', 'Locais a Visitar', 'Responsável pelo Pagamento', 'Nome do Pagador', 'Endereço do Pagador', 'Cidade do Pagador', 'Estado do Pagador', 'CEP do Pagador', 'País do Pagador', 'Telefone do Pagador', 'Email do Pagador'],
-            
-            '👥 Acompanhantes': ['Acompanhantes', 'Relação dos Acompanhantes', 'Nome do Grupo'],
-            
-            '🛬 Viagens Anteriores e Vistos': ['Já esteve nos EUA', 'Viagens Anteriores (datas)', 'Duração das Viagens (dias)', 'Possui Carteira de Habilitação dos EUA', 'Número da Habilitação', 'Estado da Habilitação', 'Já teve visto americano', 'Data da Última Emissão do Visto', 'Número do Visto', 'Mesmo tipo de visto', 'Mesmo país/cidade da última aplicação', 'Impressões digitais coletadas', 'Visto cancelado/revogado', 'Visto negado/entrada negada', 'Petição de imigração'],
-            
-            '📞 Endereço e Contato': ['Endereço Residencial', 'Cidade', 'Estado/Província', 'CEP', 'País', 'Telefone Principal', 'Telefone Secundário', 'Telefone do Trabalho', 'Telefones Adicionais', 'E-mail Principal', 'E-mails Adicionais', 'Redes Sociais', 'Presença Adicional em Redes Sociais'],
-            
-            '🛂 Passaporte': ['Número do Passaporte', 'País/Autoridade Emissora', 'Cidade de Emissão', 'Estado de Emissão', 'Data de Emissão', 'Data de Validade', 'Passaporte Perdido/Roubado', 'Número do BO/Observações', 'Número do Passaporte Perdido', 'Data do Ocorrido', 'Local do Ocorrido'],
-            
-            '🇺🇸 Contato nos EUA': ['Pessoa de Contato nos EUA', 'Organização nos EUA', 'Relação com o Contato', 'Endereço nos EUA', 'Telefone nos EUA', 'Email nos EUA'],
-            
-            '👨‍👩‍👧‍👦 Informações Familiares': ['Nome do Pai', 'Data de Nascimento do Pai', 'Pai nos EUA', 'Situação do Pai nos EUA', 'Nome da Mãe', 'Data de Nascimento da Mãe', 'Mãe nos EUA', 'Situação da Mãe nos EUA', 'Parentes Diretos nos EUA', 'Detalhes dos Parentes Diretos', 'Outros Parentes nos EUA', 'Nome do Cônjuge/Ex-Cônjuge', 'Data de Nascimento do Cônjuge', 'Nacionalidade do Cônjuge', 'Cidade de Nascimento do Cônjuge', 'País de Nascimento do Cônjuge', 'Endereço do Cônjuge', 'Cidade do Cônjuge', 'Estado do Cônjuge', 'CEP do Cônjuge', 'País do Cônjuge'],
-            
-            '💼 Trabalho e Educação': ['Ocupação Principal', 'Empregador/Instituição', 'Endereço do Empregador', 'Cidade do Empregador', 'Estado do Empregador', 'CEP do Empregador', 'Telefone do Empregador', 'Data de Início no Emprego', 'Renda Mensal', 'Descrição das Funções', 'Outras Ocupações', 'Empregos Anteriores', 'Cursos/Educação', 'Idiomas (além do Português)', 'Países Visitados (últimos 5 anos)', 'Treinamento Especializado', 'Serviço Militar', 'Ramo Militar', 'Patente Militar', 'Especialidade Militar', 'Data de Início no Serviço Militar', 'Data de Saída do Serviço Militar'],
-            
-            '🔒 Segurança': ['Preso ou Condenado', 'Deportado']
-        };
+    'Dados Pessoais': ['Consulado/Embaixada', 'Nome Completo', 'Outros Sobrenomes', 'Gênero', 'Estado Civil', 'Data de Nascimento', 'Cidade de Nascimento', 'Estado/Província de Nascimento', 'País de Nascimento', 'Outra Nacionalidade', 'Residente Permanente de outro país', 'CPF', 'SSN (Seguro Social EUA)', 'Tax ID (ITIN)'],
+    
+    'Informacoes da Viagem': ['Propósito da Viagem', 'Data de Chegada nos EUA', 'Locais a Visitar', 'Responsável pelo Pagamento', 'Nome do Pagador', 'Endereço do Pagador', 'Cidade do Pagador', 'Estado do Pagador', 'CEP do Pagador', 'País do Pagador', 'Telefone do Pagador', 'Email do Pagador'],
+    
+    'Acompanhantes': ['Acompanhantes', 'Relação dos Acompanhantes', 'Nome do Grupo'],
+    
+    'Viagens Anteriores e Vistos': ['Já esteve nos EUA', 'Viagens Anteriores (datas)', 'Duração das Viagens (dias)', 'Possui Carteira de Habilitação dos EUA', 'Número da Habilitação', 'Estado da Habilitação', 'Já teve visto americano', 'Data da Última Emissão do Visto', 'Número do Visto', 'Mesmo tipo de visto', 'Mesmo país/cidade da última aplicação', 'Impressões digitais coletadas', 'Visto cancelado/revogado', 'Visto negado/entrada negada', 'Petição de imigração'],
+    
+    'Endereco e Contato': ['Endereço Residencial', 'Cidade', 'Estado/Província', 'CEP', 'País', 'Telefone Principal', 'Telefone Secundário', 'Telefone do Trabalho', 'Telefones Adicionais', 'E-mail Principal', 'E-mails Adicionais', 'Redes Sociais', 'Presença Adicional em Redes Sociais'],
+    
+    'Passaporte': ['Número do Passaporte', 'País/Autoridade Emissora', 'Cidade de Emissão', 'Estado de Emissão', 'Data de Emissão', 'Data de Validade', 'Passaporte Perdido/Roubado', 'Número do BO/Observações', 'Número do Passaporte Perdido', 'Data do Ocorrido', 'Local do Ocorrido'],
+    
+    'Contato nos EUA': ['Pessoa de Contato nos EUA', 'Organização nos EUA', 'Relação com o Contato', 'Endereço nos EUA', 'Telefone nos EUA', 'Email nos EUA'],
+    
+    'Informacoes Familiares': ['Nome do Pai', 'Data de Nascimento do Pai', 'Pai nos EUA', 'Situação do Pai nos EUA', 'Nome da Mãe', 'Data de Nascimento da Mãe', 'Mãe nos EUA', 'Situação da Mãe nos EUA', 'Parentes Diretos nos EUA', 'Detalhes dos Parentes Diretos', 'Outros Parentes nos EUA', 'Nome do Cônjuge/Ex-Cônjuge', 'Data de Nascimento do Cônjuge', 'Nacionalidade do Cônjuge', 'Cidade de Nascimento do Cônjuge', 'País de Nascimento do Cônjuge', 'Endereço do Cônjuge', 'Cidade do Cônjuge', 'Estado do Cônjuge', 'CEP do Cônjuge', 'País do Cônjuge'],
+    
+    'Trabalho e Educacao': ['Ocupação Principal', 'Empregador/Instituição', 'Endereço do Empregador', 'Cidade do Empregador', 'Estado do Empregador', 'CEP do Empregador', 'Telefone do Empregador', 'Data de Início no Emprego', 'Renda Mensal', 'Descrição das Funções', 'Outras Ocupações', 'Empregos Anteriores', 'Cursos/Educação', 'Idiomas (além do Português)', 'Países Visitados (últimos 5 anos)', 'Treinamento Especializado', 'Serviço Militar', 'Ramo Militar', 'Patente Militar', 'Especialidade Militar', 'Data de Início no Serviço Militar', 'Data de Saída do Serviço Militar'],
+    
+    'Seguranca': ['Preso ou Condenado', 'Deportado']
+};
 
         for (const [titulo, campos] of Object.entries(secoes)) {
             const filteredCampos = {};
