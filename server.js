@@ -2155,7 +2155,7 @@ async function gerarPDF_DS160(dados) {
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({
             size: 'A4',
-            margin: 50
+            margin: 40
         });
         const buffers = [];
         doc.on('data', buffers.push.bind(buffers));
@@ -2164,145 +2164,204 @@ async function gerarPDF_DS160(dados) {
         });
         doc.on('error', reject);
 
-        doc.fontSize(20).text('Formulário DS-160 - GetVisa Assessoria', { align: 'center' });
+        doc.fontSize(18).fillColor('#003366').text('Formulário DS-160 - GetVisa Assessoria', { align: 'center' });
         doc.moveDown();
 
-        // 🔥 MAPEAMENTO CORRETO DOS CAMPOS DO FORMULÁRIO
-        const campos = {
-            // Dados Pessoais
+        // 🔥 MAPEAMENTO COMPLETO DE TODOS OS CAMPOS
+        const todosCampos = {
+            // ========== PASSO 1 ==========
+            'Consulado/Embaixada': dados.consulado || '',
+
+            // ========== PASSO 2 - INFORMAÇÕES PESSOAIS ==========
             'Nome Completo': dados.full_name || dados['text-84'] || dados.nome || '',
+            'Outros Sobrenomes': dados.other_surnames || '',
+            'Gênero': dados['radio-genero'] === 'MALE' ? 'Masculino' : dados['radio-genero'] === 'FEMALE' ? 'Feminino' : dados['radio-genero'] || '',
+            'Estado Civil': dados.marital_status === 'MARRIED' ? 'Casado(a)' : dados.marital_status === 'UNION' ? 'União Estável' : dados.marital_status === 'SINGLE' ? 'Solteiro(a)' : dados.marital_status === 'DIVORCED' ? 'Divorciado(a)' : dados.marital_status === 'WIDOWED' ? 'Viúvo(a)' : dados.marital_status === 'SEPARATED' ? 'Separado(a) Judicialmente' : dados.marital_status === 'OTHER' ? 'Outro' : dados.marital_status || '',
             'Data de Nascimento': dados.dob || dados['text-5'] || '',
-            'Gênero': dados['radio-genero'] || dados['radio-3'] || '',
-            'Estado Civil': dados.marital_status || dados['select-4'] || '',
-            'Nacionalidade': dados.birth_country || dados.nacionalidade || '',
-            'País de Nascimento': dados.birth_country || dados.pais_nascimento || '',
             'Cidade de Nascimento': dados.birth_city || dados.cidade_nascimento || '',
+            'Estado/Província de Nascimento': dados.birth_state || '',
+            'País de Nascimento': dados.birth_country || dados.nacionalidade || '',
+            'Outra Nacionalidade': dados.other_nat_country || 'Não informado',
+            'Residente Permanente de outro país': dados['radio-resident'] === 'one' ? `Sim - ${dados.resident_country || ''}` : 'Não',
             'CPF': dados.cpf || '',
-            'SSN': dados.ssn || 'Não informado',
-            'Tax ID': dados.tax_id || 'Não informado',
-            
-            // Contato
-            'Telefone': dados.phone || dados.telefone || '',
-            'Email': dados.email || '',
-            'Endereço': dados.address || dados.endereco || '',
+            'SSN (Seguro Social EUA)': dados.ssn || 'Não informado',
+            'Tax ID (ITIN)': dados.tax_id || 'Não informado',
+
+            // ========== PASSO 3 - VIAGEM ==========
+            'Propósito da Viagem': dados.travel_purpose === 'BUSINESS_PLEASURE' ? 'Turismo/Negócios (B1/B2)' : dados.travel_purpose === 'STUDY' ? 'Estudos' : dados.travel_purpose === 'OTHER' ? 'Outros' : dados.travel_purpose || '',
+            'Data de Chegada nos EUA': dados.arrival_date || '',
+            'Locais a Visitar': dados.places_to_visit || '',
+            'Responsável pelo Pagamento': dados['radio-payer'] === 'SELF' ? 'Próprio Solicitante' : dados['radio-payer'] === 'OTHER' ? 'Outra pessoa/empresa/organização' : dados['radio-payer'] || '',
+            'Nome do Pagador': dados.payer_name || '',
+            'Endereço do Pagador': dados.payer_address || '',
+            'Cidade do Pagador': dados.payer_city || '',
+            'Estado do Pagador': dados.payer_state || '',
+            'CEP do Pagador': dados.payer_zip || '',
+            'País do Pagador': dados.payer_country || '',
+            'Telefone do Pagador': dados.payer_phone || '',
+            'Email do Pagador': dados.payer_email || '',
+
+            // ========== PASSO 4 - ACOMPANHANTES ==========
+            'Acompanhantes': dados['companion_name[]'] ? dados['companion_name[]'].filter(Boolean).join(', ') : '',
+            'Relação dos Acompanhantes': dados['companion_relationship[]'] ? dados['companion_relationship[]'].filter(Boolean).join(', ') : '',
+            'Nome do Grupo': dados.group_name || '',
+
+            // ========== PASSO 5 - VIAGENS ANTERIORES ==========
+            'Já esteve nos EUA': dados['radio-us-travel'] === 'one' ? 'Sim' : 'Não',
+            'Viagens Anteriores (datas)': dados['us_travel_date[]'] ? dados['us_travel_date[]'].filter(Boolean).join(', ') : '',
+            'Duração das Viagens (dias)': dados['us_travel_duration[]'] ? dados['us_travel_duration[]'].filter(Boolean).join(', ') : '',
+            'Possui Carteira de Habilitação dos EUA': dados['radio-us-driver'] === 'SIM' ? 'Sim' : 'Não',
+            'Número da Habilitação': dados.us_driver_number || '',
+            'Estado da Habilitação': dados.us_driver_state || '',
+            'Já teve visto americano': dados['radio-visa-issued'] === 'one' ? 'Sim' : 'Não',
+            'Data da Última Emissão do Visto': dados.visa_issued_date || '',
+            'Número do Visto': dados.visa_number || '',
+            'Mesmo tipo de visto': dados['radio-same-visa'] === 'YES' ? 'Sim' : 'Não',
+            'Mesmo país/cidade da última aplicação': dados['radio-same-location'] === 'YES' ? 'Sim' : 'Não',
+            'Impressões digitais coletadas': dados['radio-fingerprints'] === 'YES' ? 'Sim' : 'Não',
+            'Visto cancelado/revogado': dados['radio-visa-cancelled'] === 'YES' ? `Sim - ${dados.visa_cancelled_expl || ''}` : 'Não',
+            'Visto negado/entrada negada': dados['radio-visa-refused'] === 'one' ? `Sim - ${dados.visa_refused_explanation || ''}` : 'Não',
+            'Petição de imigração': dados['radio-petition'] === 'one' ? `Sim - ${dados.petition_details || ''}` : 'Não',
+
+            // ========== PASSO 6 - ENDEREÇO E CONTATO ==========
+            'Endereço Residencial': dados.address || dados.endereco || '',
             'Cidade': dados.city || dados.cidade || '',
-            'Estado': dados.state || dados.estado || '',
+            'Estado/Província': dados.state || dados.estado || '',
             'CEP': dados.zip || dados.cep || '',
             'País': dados.country || dados.pais || '',
-            
-            // Passaporte
+            'Telefone Principal': dados.phone || dados.telefone || '',
+            'Telefone Secundário': dados.phone_secondary || '',
+            'Telefone do Trabalho': dados.phone_work || '',
+            'Telefones Adicionais': dados.phone_extra || '',
+            'E-mail Principal': dados.email || '',
+            'E-mails Adicionais': dados['emails_extra[]'] ? dados['emails_extra[]'].filter(Boolean).join(', ') : '',
+            'Redes Sociais': dados['social_plataforma[]'] && dados['social_identificador[]'] ? dados['social_plataforma[]'].map((p, i) => `${p}: ${dados['social_identificador[]'][i] || ''}`).filter(Boolean).join('; ') : '',
+            'Presença Adicional em Redes Sociais': dados.social_extra || '',
+
+            // ========== PASSO 7 - PASSAPORTE ==========
             'Número do Passaporte': dados.passport_number || dados['passaporte_numero'] || '',
+            'País/Autoridade Emissora': dados.passport_country || '',
+            'Cidade de Emissão': dados.passport_city || '',
+            'Estado de Emissão': dados.passport_state || '',
             'Data de Emissão': dados.passport_issue || dados['text-21'] || '',
             'Data de Validade': dados.passport_expiry || dados['text-35'] || '',
-            'Local de Emissão': dados.passport_city || dados['passaporte_local_emissao'] || '',
-            
-            // Viagem
-            'Tipo de Visto': dados.travel_purpose || dados['radio-28'] || '',
-            'Data de Chegada': dados.arrival_date || dados['text-66'] || '',
-            'Duração da Estadia': dados['us_travel_duration[]'] || dados['text-67'] || '',
-            'Endereço nos EUA': dados.us_contact_address || dados['text-69'] || '',
-            
-            // Informações do Cônjuge
-            'Nome do Cônjuge': dados.spouse_name || '',
-            'Data de Nascimento do Cônjuge': dados.spouse_dob || '',
-            'Nacionalidade do Cônjuge': dados.spouse_nationality || '',
-            
-            // Familiares
+            'Passaporte Perdido/Roubado': dados['radio-passport-lost'] === 'SIM' ? 'Sim' : 'Não',
+            'Número do BO/Observações': dados.passport_lost_obs || '',
+            'Número do Passaporte Perdido': dados.passport_lost_number || '',
+            'Data do Ocorrido': dados.passport_lost_date || '',
+            'Local do Ocorrido': dados.passport_lost_location || '',
+
+            // ========== PASSO 8 - CONTATO NOS EUA ==========
+            'Pessoa de Contato nos EUA': dados.us_contact_name || '',
+            'Organização nos EUA': dados.us_contact_org || '',
+            'Relação com o Contato': dados.us_contact_relationship || '',
+            'Endereço nos EUA': dados.us_contact_address || '',
+            'Telefone nos EUA': dados.us_contact_phone || '',
+            'Email nos EUA': dados.us_contact_email || '',
+
+            // ========== PASSO 9 - FAMÍLIA ==========
             'Nome do Pai': dados.father_name || '',
             'Data de Nascimento do Pai': dados.father_dob || '',
+            'Pai nos EUA': dados.father_in_us === 'YES' ? 'Sim' : 'Não',
+            'Situação do Pai nos EUA': dados.father_status || '',
             'Nome da Mãe': dados.mother_name || '',
             'Data de Nascimento da Mãe': dados.mother_dob || '',
-            
-            // Trabalho
-            'Ocupação': dados['radio-occupation'] || '',
-            'Empregador': dados.employer_name || '',
+            'Mãe nos EUA': dados.mother_in_us === 'YES' ? 'Sim' : 'Não',
+            'Situação da Mãe nos EUA': dados.mother_status || '',
+            'Parentes Diretos nos EUA': dados['radio-immediate-relatives'] === 'one' ? 'Sim' : 'Não',
+            'Detalhes dos Parentes Diretos': dados['immediate_relative_name[]'] ? dados['immediate_relative_name[]'].map((n, i) => `${n} (${dados['immediate_relative_relationship[]']?.[i] || ''} - ${dados['immediate_relative_status[]']?.[i] || ''})`).filter(Boolean).join('; ') : '',
+            'Outros Parentes nos EUA': dados['radio-other-relatives'] === 'one' ? `Sim - ${dados.other_relatives_desc || ''}` : 'Não',
+            'Nome do Cônjuge/Ex-Cônjuge': dados.spouse_name || '',
+            'Data de Nascimento do Cônjuge': dados.spouse_dob || '',
+            'Nacionalidade do Cônjuge': dados.spouse_nationality || '',
+            'Cidade de Nascimento do Cônjuge': dados.spouse_birth_city || '',
+            'País de Nascimento do Cônjuge': dados.spouse_birth_country || '',
+            'Endereço do Cônjuge': dados['radio-spouse-address'] === 'SAME' ? 'Mesmo endereço' : dados.spouse_address || '',
+            'Cidade do Cônjuge': dados.spouse_address_city || '',
+            'Estado do Cônjuge': dados.spouse_address_state || '',
+            'CEP do Cônjuge': dados.spouse_address_zip || '',
+            'País do Cônjuge': dados.spouse_address_country || '',
+
+            // ========== PASSO 10 - TRABALHO ==========
+            'Ocupação Principal': dados['radio-occupation'] || '',
+            'Empregador/Instituição': dados.employer_name || '',
             'Endereço do Empregador': dados.employer_address || '',
+            'Cidade do Empregador': dados.employer_city || '',
+            'Estado do Empregador': dados.employer_state || '',
+            'CEP do Empregador': dados.employer_zip || '',
+            'Telefone do Empregador': dados.employer_phone || '',
+            'Data de Início no Emprego': dados.employer_start || '',
             'Renda Mensal': dados.employer_income || '',
-            
-            // Outros
-            'Consulado': dados.consulado || '',
-            'Motivo da Viagem': dados.travel_purpose || '',
+            'Descrição das Funções': dados.employer_duties || '',
+            'Outras Ocupações': dados['other_employer_name[]'] ? dados['other_employer_name[]'].filter(Boolean).join('; ') : '',
+            'Empregos Anteriores': dados['prev_employer_name[]'] ? dados['prev_employer_name[]'].filter(Boolean).join('; ') : '',
+            'Cursos/Educação': dados['edu_institution[]'] ? dados['edu_institution[]'].filter(Boolean).join('; ') : '',
+            'Idiomas (além do Português)': dados['languages[]'] ? dados['languages[]'].filter(Boolean).join(', ') : '',
+            'Países Visitados (últimos 5 anos)': dados['traveled_countries[]'] ? dados['traveled_countries[]'].filter(Boolean).join(', ') : '',
+            'Treinamento Especializado': dados['radio-specialized'] === 'YES' ? `Sim - ${dados.specialized_description || ''}` : 'Não',
+            'Serviço Militar': dados['radio-military'] === 'YES' ? 'Sim' : 'Não',
+            'Ramo Militar': dados.military_branch || '',
+            'Patente Militar': dados.military_rank || '',
+            'Especialidade Militar': dados.military_specialty || '',
+            'Data de Início no Serviço Militar': dados.military_start || '',
+            'Data de Saída do Serviço Militar': dados.military_end || '',
+
+            // ========== PASSO 11 - SEGURANÇA ==========
+            'Preso ou Condenado': dados['radio-arrested'] === 'YES' ? `Sim - ${dados.arrested_explanation || ''}` : 'Não',
+            'Deportado': dados['radio-deported'] === 'YES' ? `Sim - ${dados.deported_explanation || ''}` : 'Não'
         };
 
-        // Seção: Dados Pessoais
-        doc.fontSize(14).fillColor('#003366').text('📌 Dados Pessoais', { underline: true });
-        doc.moveDown(0.5);
-        doc.fontSize(10).fillColor('#000000');
-        for (const [label, value] of Object.entries(campos)) {
-            if (value && value !== '') {
-                // Pular campos que já foram exibidos em outras seções
-                if (['Telefone', 'Email', 'Endereço', 'Cidade', 'Estado', 'CEP', 'País', 
-                     'Número do Passaporte', 'Data de Emissão', 'Data de Validade', 'Local de Emissão',
-                     'Tipo de Visto', 'Data de Chegada', 'Duração da Estadia', 'Endereço nos EUA',
-                     'Nome do Cônjuge', 'Data de Nascimento do Cônjuge', 'Nacionalidade do Cônjuge',
-                     'Nome do Pai', 'Data de Nascimento do Pai', 'Nome da Mãe', 'Data de Nascimento da Mãe',
-                     'Ocupação', 'Empregador', 'Endereço do Empregador', 'Renda Mensal',
-                     'Consulado', 'Motivo da Viagem', 'CPF', 'SSN', 'Tax ID'].includes(label)) {
-                    continue;
+        // Função para escrever seções
+        function writeSection(title, campos, doc) {
+            doc.moveDown(1);
+            doc.fontSize(14).fillColor('#003366').text(title, { underline: true });
+            doc.moveDown(0.5);
+            doc.fontSize(10).fillColor('#000000');
+            
+            let temCampos = false;
+            for (const [label, value] of Object.entries(campos)) {
+                if (value && value !== '' && value !== 'Não informado') {
+                    temCampos = true;
+                    doc.text(`• ${label}: ${value}`);
                 }
-                doc.text(`• ${label}: ${value}`);
+            }
+            if (!temCampos) {
+                doc.text('(Nenhuma informação preenchida)');
             }
         }
 
-        // Seção: Contato
-        doc.moveDown(1);
-        doc.fontSize(14).fillColor('#003366').text('📞 Informações de Contato', { underline: true });
-        doc.moveDown(0.5);
-        doc.fontSize(10).fillColor('#000000');
-        const contatoCampos = ['Telefone', 'Email', 'Endereço', 'Cidade', 'Estado', 'CEP', 'País'];
-        for (const label of contatoCampos) {
-            if (campos[label]) {
-                doc.text(`• ${label}: ${campos[label]}`);
-            }
-        }
+        // Seções do PDF
+        const secoes = {
+            '📌 Dados Pessoais': ['Consulado/Embaixada', 'Nome Completo', 'Outros Sobrenomes', 'Gênero', 'Estado Civil', 'Data de Nascimento', 'Cidade de Nascimento', 'Estado/Província de Nascimento', 'País de Nascimento', 'Outra Nacionalidade', 'Residente Permanente de outro país', 'CPF', 'SSN (Seguro Social EUA)', 'Tax ID (ITIN)'],
+            
+            '✈️ Informações da Viagem': ['Propósito da Viagem', 'Data de Chegada nos EUA', 'Locais a Visitar', 'Responsável pelo Pagamento', 'Nome do Pagador', 'Endereço do Pagador', 'Cidade do Pagador', 'Estado do Pagador', 'CEP do Pagador', 'País do Pagador', 'Telefone do Pagador', 'Email do Pagador'],
+            
+            '👥 Acompanhantes': ['Acompanhantes', 'Relação dos Acompanhantes', 'Nome do Grupo'],
+            
+            '🛬 Viagens Anteriores e Vistos': ['Já esteve nos EUA', 'Viagens Anteriores (datas)', 'Duração das Viagens (dias)', 'Possui Carteira de Habilitação dos EUA', 'Número da Habilitação', 'Estado da Habilitação', 'Já teve visto americano', 'Data da Última Emissão do Visto', 'Número do Visto', 'Mesmo tipo de visto', 'Mesmo país/cidade da última aplicação', 'Impressões digitais coletadas', 'Visto cancelado/revogado', 'Visto negado/entrada negada', 'Petição de imigração'],
+            
+            '📞 Endereço e Contato': ['Endereço Residencial', 'Cidade', 'Estado/Província', 'CEP', 'País', 'Telefone Principal', 'Telefone Secundário', 'Telefone do Trabalho', 'Telefones Adicionais', 'E-mail Principal', 'E-mails Adicionais', 'Redes Sociais', 'Presença Adicional em Redes Sociais'],
+            
+            '🛂 Passaporte': ['Número do Passaporte', 'País/Autoridade Emissora', 'Cidade de Emissão', 'Estado de Emissão', 'Data de Emissão', 'Data de Validade', 'Passaporte Perdido/Roubado', 'Número do BO/Observações', 'Número do Passaporte Perdido', 'Data do Ocorrido', 'Local do Ocorrido'],
+            
+            '🇺🇸 Contato nos EUA': ['Pessoa de Contato nos EUA', 'Organização nos EUA', 'Relação com o Contato', 'Endereço nos EUA', 'Telefone nos EUA', 'Email nos EUA'],
+            
+            '👨‍👩‍👧‍👦 Informações Familiares': ['Nome do Pai', 'Data de Nascimento do Pai', 'Pai nos EUA', 'Situação do Pai nos EUA', 'Nome da Mãe', 'Data de Nascimento da Mãe', 'Mãe nos EUA', 'Situação da Mãe nos EUA', 'Parentes Diretos nos EUA', 'Detalhes dos Parentes Diretos', 'Outros Parentes nos EUA', 'Nome do Cônjuge/Ex-Cônjuge', 'Data de Nascimento do Cônjuge', 'Nacionalidade do Cônjuge', 'Cidade de Nascimento do Cônjuge', 'País de Nascimento do Cônjuge', 'Endereço do Cônjuge', 'Cidade do Cônjuge', 'Estado do Cônjuge', 'CEP do Cônjuge', 'País do Cônjuge'],
+            
+            '💼 Trabalho e Educação': ['Ocupação Principal', 'Empregador/Instituição', 'Endereço do Empregador', 'Cidade do Empregador', 'Estado do Empregador', 'CEP do Empregador', 'Telefone do Empregador', 'Data de Início no Emprego', 'Renda Mensal', 'Descrição das Funções', 'Outras Ocupações', 'Empregos Anteriores', 'Cursos/Educação', 'Idiomas (além do Português)', 'Países Visitados (últimos 5 anos)', 'Treinamento Especializado', 'Serviço Militar', 'Ramo Militar', 'Patente Militar', 'Especialidade Militar', 'Data de Início no Serviço Militar', 'Data de Saída do Serviço Militar'],
+            
+            '🔒 Segurança': ['Preso ou Condenado', 'Deportado']
+        };
 
-        // Seção: Passaporte
-        doc.moveDown(1);
-        doc.fontSize(14).fillColor('#003366').text('🛂 Passaporte', { underline: true });
-        doc.moveDown(0.5);
-        doc.fontSize(10).fillColor('#000000');
-        const passaporteCampos = ['Número do Passaporte', 'Data de Emissão', 'Data de Validade', 'Local de Emissão'];
-        for (const label of passaporteCampos) {
-            if (campos[label]) {
-                doc.text(`• ${label}: ${campos[label]}`);
+        for (const [titulo, campos] of Object.entries(secoes)) {
+            const filteredCampos = {};
+            for (const campo of campos) {
+                if (todosCampos[campo]) {
+                    filteredCampos[campo] = todosCampos[campo];
+                }
             }
-        }
-
-        // Seção: Viagem
-        doc.moveDown(1);
-        doc.fontSize(14).fillColor('#003366').text('✈️ Informações de Viagem', { underline: true });
-        doc.moveDown(0.5);
-        doc.fontSize(10).fillColor('#000000');
-        const viagemCampos = ['Consulado', 'Motivo da Viagem', 'Tipo de Visto', 'Data de Chegada', 'Duração da Estadia', 'Endereço nos EUA'];
-        for (const label of viagemCampos) {
-            if (campos[label]) {
-                doc.text(`• ${label}: ${campos[label]}`);
-            }
-        }
-
-        // Seção: Família
-        doc.moveDown(1);
-        doc.fontSize(14).fillColor('#003366').text('👨‍👩‍👧‍👦 Informações Familiares', { underline: true });
-        doc.moveDown(0.5);
-        doc.fontSize(10).fillColor('#000000');
-        const familiaCampos = ['Nome do Pai', 'Data de Nascimento do Pai', 'Nome da Mãe', 'Data de Nascimento da Mãe', 
-                               'Nome do Cônjuge', 'Data de Nascimento do Cônjuge', 'Nacionalidade do Cônjuge'];
-        for (const label of familiaCampos) {
-            if (campos[label]) {
-                doc.text(`• ${label}: ${campos[label]}`);
-            }
-        }
-
-        // Seção: Trabalho
-        doc.moveDown(1);
-        doc.fontSize(14).fillColor('#003366').text('💼 Trabalho e Educação', { underline: true });
-        doc.moveDown(0.5);
-        doc.fontSize(10).fillColor('#000000');
-        const trabalhoCampos = ['Ocupação', 'Empregador', 'Endereço do Empregador', 'Renda Mensal'];
-        for (const label of trabalhoCampos) {
-            if (campos[label]) {
-                doc.text(`• ${label}: ${campos[label]}`);
-            }
+            writeSection(titulo, filteredCampos, doc);
+            doc.moveDown(0.5);
         }
 
         doc.end();
