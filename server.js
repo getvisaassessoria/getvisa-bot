@@ -448,6 +448,78 @@ try {
     console.error('❌ Mensagem de erro:', emailError.message);
 }
 
+// ============================================================
+// 📧 ENVIAR E-MAIL PARA O CLIENTE COM PDF
+// ============================================================
+try {
+    console.log('📧 Tentando enviar e-mail para o cliente...');
+    const clienteEmail = emailValido;
+    
+    if (!clienteEmail || clienteEmail.trim() === '') {
+        console.log('⚠️ Cliente sem e-mail, pulando envio.');
+    } else {
+        // Reutilizar o PDF já gerado (pdfBuffer)
+        let pdfCliente = pdfBuffer;
+        
+        // Se o PDF não foi gerado, tenta gerar novamente
+        if (!pdfCliente) {
+            try {
+                const { data: formDataSaved, error: formError } = await supabase
+                    .from('form_ds160')
+                    .select('*')
+                    .eq('id_cliente', clienteData.id)
+                    .maybeSingle();
+
+                if (formError) {
+                    console.error('❌ Erro ao buscar dados do formulário:', formError);
+                } else if (formDataSaved) {
+                    const dadosParaPDF = formDataSaved.dados_formulario || formDataSaved;
+                    pdfCliente = await gerarPDF_DS160(dadosParaPDF);
+                    console.log('📄 PDF gerado para o cliente, tamanho:', pdfCliente.length, 'bytes');
+                }
+            } catch (pdfError) {
+                console.error('❌ Erro ao gerar PDF para o cliente:', pdfError);
+            }
+        }
+
+        const primeiroNome = nomeValido.split(' ')[0];
+        const emailOptionsCliente = {
+            from: 'GetVisa <contato@getvisa.com.br>',
+            to: clienteEmail,
+            subject: `📋 Seu formulário DS-160 - ${nomeValido}`,
+            html: `
+                <h2>✅ Olá ${primeiroNome}!</h2>
+                <p>Recebemos seu formulário DS-160 com sucesso!</p>
+                <p><strong>📅 Data de envio:</strong> ${new Date().toLocaleString('pt-BR')}</p>
+                <hr>
+                <p><strong>📌 Próximos passos:</strong></p>
+                <ol>
+                    <li><strong>Revise o PDF em anexo</strong> – confira se todos os dados estão corretos.</li>
+                    <li><strong>Aguardar contato da nossa equipe</strong> – em até 24h entraremos em contato.</li>
+                    <li><strong>Iniciaremos o agendamento</strong> da entrevista no Consulado.</li>
+                </ol>
+                <hr>
+                <p>🔗 <strong>Acesse nosso site:</strong> <a href="https://getvisa.com.br">getvisa.com.br</a></p>
+                <p>📱 <strong>Fale conosco:</strong> <a href="https://wa.me/5521974601812">WhatsApp</a></p>
+                <p style="color: #666; font-size: 12px;">Este e-mail foi enviado automaticamente. Por favor, não responda.</p>
+            `
+        };
+
+        if (pdfCliente) {
+            emailOptionsCliente.attachments = [{
+                filename: `DS160_${nomeValido.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`,
+                content: pdfCliente.toString('base64')
+            }];
+            console.log('📎 PDF anexado ao e-mail do cliente');
+        }
+
+        const emailClienteResult = await resend.emails.send(emailOptionsCliente);
+        console.log('📧 E-mail enviado para o cliente com sucesso:', emailClienteResult);
+    }
+} catch (emailClienteError) {
+    console.error('❌ Erro ao enviar e-mail para o cliente:', emailClienteError);
+}
+
         // 4. AVISAR A EQUIPE (SEM PDF - PARA TESTE)
         try {
             await enviarWhatsApp(process.env.ADMIN_PHONE, 
@@ -483,6 +555,8 @@ try {
     }
 });
 
+
+
 // Carregar outras rotas DS-160 (se houver)
 try {
     const ds160Routes = require('./routes/ds160Routes');
@@ -492,82 +566,7 @@ try {
     console.log('⚠️ Erro ao carregar ds160Routes adicionais:', error.message);
 }
 
-// ============================================================
-// 📧 ENVIAR E-MAIL PARA O CLIENTE COM PDF
-// ============================================================
-try {
-    console.log('📧 Tentando enviar e-mail para o cliente...');
-    const clienteEmail = emailValido; // e-mail do cliente
-    
-    // Verifica se o cliente tem e-mail
-    if (!clienteEmail || clienteEmail.trim() === '') {
-        console.log('⚠️ Cliente sem e-mail, pulando envio.');
-    } else {
-        // 🔥 REUTILIZAR O PDF JÁ GERADO (ou gerar novamente)
-        let pdfCliente = pdfBuffer; // usa o mesmo PDF gerado para a equipe
-        
-        // Se o PDF não foi gerado, tenta gerar novamente
-        if (!pdfCliente) {
-            try {
-                const { data: formDataSaved, error: formError } = await supabase
-                    .from('form_ds160')
-                    .select('*')
-                    .eq('id_cliente', clienteData.id)
-                    .maybeSingle();
 
-                if (formError) {
-                    console.error('❌ Erro ao buscar dados do formulário:', formError);
-                } else if (formDataSaved) {
-                    const dadosParaPDF = formDataSaved.dados_formulario || formDataSaved;
-                    pdfCliente = await gerarPDF_DS160(dadosParaPDF);
-                    console.log('📄 PDF gerado para o cliente, tamanho:', pdfCliente.length, 'bytes');
-                }
-            } catch (pdfError) {
-                console.error('❌ Erro ao gerar PDF para o cliente:', pdfError);
-            }
-        }
-
-        // Preparar o e-mail do cliente
-        const primeiroNome = nomeValido.split(' ')[0];
-        const emailOptionsCliente = {
-            from: 'GetVisa <contato@getvisa.com.br>',
-            to: clienteEmail,
-            subject: `📋 Seu formulário DS-160 - ${nomeValido}`,
-            html: `
-                <h2>✅ Olá ${primeiroNome}!</h2>
-                <p>Recebemos seu formulário DS-160 com sucesso!</p>
-                <p><strong>📅 Data de envio:</strong> ${new Date().toLocaleString('pt-BR')}</p>
-                <hr>
-                <p><strong>📌 Próximos passos:</strong></p>
-                <ol>
-                    <li><strong>Revise o PDF em anexo</strong> – confira se todos os dados estão corretos.</li>
-                    <li><strong>Aguardar contato da nossa equipe</strong> – em até 24h entraremos em contato.</li>
-                    <li><strong>Iniciaremos o agendamento</strong> da entrevista no Consulado.</li>
-                </ol>
-                <hr>
-                <p>🔗 <strong>Acesse nosso site:</strong> <a href="https://getvisa.com.br">getvisa.com.br</a></p>
-                <p>📱 <strong>Fale conosco:</strong> <a href="https://wa.me/5521974601812">WhatsApp</a></p>
-                <p style="color: #666; font-size: 12px;">Este e-mail foi enviado automaticamente. Por favor, não responda.</p>
-            `
-        };
-
-        // 🔥 ADICIONAR O PDF COMO ANEXO (SE FOI GERADO)
-        if (pdfCliente) {
-            emailOptionsCliente.attachments = [{
-                filename: `DS160_${nomeValido.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`,
-                content: pdfCliente.toString('base64')
-            }];
-            console.log('📎 PDF anexado ao e-mail do cliente');
-        } else {
-            console.log('⚠️ Nenhum PDF para anexar ao e-mail do cliente');
-        }
-
-        const emailClienteResult = await resend.emails.send(emailOptionsCliente);
-        console.log('📧 E-mail enviado para o cliente com sucesso:', emailClienteResult);
-    }
-} catch (emailClienteError) {
-    console.error('❌ Erro ao enviar e-mail para o cliente:', emailClienteError);
-}
 
 // 7.2 ROTA DE AGENDAMENTOS (PROTEGIDA)
 console.log('🔧 Carregando rotas de Agendamentos...');
