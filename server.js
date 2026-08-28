@@ -106,32 +106,26 @@ app.get('/painel.html', auth.verificarAdmin, (req, res) => {
 // Rota /painel (sem .html) - redireciona para painel.html
 // 🔥 PAINEL DE CLIENTES (corrigido)
 
+// 🔥 PAINEL DE CLIENTES (novo nome para quebrar cache)
 app.get('/painel', auth.verificarAdmin, (req, res) => {
-    const painelPath = path.join(__dirname, 'public', 'painel.html');
+    const painelPath = path.join(__dirname, 'public', 'painel-novo.html');
     if (fs.existsSync(painelPath)) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
         res.sendFile(painelPath);
     } else {
-        res.send('<h1>📊 Painel</h1><p>Arquivo painel.html não encontrado.</p>');
+        res.send('<h1>📊 Painel</h1><p>Arquivo painel-novo.html não encontrado.</p>');
     }
-});
-app.get('/painel', auth.verificarAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'painel.html'));
 });
 
 app.get('/painel.html', auth.verificarAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'painel.html'));
-});
-
-// 🔥 PAINEL DE AGENDAMENTOS (rota separada)
-app.get('/agendar-treinamento', auth.verificarAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'agendar-treinamento.html'));
-});
-
-app.get('/agendar-treinamento.html', auth.verificarAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'agendar-treinamento.html'));
+    const painelPath = path.join(__dirname, 'public', 'painel-novo.html');
+    if (fs.existsSync(painelPath)) {
+        res.sendFile(painelPath);
+    } else {
+        res.send('<h1>📊 Painel</h1><p>Arquivo painel-novo.html não encontrado.</p>');
+    }
 });
 
 
@@ -4173,7 +4167,7 @@ app.get('/api/dashboard-data', async (req, res) => {
         // Buscar etapas dos clientes
         const { data: etapas, error: etapasError } = await supabase
             .from('etapas_processo')
-            .select('cliente_telefone, etapa_atual, data_atualizacao');
+            .select('cliente_id, etapa_atual, data_atualizacao');
 
         if (etapasError) {
             console.error('❌ Erro ao buscar etapas:', etapasError);
@@ -4184,7 +4178,7 @@ app.get('/api/dashboard-data', async (req, res) => {
         const etapasMap = {};
         if (etapas) {
             etapas.forEach(etapa => {
-                etapasMap[etapa.cliente_telefone] = {
+                etapasMap[etapa.cliente_id] = {
                     etapa_atual: etapa.etapa_atual,
                     data_atualizacao: etapa.data_atualizacao
                 };
