@@ -4210,13 +4210,25 @@ app.get('/api/dashboard-data', async (req, res) => {
     }
 });
 
-// Dashboard Central
+// ============================================================
+// DASHBOARD CENTRAL
+// ============================================================
 app.get('/dashboard', auth.verificarAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+    const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
+    if (fs.existsSync(dashboardPath)) {
+        res.sendFile(dashboardPath);
+    } else {
+        res.send('<h1>📊 Dashboard</h1><p>Arquivo dashboard.html não encontrado.</p>');
+    }
 });
 
 app.get('/dashboard.html', auth.verificarAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+    const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
+    if (fs.existsSync(dashboardPath)) {
+        res.sendFile(dashboardPath);
+    } else {
+        res.send('<h1>📊 Dashboard</h1><p>Arquivo dashboard.html não encontrado.</p>');
+    }
 });
 
 // ============================================================
