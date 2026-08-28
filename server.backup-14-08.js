@@ -608,7 +608,7 @@ app.post(
           data: existente,
           error: selectError
         } = await supabase
-          .from('clientes_novos')
+          .from('clientes')
           .select(
             'id, telefone, nome, email, status, onboarding_completo'
           )
@@ -650,7 +650,7 @@ app.post(
           const {
             error: updateError
           } = await supabase
-            .from('clientes_novos')
+            .from('clientes')
             .update(dadosAtualizacao)
             .eq('id', existente.id);
 
@@ -684,7 +684,7 @@ app.post(
           const {
             error: insertError
           } = await supabase
-            .from('clientes_novos')
+            .from('clientes')
             .insert(dadosNovoCliente);
 
           if (insertError) {
@@ -709,7 +709,7 @@ app.post(
               const {
                 error: conflitoError
               } = await supabase
-                .from('clientes_novos')
+                .from('clientes')
                 .update(dadosConflito)
                 .eq('telefone', telefoneParaSupabase);
 
@@ -1042,7 +1042,7 @@ app.get(
         data: clientes,
         error: clientesError
       } = await supabase
-        .from('clientes_novos')
+        .from('clientes')
         .select(
           'id, telefone, nome, email, status, onboarding_completo, data_contato'
         )

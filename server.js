@@ -4645,3 +4645,15 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📞 ADMIN_PHONE configurado: ${process.env.ADMIN_PHONE ? '✅ Sim' : '❌ Não'}`);
     console.log('⏰ Cron job de lembretes agendado para rodar a cada 5 minutos.');
 });
+// Dashboard Central (novo nome)
+app.get('/dashboard-novo.html', auth.verificarAdmin, (req, res) => {
+    const dashboardPath = path.join(__dirname, 'public', 'dashboard-novo.html');
+    if (fs.existsSync(dashboardPath)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.sendFile(dashboardPath);
+    } else {
+        res.send('<h1>📊 Dashboard</h1><p>Arquivo dashboard-novo.html não encontrado.</p>');
+    }
+});

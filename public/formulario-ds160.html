@@ -272,10 +272,10 @@
                 <select name="consulado" required>
                     <option value="">Selecione...</option>
                     <option value="BRASILIA">Brasília</option>
-                    <option value="RIO_DE_JANEIRO">Rio de Janeiro</option>
-                    <option value="SAO_PAULO">São Paulo</option>
+                    <option value="RIO DE JANEIRO">Rio de Janeiro</option>
+                    <option value="SAO PAULO">São Paulo</option>
                     <option value="RECIFE">Recife</option>
-                    <option value="PORTO_ALEGRE">Porto Alegre</option>
+                    <option value="PORTO ALEGRE">Porto Alegre</option>
                 </select>
             </div>
 
@@ -1904,6 +1904,7 @@ function getFormData() {
     document.querySelectorAll('#ds160Form input, #ds160Form select, #ds160Form textarea').forEach(function(el) {
         if (el.name) data[el.name] = el.value;
     });
+    console.log('📌 Ocupação selecionada:', data['radio-occupation']);
     return data;
 }
 
