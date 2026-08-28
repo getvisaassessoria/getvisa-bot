@@ -4213,18 +4213,13 @@ app.get('/api/dashboard-data', async (req, res) => {
 // ============================================================
 // DASHBOARD CENTRAL
 // ============================================================
+
 app.get('/dashboard', auth.verificarAdmin, (req, res) => {
     const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
     if (fs.existsSync(dashboardPath)) {
-        res.sendFile(dashboardPath);
-    } else {
-        res.send('<h1>📊 Dashboard</h1><p>Arquivo dashboard.html não encontrado.</p>');
-    }
-});
-
-app.get('/dashboard.html', auth.verificarAdmin, (req, res) => {
-    const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
-    if (fs.existsSync(dashboardPath)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
         res.sendFile(dashboardPath);
     } else {
         res.send('<h1>📊 Dashboard</h1><p>Arquivo dashboard.html não encontrado.</p>');
