@@ -4210,6 +4210,15 @@ app.get('/api/dashboard-data', async (req, res) => {
     }
 });
 
+// Dashboard Central
+app.get('/dashboard', auth.verificarAdmin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+app.get('/dashboard.html', auth.verificarAdmin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
 // ============================================================
 // 22. AGENDAR TREINAMENTO (via página)
 // ============================================================
