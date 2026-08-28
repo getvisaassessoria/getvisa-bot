@@ -106,16 +106,22 @@ app.get('/painel.html', auth.verificarAdmin, (req, res) => {
 // Rota /painel (sem .html) - redireciona para painel.html
 // 🔥 PAINEL DE CLIENTES (corrigido)
 
-// 🔥 PAINEL DE CLIENTES (novo nome para quebrar cache)
+// 🔥 PAINEL DE CLIENTES
 app.get('/painel', auth.verificarAdmin, (req, res) => {
-    const painelPath = path.join(__dirname, 'public', 'painel-novo.html');
+    const painelPath = path.join(__dirname, 'public', 'painel-clientes.html');
     if (fs.existsSync(painelPath)) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
         res.sendFile(painelPath);
     } else {
-        res.send('<h1>📊 Painel</h1><p>Arquivo painel-novo.html não encontrado.</p>');
+        // Fallback para painel-novo.html
+        const fallback = path.join(__dirname, 'public', 'painel-novo.html');
+        if (fs.existsSync(fallback)) {
+            res.sendFile(fallback);
+        } else {
+            res.send('<h1>📊 Painel de Clientes</h1><p>Arquivo não encontrado.</p>');
+        }
     }
 });
 
@@ -752,6 +758,16 @@ app.get('/formulario-ds160.html', (req, res) => {
         res.sendFile(formPath);
     } else {
         res.redirect('/');
+    }
+});
+
+// 🔥 PAINEL DE AGENDAMENTOS (rota separada)
+app.get('/agendamentos', auth.verificarAdmin, (req, res) => {
+    const adminPath = path.join(__dirname, 'public', 'admin.html');
+    if (fs.existsSync(adminPath)) {
+        res.sendFile(adminPath);
+    } else {
+        res.send('<h1>📅 Agendamentos</h1><p>Arquivo não encontrado.</p>');
     }
 });
 

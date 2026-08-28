@@ -49,6 +49,7 @@
             border: 2px solid transparent;
             text-decoration: none;
             color: #333;
+            cursor: pointer;
         }
         .card:hover {
             border-color: #003366;
@@ -77,6 +78,13 @@
             font-size: 11px;
             margin-top: 8px;
         }
+        .card .badge.publico {
+            background: #28a745;
+        }
+        .card .badge.novo {
+            background: #ffc107;
+            color: #333;
+        }
         .footer {
             text-align: center;
             margin-top: 30px;
@@ -93,6 +101,12 @@
             font-weight: 600;
         }
         .logout-btn:hover { text-decoration: underline; }
+        .version {
+            display: block;
+            margin-top: 5px;
+            font-size: 11px;
+            color: #aaa;
+        }
         @media (max-width: 600px) {
             .dashboard { padding: 20px; }
             .grid { grid-template-columns: 1fr; }
@@ -105,44 +119,50 @@
     <p class="subtitle">Acesse todos os painéis administrativos em um só lugar</p>
 
     <div class="grid">
-        <a href="/painel" class="card">
+        <!-- 👥 CLIENTES - com chave admin -->
+        <a href="/painel?api_key=admin123" class="card">
             <div class="icon">👥</div>
             <h3>Clientes</h3>
             <p>Visualize e gerencie todos os clientes</p>
             <span class="badge">Ativo</span>
         </a>
 
-        <a href="/admin.html" class="card">
+        <!-- 📅 AGENDAMENTOS - com chave admin -->
+        <a href="/admin.html?api_key=admin123" class="card">
             <div class="icon">📅</div>
             <h3>Agendamentos</h3>
             <p>Gerencie agendamentos e treinamentos</p>
             <span class="badge">Ativo</span>
         </a>
 
+        <!-- 📋 FORMULÁRIO - público -->
         <a href="/formulario-ds160" class="card">
             <div class="icon">📋</div>
             <h3>Formulário DS-160</h3>
             <p>Preencher novo formulário</p>
-            <span class="badge">Público</span>
+            <span class="badge publico">Público</span>
         </a>
 
+        <!-- 📊 SIMULADOR - público -->
         <a href="/simulador-visto-americano" class="card">
             <div class="icon">📊</div>
             <h3>Simulador de Perfil</h3>
             <p>Avaliação gratuita de perfil</p>
-            <span class="badge">Público</span>
+            <span class="badge publico">Público</span>
         </a>
 
-        <a href="/painel" class="card" style="border-color: #28a745;">
+        <!-- 📈 DASHBOARD - público -->
+        <a href="/dashboard-novo.html" class="card" style="border-color: #28a745;">
             <div class="icon">📈</div>
             <h3>Dashboard</h3>
             <p>Estatísticas e métricas</p>
-            <span class="badge" style="background: #28a745;">Novo</span>
+            <span class="badge novo">Novo</span>
         </a>
     </div>
 
     <div class="footer">
         <p>GetVisa Assessoria - Sistema de Gestão</p>
+        <span class="version">v2.0 - Atualizado em 28/08/2026</span>
         <a href="/admin-login.html" class="logout-btn">🚪 Sair</a>
     </div>
 </div>
