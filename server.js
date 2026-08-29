@@ -732,13 +732,20 @@ app.get('/', (req, res) => {
 });
 
 
-// 🔥 ROTA DIRETA PARA O FORMULÁRIO (SEM REDIRECIONAMENTO)
+// 🔥 ROTA DIRETA PARA O FORMULÁRIO DS-160
 app.get('/formulario-ds160', (req, res) => {
-    const dashboardPath = path.join(__dirname, 'public', 'index.html');
+    const formPath = path.join(__dirname, 'public', 'formulario-ds160.html');
+    
     if (fs.existsSync(formPath)) {
-        res.sendFile(dashboardPath);
+        res.sendFile(formPath);
     } else {
-        res.redirect('/');
+        console.error('❌ formulario-ds160.html não encontrado!');
+        res.status(404).send(`
+            <h1>Formulário não encontrado</h1>
+            <p>O arquivo formulario-ds160.html não foi encontrado.</p>
+            <p>Por favor, entre em contato com o suporte.</p>
+            <a href="/">Voltar para a página inicial</a>
+        `);
     }
 });
 
