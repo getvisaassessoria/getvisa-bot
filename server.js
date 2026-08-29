@@ -720,13 +720,13 @@ console.log('✅ ROTA /api/agendamentos/upload-pdf REGISTRADA COM SUCESSO!');
 // 9. ROTA PRINCIPAL - DASHBOARD
 // ============================================================
 app.get('/', (req, res) => {
-    const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
+    const dashboardPath = path.join(__dirname, 'public', 'index.html');
     if (fs.existsSync(dashboardPath)) {
         res.sendFile(dashboardPath);
     } else {
         res.send(`
             <h1>📊 Dashboard</h1>
-            <p>Arquivo não encontrado. Copie <code>dashboard.html</code> para a pasta <code>public/</code></p>
+            <p>Arquivo não encontrado. Copie <code>index.html</code> para a pasta <code>public/</code></p>
         `);
     }
 });
@@ -734,7 +734,7 @@ app.get('/', (req, res) => {
 
 // 🔥 ROTA DIRETA PARA O FORMULÁRIO (SEM REDIRECIONAMENTO)
 app.get('/formulario-ds160', (req, res) => {
-    const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
+    const dashboardPath = path.join(__dirname, 'public', 'index.html');
     if (fs.existsSync(formPath)) {
         res.sendFile(dashboardPath);
     } else {
@@ -4213,14 +4213,14 @@ app.get('/api/dashboard-data', async (req, res) => {
 // ============================================================
 
 app.get('/dashboard', auth.verificarAdmin, (req, res) => {
-    const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
+    const dashboardPath = path.join(__dirname, 'public', 'index.html');
     if (fs.existsSync(dashboardPath)) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
         res.sendFile(dashboardPath);
     } else {
-        res.send('<h1>📊 Dashboard</h1><p>Arquivo dashboard.html não encontrado.</p>');
+        res.send('<h1>📊 Dashboard</h1><p>Arquivo index.html não encontrado.</p>');
     }
 });
 
