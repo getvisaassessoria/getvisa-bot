@@ -734,9 +734,9 @@ app.get('/', (req, res) => {
 
 // 🔥 ROTA DIRETA PARA O FORMULÁRIO (SEM REDIRECIONAMENTO)
 app.get('/formulario-ds160', (req, res) => {
-    const formPath = path.join(__dirname, 'public', 'formulario-ds160.html');
+    const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
     if (fs.existsSync(formPath)) {
-        res.sendFile(formPath);
+        res.sendFile(dashboardPath);
     } else {
         res.redirect('/');
     }
