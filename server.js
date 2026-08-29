@@ -43,11 +43,13 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(auth.logAcesso);
 
+// Middleware para log de requisições
 app.use((req, res, next) => {
-    console.log(`📨 ${req.method} ${req.url}`);
-    next();
+  console.log(`📨 ${req.method} ${req.url}`);
+  next();
 });
 
+// Servir arquivos estáticos da pasta public
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================================================
