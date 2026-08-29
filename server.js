@@ -717,16 +717,16 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
 console.log('✅ ROTA /api/agendamentos/upload-pdf REGISTRADA COM SUCESSO!');
 
 // ============================================================
-// 9. ROTA PRINCIPAL DO FORMULÁRIO (PÚBLICA)
+// 9. ROTA PRINCIPAL - DASHBOARD
 // ============================================================
 app.get('/', (req, res) => {
-    const formPath = path.join(__dirname, 'public', 'formulario-ds160.html');
-    if (fs.existsSync(formPath)) {
-        res.sendFile(formPath);
+    const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
+    if (fs.existsSync(dashboardPath)) {
+        res.sendFile(dashboardPath);
     } else {
         res.send(`
-            <h1>📋 Formulário DS-160</h1>
-            <p>Arquivo não encontrado. Copie <code>formulario-ds160.html</code> para a pasta <code>public/</code></p>
+            <h1>📊 Dashboard</h1>
+            <p>Arquivo não encontrado. Copie <code>dashboard.html</code> para a pasta <code>public/</code></p>
         `);
     }
 });
@@ -742,14 +742,6 @@ app.get('/formulario-ds160', (req, res) => {
     }
 });
 
-app.get('/formulario-ds160.html', (req, res) => {
-    const formPath = path.join(__dirname, 'public', 'formulario-ds160.html');
-    if (fs.existsSync(formPath)) {
-        res.sendFile(formPath);
-    } else {
-        res.redirect('/');
-    }
-});
 
 // 🔥 PAINEL DE AGENDAMENTOS (rota separada)
 app.get('/agendamentos', auth.verificarAdmin, (req, res) => {
