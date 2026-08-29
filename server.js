@@ -3308,21 +3308,12 @@ app.get('/api/clientes/buscar/:telefone', async function(req, res) {
 
         console.log(`🔍 Buscando cliente: ${telefoneLimpo}`);
 
-        let { data, error } = await supabase
-            .from('clientes_ativos')
+        // 🔥 CORREÇÃO: Usar APENAS a tabela 'clientes'
+        const { data, error } = await supabase
+            .from('clientes')
             .select('*')
             .eq('telefone', telefoneLimpo)
             .maybeSingle();
-
-        if (!data) {
-            const telefoneFormatado = formatarTelefone(telefoneLimpo);
-            const { data: dataFormatado } = await supabase
-                .from('clientes_ativos')
-                .select('*')
-                .eq('telefone', telefoneFormatado)
-                .maybeSingle();
-            data = dataFormatado;
-        }
 
         if (error) {
             console.error('❌ Erro:', error);
