@@ -2235,19 +2235,6 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
-        if (intent === 'visto_americano') {
-            state.nivel = 'submenu';
-            state.service = 'visto_americano';
-            userState.set(cleanPhone, state);
-            try {
-                const submenuTexto = getSubmenu('visto_americano');
-                await sendReply(cleanPhone, submenuTexto);
-            } catch (err) {
-                console.error('❌ Erro ao gerar submenu americano:', err);
-                await sendReply(cleanPhone, '🇺🇸 VISTO AMERICANO\n\nDigite 0 para voltar ao menu principal.');
-            }
-            return;
-        }
 
         if (intent) {
             try {
@@ -2359,6 +2346,207 @@ if (intent === 'feedback') {
     await sendReply(cleanPhone, mensagem);
     return;
 }
+
+// ============================================================
+// TRATAMENTO PARA DOCUMENTOS (BUSCA O SERVIÇO DO CLIENTE)
+// ============================================================
+if (intent === 'documentos') {
+    console.log('📄 Cliente perguntou sobre documentos');
+    
+    try {
+        // Buscar o serviço/status do cliente no Supabase
+        const { data: cliente, error } = await supabase
+            .from('clientes')
+            .select('status, etapa_atual, nome, consulado')
+            .eq('telefone', cleanPhone)
+            .maybeSingle();
+        
+        // Determinar o serviço com base nos dados do cliente
+        let servico = 'visto_americano'; // padrão
+        let servicoLabel = 'Visto Americano';
+        
+        if (cliente) {
+            // Se tem consulado BRASILIA, provavelmente é Visto Americano
+            if (cliente.consulado && cliente.consulado.toUpperCase().includes('BRASILIA')) {
+                servico = 'visto_americano';
+                servicoLabel = 'Visto Americano (B1/B2)';
+            }
+            // Se tiver outro consulado, pode ser outro visto
+            else if (cliente.consulado) {
+                servico = 'visto_americano';
+                servicoLabel = `Visto Americano (${cliente.consulado})`;
+            }
+        }
+        
+        // Buscar a mensagem específica do serviço
+        const respostasDocs = {
+            'visto_americano': `📄 *DOCUMENTOS - VISTO AMERICANO (B1/B2)*\n\n` +
+                `📌 *Documentos obrigatórios:*\n` +
+                `• Passaporte válido (mínimo 6 meses de validade)\n` +
+                `• Foto 5x7 recente (fundo branco)\n` +
+                `• Comprovante de pagamento da taxa consular (MRV)\n` +
+                `• DS-160 preenchido e confirmado\n` +
+                `• Agendamento da entrevista\n\n` +
+                `📌 *Documentos recomendados:*\n` +
+                `• Comprovante de renda (holerites, declaração IR)\n` +
+                `• Extratos bancários dos últimos 3 meses\n` +
+                `• Comprovante de imóvel ou veículo\n` +
+                `• Comprovante de vínculo com o Brasil (emprego, família)\n` +
+                `• Histórico de viagens internacionais\n\n` +
+                `💡 *Dica:* Leve TODOS os documentos originais no dia da entrevista!\n\n` +
+                `📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+                `Digite 0 para o menu principal`,
+            
+            'visto_canadense': `📄 *DOCUMENTOS - VISTO CANADENSE*\n\n` +
+                `📌 *Documentos obrigatórios:*\n` +
+                `• Passaporte válido\n` +
+                `• Foto digital (especificações do IRCC)\n` +
+                `• Comprovantes financeiros\n` +
+                `• Formulário IMM 5257\n\n` +
+                `📌 *Documentos recomendados:*\n` +
+                `• Carta de intenção\n` +
+                `• Histórico de viagens\n` +
+                `• Vínculos com o Brasil\n\n` +
+                `Digite 0 para o menu principal`,
+            
+            'eta_uk': `📄 *DOCUMENTOS - eTA UK*\n\n` +
+                `📌 *Documentos obrigatórios:*\n` +
+                `• Passaporte válido\n` +
+                `• E-mail válido\n` +
+                `• Dados de viagem\n\n` +
+                `💡 *Processo 100% online!*\n\n` +
+                `Digite 0 para o menu principal`,
+            
+            'passaporte': `📄 *DOCUMENTOS - PASSAPORTE*\n\n` +
+                `📌 *Documentos obrigatórios:*\n` +
+                `• RG original\n` +
+                `• CPF\n` +
+                `• Título de eleitor (homens 18-70)\n` +
+                `• Certidão de nascimento/casamento\n` +
+                `• Comprovante de quitação militar (homens)\n\n` +
+                `📍 *Onde fazer:* Polícia Federal (agendamento online)\n\n` +
+                `Digite 0 para o menu principal`
+        };
+        
+        const resposta = respostasDocs[servico] || respostasDocs['visto_americano'];
+        
+        // Adicionar saudação personalizada
+        const nomeCliente = cliente?.nome || state.nome || 'Cliente';
+        const saudacao = `📋 *Olá ${nomeCliente.split(' ')[0]}!*\n\nAqui estão os documentos necessários para o seu *${servicoLabel}*:\n\n`;
+        
+        await sendReply(cleanPhone, saudacao + resposta);
+        return;
+        
+    } catch (err) {
+        console.error('❌ Erro ao buscar documentos:', err);
+        await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro ao buscar os documentos. Digite 0 para o menu principal.');
+        return;
+    }
+}
+
+// ============================================================
+// TRATAMENTO PARA PRAZO (BUSCA O SERVIÇO DO CLIENTE)
+// ============================================================
+if (intent === 'prazo') {
+    console.log('⏱️ Cliente perguntou sobre prazo');
+    
+    try {
+        const { data: cliente, error } = await supabase
+            .from('clientes')
+            .select('status, etapa_atual, nome, consulado')
+            .eq('telefone', cleanPhone)
+            .maybeSingle();
+        
+        let servico = 'visto_americano';
+        let servicoLabel = 'Visto Americano';
+        
+        if (cliente?.consulado) {
+            servico = 'visto_americano';
+            servicoLabel = `Visto Americano (${cliente.consulado})`;
+        }
+        
+        const respostasPrazo = {
+            'visto_americano': `⏱️ *PRAZO - VISTO AMERICANO*\n\n` +
+                `📌 *Etapas e prazos:*\n` +
+                `• Pré-agendamento: 2 a 3 dias úteis\n` +
+                `• Agendamento CASV: 1 a 2 semanas\n` +
+                `• Agendamento entrevista: 2 a 4 semanas\n` +
+                `• Análise consular: 7 a 10 dias úteis\n` +
+                `• Retorno do passaporte: 5 a 7 dias úteis\n\n` +
+                `⏳ *Total estimado:* 30 a 60 dias\n\n` +
+                `💡 *Dica:* Quanto antes preencher o DS-160, mais rápido o processo!\n\n` +
+                `Digite 0 para o menu principal`,
+            
+            'visto_canadense': `⏱️ *PRAZO - VISTO CANADENSE*\n\n` +
+                `• Processamento: 4 a 8 semanas\n` +
+                `• Retorno: 2 a 3 dias úteis\n\n` +
+                `⏳ *Total estimado:* 30 a 60 dias\n\n` +
+                `Digite 0 para o menu principal`
+        };
+        
+        const resposta = respostasPrazo[servico] || respostasPrazo['visto_americano'];
+        const nomeCliente = cliente?.nome || state.nome || 'Cliente';
+        const saudacao = `⏱️ *Olá ${nomeCliente.split(' ')[0]}!*\n\nAqui estão os prazos para o seu *${servicoLabel}*:\n\n`;
+        
+        await sendReply(cleanPhone, saudacao + resposta);
+        return;
+        
+    } catch (err) {
+        console.error('❌ Erro ao buscar prazo:', err);
+        await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro ao buscar os prazos. Digite 0 para o menu principal.');
+        return;
+    }
+}
+
+// ============================================================
+// TRATAMENTO PARA PAGAMENTO (BUSCA O SERVIÇO DO CLIENTE)
+// ============================================================
+if (intent === 'pagamento') {
+    console.log('💰 Cliente perguntou sobre pagamento');
+    
+    try {
+        const { data: cliente, error } = await supabase
+            .from('clientes')
+            .select('status, etapa_atual, nome, consulado')
+            .eq('telefone', cleanPhone)
+            .maybeSingle();
+        
+        const respostasPagamento = {
+            'visto_americano': `💰 *INVESTIMENTO - VISTO AMERICANO*\n\n` +
+                `💵 *Taxa Consular:* ~R$ 950,00 (MRV)\n` +
+                `💼 *Assessoria GetVisa:* R$ 350,00\n\n` +
+                `✅ *Inclui:*\n` +
+                `• Preenchimento DS-160\n` +
+                `• Agendamento CASV e entrevista\n` +
+                `• Preparação para entrevista\n` +
+                `• Acompanhamento total\n\n` +
+                `💳 *Formas de pagamento:*\n` +
+                `• PIX\n` +
+                `• Cartão de crédito (parcelado)\n` +
+                `• Boleto bancário\n\n` +
+                `Digite 0 para o menu principal`,
+            
+            'visto_canadense': `💰 *INVESTIMENTO - VISTO CANADENSE*\n\n` +
+                `💵 *Taxa Consular:* ~R$ 750,00\n` +
+                `💼 *Assessoria GetVisa:* R$ 400,00\n\n` +
+                `Digite 0 para o menu principal`
+        };
+        
+        const servico = cliente?.consulado ? 'visto_americano' : 'visto_americano';
+        const resposta = respostasPagamento[servico] || respostasPagamento['visto_americano'];
+        const nomeCliente = cliente?.nome || state.nome || 'Cliente';
+        const saudacao = `💰 *Olá ${nomeCliente.split(' ')[0]}!*\n\nAqui estão as informações de investimento:\n\n`;
+        
+        await sendReply(cleanPhone, saudacao + resposta);
+        return;
+        
+    } catch (err) {
+        console.error('❌ Erro ao buscar pagamento:', err);
+        await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro. Digite 0 para o menu principal.');
+        return;
+    }
+}
+
 }
 
 
