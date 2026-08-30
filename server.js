@@ -1404,6 +1404,55 @@ function detectarIntencao(mensagem) {
 
   console.log('DEBUG detectarIntencao: Nenhuma intenção específica detectada, retornando desconhecida.');
   return 'desconhecida';
+
+  // ============================================================
+// NOVAS INTENÇÕES
+// ============================================================
+
+// Indicar amigo/contato
+if (
+  [
+    'indicar', 'recomendar', 'amigo', 'conhecido', 'contato de amigo',
+    'posso indicar', 'quero indicar', 'indicacao', 'recomendacao'
+  ].some((item) => texto.includes(item))
+) {
+  console.log('DEBUG detectarIntencao: Intenção detectada: indicar_amigo');
+  return 'indicar_amigo';
+}
+
+// Falar com especialista (já existe 'ajuda', mas vamos reforçar)
+if (
+  [
+    'falar com especialista', 'falar com atendente', 'falar com humano',
+    'quero falar com alguem', 'preciso de ajuda especializada',
+    'duvida nao contemplada', 'caso especifico', 'situacao diferente'
+  ].some((item) => texto.includes(item))
+) {
+  console.log('DEBUG detectarIntencao: Intenção detectada: falar_especialista');
+  return 'falar_especialista';
+}
+
+// Dúvida geral (não relacionada ao processo)
+if (
+  [
+    'duvida', 'pergunta', 'esclarecimento', 'informacao adicional',
+    'nao entendi', 'pode me explicar', 'gostaria de saber'
+  ].some((item) => texto.includes(item))
+) {
+  console.log('DEBUG detectarIntencao: Intenção detectada: duvida_geral');
+  return 'duvida_geral';
+}
+
+// Elogio ou feedback
+if (
+  [
+    'otimo', 'excelente', 'muito bom', 'gostei', 'parabens',
+    'feedback', 'avaliacao'
+  ].some((item) => texto.includes(item))
+) {
+  console.log('DEBUG detectarIntencao: Intenção detectada: feedback');
+  return 'feedback';
+}
 }
 
 function obterNomeExibicao(nome) {
@@ -2225,6 +2274,91 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
         console.error('❌ Stack:', error.stack);
         await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro ao processar sua solicitação. Digite 0 para tentar novamente.');
     }
+
+    // ============================================================
+// TRATAMENTO PARA INDICAR AMIGO
+// ============================================================
+if (intent === 'indicar_amigo') {
+    const mensagem = `👥 *INDICAR AMIGO - GETVISA*\n\n` +
+        `Que legal que você quer indicar a GetVisa para um amigo! 🌟\n\n` +
+        `📱 *Compartilhe nosso contato:*\n` +
+        `WhatsApp: [Clique aqui](https://wa.me/5521974601812)\n\n` +
+        `🌐 *Site:* getvisa.com.br\n\n` +
+        `📋 *Formulário:* https://app.getvisa.com.br/formulario-ds160\n\n` +
+        `💡 *Dica:* Seu amigo pode preencher o formulário e agendar uma consultoria gratuita!\n\n` +
+        `🎁 *Você ganha:* Ao indicar um amigo que feche o processo, você ganha 10% de desconto no seu processo!\n\n` +
+        `📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+        `Digite 0 para o menu principal`;
+    
+    await sendReply(cleanPhone, mensagem);
+    return;
+}
+
+// ============================================================
+// TRATAMENTO PARA FALAR COM ESPECIALISTA
+// ============================================================
+if (intent === 'falar_especialista') {
+    const nomeCliente = state.nome || 'Cliente';
+    const mensagem = `👨‍💼 *FALAR COM ESPECIALISTA - GETVISA*\n\n` +
+        `Olá ${nomeCliente.split(' ')[0]}! Entendi que você tem uma situação específica.\n\n` +
+        `📱 *Entre em contato diretamente com nosso especialista:*\n` +
+        `[Clique aqui para falar no WhatsApp](https://wa.me/5521974601812)\n\n` +
+        `📧 *Ou por e-mail:* contato@getvisa.com.br\n\n` +
+        `📌 *Informações úteis:*\n` +
+        `• Horário de atendimento: Seg-Sex, 9h às 18h\n` +
+        `• Tempo de resposta: até 2 horas\n` +
+        `• Análise gratuita de casos\n\n` +
+        `📋 *Já preencheu o formulário?* https://app.getvisa.com.br/formulario-ds160\n\n` +
+        `💡 *Nos conte:* Qual é a sua dúvida específica? Assim podemos te ajudar melhor.\n\n` +
+        `Digite 0 para o menu principal`;
+    
+    await sendReply(cleanPhone, mensagem);
+    return;
+}
+
+// ============================================================
+// TRATAMENTO PARA DÚVIDA GERAL
+// ============================================================
+if (intent === 'duvida_geral') {
+    const nomeCliente = state.nome || 'Cliente';
+    const mensagem = `🤔 *DÚVIDA GERAL - GETVISA*\n\n` +
+        `Olá ${nomeCliente.split(' ')[0]}! Entendi que você tem uma pergunta.\n\n` +
+        `📌 *Para dúvidas específicas, consulte:*\n\n` +
+        `1️⃣ *Documentos:* Quais documentos são necessários para o visto\n` +
+        `2️⃣ *Prazo:* Quanto tempo demora o processo\n` +
+        `3️⃣ *Status:* Como está o andamento do seu processo\n` +
+        `4️⃣ *Valores:* Quanto custa o visto e a assessoria\n\n` +
+        `📋 *Formulário DS-160:* https://app.getvisa.com.br/formulario-ds160\n\n` +
+        `📱 *Fale com um especialista:* [Clique aqui](https://wa.me/5521974601812)\n\n` +
+        `💡 *Dica:* Se sua dúvida não estiver listada, fale diretamente com nosso especialista!\n\n` +
+        `Digite 0 para o menu principal`;
+    
+    await sendReply(cleanPhone, mensagem);
+    return;
+}
+
+// ============================================================
+// TRATAMENTO PARA FEEDBACK
+// ============================================================
+if (intent === 'feedback') {
+    const nomeCliente = state.nome || 'Cliente';
+    const mensagem = `⭐ *FEEDBACK - GETVISA*\n\n` +
+        `Olá ${nomeCliente.split(' ')[0]}! Ficamos muito felizes com seu feedback! 🌟\n\n` +
+        `📝 *Sua opinião é muito importante para nós.*\n\n` +
+        `📱 *Compartilhe sua experiência:*\n` +
+        `[Clique aqui para nos dar um feedback](https://wa.me/5521974601812)\n\n` +
+        `📧 *Ou por e-mail:* contato@getvisa.com.br\n\n` +
+        `⭐ *Avalie nosso atendimento:*\n` +
+        `• Excelente\n` +
+        `• Bom\n` +
+        `• Regular\n` +
+        `• Precisa melhorar\n\n` +
+        `💡 *Sugestões são sempre bem-vindas!*\n\n` +
+        `Digite 0 para o menu principal`;
+    
+    await sendReply(cleanPhone, mensagem);
+    return;
+}
 }
 
 
