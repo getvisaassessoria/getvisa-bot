@@ -2065,6 +2065,9 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
     console.log('Mensagem recebida: "' + messageText + '"');
 
     try {
+        // ============================================================
+        // 1. MAPEAMENTO DE SERVIÇOS (OPÇÕES NUMÉRICAS 1-6)
+        // ============================================================
         const servicoMap = {
             '1': 'visto_americano',
             '2': 'visto_canadense',
@@ -2092,18 +2095,24 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
+        // ============================================================
+        // 2. OPÇÃO 7 - AJUDA / CONTATO
+        // ============================================================
         if (messageText === '7') {
-            const ajudaMsg = '📞 AJUDA / CONTATO GETVISA\n\n' +
-                            '👨‍💼 Moisés - Especialista em Vistos\n\n' +
-                            '📱 WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n' +
-                            '📧 E-mail: contato@getvisa.com.br\n\n' +
-                            '🌐 Site: <a href="https://getvisa.com.br" target="_blank" style="text-decoration: underline;">https://getvisa.com.br</a>\n\n' +
-                            '⏰ Horário: Seg-Sex, 9h às 18h\n\n' +
-                            'Digite 0 para voltar ao MENU principal';
+            const ajudaMsg = '📞 *AJUDA / CONTATO GETVISA*\n\n' +
+                '👨‍💼 *Moisés - Especialista em Vistos*\n\n' +
+                '📱 WhatsApp: [Clique aqui](https://wa.me/5521974601812)\n' +
+                '📧 E-mail: contato@getvisa.com.br\n' +
+                '🌐 Site: getvisa.com.br\n\n' +
+                '⏰ *Horário:* Seg-Sex, 9h às 18h\n\n' +
+                'Digite 0 para o MENU principal';
             await sendReply(cleanPhone, ajudaMsg);
             return;
         }
 
+        // ============================================================
+        // 3. DETECTAR INTENÇÃO
+        // ============================================================
         let intent = null;
         try {
             intent = detectarIntencao(messageText);
@@ -2113,114 +2122,299 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             intent = null;
         }
 
-        if (intent === 'iniciar_processo' || intent === 'solicitar_ds160') {
-    console.log('🚀 Cliente quer iniciar o processo ou o formulário DS-160!');
-    let nomeCliente = 'Cliente';
-    try {
-        if (state && state.nome && typeof state.nome === 'string' && state.nome.trim().length > 0) {
-            nomeCliente = state.nome;
-        }
-    } catch (err) {
-        nomeCliente = 'Cliente';
-    }
-    
-    // Verifica se o cliente já tem nome e email (está cadastrado)
-    const isCadastrado = state && state.nome && state.email;
-    
-    let mensagemFormulario;
-    if (isCadastrado) {
-        // Usa a mensagem personalizada com especialista
-        mensagemFormulario = getMensagemFormularioComEspecialista(nomeCliente);
-        console.log('📨 Usando mensagem personalizada (com especialista)');
-    } else {
-        // Usa a mensagem padrão
-        mensagemFormulario = getMensagemFormularioParaBot(nomeCliente);
-        console.log('📨 Usando mensagem padrão (cliente não cadastrado)');
-    }
-    
-    try {
-        await sendReply(cleanPhone, mensagemFormulario);
-    } catch (err) {
-        console.error('❌ Erro ao gerar mensagem do formulário:', err);
-        await sendReply(cleanPhone, '🌟 Vamos iniciar seu processo!\n\n📋 Preencha nosso formulário:\n🔗 [Clique aqui para preencher o formulário](https://app.getvisa.com.br/formulario-ds160)\n\n📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)');
-    }
-    return;
-}
+        // ============================================================
+        // 4. BUSCAR DADOS DO CLIENTE NO SUPABASE (para respostas personalizadas)
+        // ============================================================
+        let clienteDB = null;
+        try {
+            const { data, error } = await supabase
+                .from('clientes')
+                .select('status, etapa_atual, ultima_atualizacao, nome, consulado, email')
+                .eq('telefone', cleanPhone)
+                .maybeSingle();
 
-        // 🔥 TRATAMENTO ESPECIAL PARA ANDAMENTO (BUSCA NO BANCO)
-        if (intent === 'andamento') {
-            console.log('📊 Cliente quer saber o andamento do processo');
+            if (!error && data) {
+                clienteDB = data;
+                console.log('✅ Cliente encontrado:', clienteDB.nome);
+            }
+        } catch (err) {
+            console.error('❌ Erro ao buscar cliente:', err);
+        }
+
+        const nomeCliente = clienteDB?.nome || state?.nome || 'Cliente';
+        const primeiroNome = nomeCliente.split(' ')[0];
+
+        // ============================================================
+        // 5. TRATAMENTO DAS INTENÇÕES
+        // ============================================================
+
+        // 5.1 INICIAR PROCESSO / SOLICITAR DS-160
+        if (intent === 'iniciar_processo' || intent === 'solicitar_ds160') {
+            console.log('🚀 Cliente quer iniciar o processo');
+            
+            const isCadastrado = state?.nome && state?.email;
+            
+            let mensagem;
+            if (isCadastrado) {
+                mensagem = getMensagemFormularioComEspecialista(nomeCliente);
+            } else {
+                mensagem = getMensagemFormularioParaBot(nomeCliente);
+            }
             
             try {
-                // Buscar o cliente no Supabase
-                const { data: cliente, error } = await supabase
-                    .from('clientes')
-                    .select('status, etapa_atual, ultima_atualizacao, nome, consulado, email')
-                    .eq('telefone', cleanPhone)
-                    .maybeSingle();
-                
-                if (error || !cliente) {
-                    console.error('❌ Erro ao buscar cliente:', error);
-                    await sendReply(cleanPhone, '❌ Não foi possível encontrar seu processo. Por favor, entre em contato com nosso suporte.\n\nDigite 0 para o menu principal.');
-                    return;
-                }
-                
-                // Mapear status para mensagem amigável
-                const statusLabels = {
-                    'lead': '📋 Cadastro iniciado - aguardando formulário',
-                    'formulario_enviado': '📋 Formulário DS-160 recebido e em análise',
-                    'em_analise': '🔍 Em análise pela nossa equipe',
-                    'processo_aberto': '📌 Processo aberto - aguardando agendamento',
-                    'agendado_casv': '📅 CASV agendado',
-                    'agendado_entrevista': '🎤 Entrevista agendada',
-                    'treinamento_realizado': '✅ Treinamento concluído',
-                    'entrevista_realizada': '🎤 Entrevista realizada - aguardando decisão',
-                    'visto_aprovado': '🎉 Visto APROVADO!',
-                    'visto_recusado': '😔 Visto recusado - vamos analisar juntos',
-                    'passaporte_retornado': '📦 Passaporte disponível para retirada'
-                };
-                
-                const statusAtual = cliente.etapa_atual || cliente.status || 'lead';
-                const label = statusLabels[statusAtual] || statusAtual;
-                const dataAtualizacao = cliente.ultima_atualizacao ? new Date(cliente.ultima_atualizacao).toLocaleDateString('pt-BR') : 'Não disponível';
-                
-                // Próximos passos
-                const proximosPassos = {
-                    'lead': '• Preencha o formulário DS-160\n• Aguarde a análise da equipe',
-                    'formulario_enviado': '• Análise dos dados pela equipe\n• Em breve entraremos em contato',
-                    'em_analise': '• Correções (se necessário)\n• Preparação para agendamento',
-                    'processo_aberto': '• Agendamento do CASV\n• Preparação para entrevista',
-                    'agendado_casv': '• Comparecer ao CASV na data agendada\n• Aguardar entrevista',
-                    'agendado_entrevista': '• Preparar-se para a entrevista\n• Revisar documentos',
-                    'treinamento_realizado': '• Aguardar data da entrevista\n• Manter a calma e confiança',
-                    'entrevista_realizada': '• Aguardar decisão consular (7-10 dias)\n• Fique atento ao e-mail',
-                    'visto_aprovado': '• Aguardar liberação do passaporte\n• Planejar sua viagem! ✈️',
-                    'visto_recusado': '• Análise do motivo da negativa\n• Nova tentativa com orientação',
-                    'passaporte_retornado': '• Retirar o passaporte\n• Sua jornada está completa! 🎉'
-                };
-                
-                const passos = proximosPassos[statusAtual] || '• Aguarde contato da nossa equipe';
-                
-                const mensagem = `📊 *ANDAMENTO DO SEU PROCESSO*\n\n` +
-                    `👤 *Cliente:* ${cliente.nome || 'MOISES'}\n` +
-                    `📍 *Status atual:* ${label}\n` +
-                    `📅 *Última atualização:* ${dataAtualizacao}\n` +
-                    `${cliente.consulado ? `🏛️ *Consulado:* ${cliente.consulado}\n` : ''}\n` +
-                    `📌 *Próximos passos:*\n${passos}\n\n` +
-                    `📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
-                    `Digite 0 para o menu principal`;
-                
                 await sendReply(cleanPhone, mensagem);
-                return;
-                
             } catch (err) {
-                console.error('❌ Erro ao processar andamento:', err);
-                await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro ao buscar seu processo. Digite 0 para o menu principal.');
-                return;
+                console.error('❌ Erro:', err);
+                await sendReply(cleanPhone, '🌟 Vamos iniciar seu processo!\n\n📋 Preencha nosso formulário:\n🔗 https://app.getvisa.com.br/formulario-ds160');
             }
+            return;
         }
 
-        // Intenção para Visto Americano
+        // 5.2 ANDAMENTO DO PROCESSO
+        if (intent === 'andamento') {
+            console.log('📊 Cliente quer saber o andamento');
+            
+            if (!clienteDB) {
+                await sendReply(cleanPhone, '❌ Olá! Ainda não encontrei seu cadastro. Digite 0 para o menu principal.');
+                return;
+            }
+
+            const statusLabels = {
+                'lead': '📋 Cadastro iniciado - aguardando formulário',
+                'formulario_enviado': '📋 Formulário recebido - em análise',
+                'em_analise': '🔍 Em análise pela equipe',
+                'processo_aberto': '📌 Processo aberto - aguardando agendamento',
+                'agendado_casv': '📅 CASV agendado',
+                'agendado_entrevista': '🎤 Entrevista agendada',
+                'treinamento_realizado': '✅ Treinamento concluído',
+                'entrevista_realizada': '🎤 Entrevista realizada - aguardando decisão',
+                'visto_aprovado': '🎉 Visto APROVADO!',
+                'visto_recusado': '😔 Visto recusado - vamos analisar juntos',
+                'passaporte_retornado': '📦 Passaporte disponível para retirada'
+            };
+
+            const statusAtual = clienteDB.etapa_atual || clienteDB.status || 'lead';
+            const label = statusLabels[statusAtual] || statusAtual;
+            const dataAtualizacao = clienteDB.ultima_atualizacao ? new Date(clienteDB.ultima_atualizacao).toLocaleDateString('pt-BR') : 'Não disponível';
+
+            const proximosPassos = {
+                'lead': '• Preencha o formulário DS-160\n• Aguarde a análise da equipe',
+                'formulario_enviado': '• Análise dos dados pela equipe\n• Em breve entraremos em contato',
+                'em_analise': '• Correções (se necessário)\n• Preparação para agendamento',
+                'processo_aberto': '• Agendamento do CASV\n• Preparação para entrevista',
+                'agendado_casv': '• Comparecer ao CASV na data agendada\n• Aguardar entrevista',
+                'agendado_entrevista': '• Preparar-se para a entrevista\n• Revisar documentos',
+                'treinamento_realizado': '• Aguardar data da entrevista\n• Manter a calma e confiança',
+                'entrevista_realizada': '• Aguardar decisão consular (7-10 dias)\n• Fique atento ao e-mail',
+                'visto_aprovado': '• Aguardar liberação do passaporte\n• Planejar sua viagem! ✈️',
+                'visto_recusado': '• Análise do motivo da negativa\n• Nova tentativa com orientação',
+                'passaporte_retornado': '• Retirar o passaporte\n• Sua jornada está completa! 🎉'
+            };
+
+            const passos = proximosPassos[statusAtual] || '• Aguarde contato da nossa equipe';
+
+            const mensagem = `📊 *Olá ${primeiroNome}!*
+
+📍 *Status:* ${label}
+📅 *Atualização:* ${dataAtualizacao}
+${clienteDB.consulado ? `🏛️ *Consulado:* ${clienteDB.consulado}\n` : ''}
+📌 *Próximos passos:*
+${passos}
+
+💪 *Estamos com você!*
+
+📱 [Fale com especialista](https://wa.me/5521974601812)
+
+Digite 0 para o menu principal`;
+
+            await sendReply(cleanPhone, mensagem);
+            return;
+        }
+
+        // 5.3 DOCUMENTOS
+        if (intent === 'documentos') {
+            console.log('📄 Cliente perguntou sobre documentos');
+            
+            let servico = 'visto_americano';
+            let servicoLabel = 'Visto Americano (B1/B2)';
+            
+            if (clienteDB?.consulado) {
+                servico = 'visto_americano';
+                servicoLabel = `Visto Americano (${clienteDB.consulado})`;
+            }
+
+            const mensagem = `📋 *Olá ${primeiroNome}!*
+
+Aqui estão os documentos para seu *${servicoLabel}*:
+
+📌 *Obrigatórios:*
+✅ Passaporte válido (mínimo 6 meses)
+✅ Foto 5x7 fundo branco
+✅ Comprovante da taxa consular (MRV)
+✅ DS-160 preenchido
+✅ Agendamento da entrevista
+
+📌 *Recomendados:*
+📊 Comprovante de renda
+🏦 Extratos bancários (3 meses)
+🏠 Comprovante de imóvel/veículo
+💼 Vínculo com o Brasil
+
+💡 *Dica:* Leve TODOS os originais!
+
+📱 [Fale com especialista](https://wa.me/5521974601812)
+
+Digite 0 para o menu principal`;
+
+            await sendReply(cleanPhone, mensagem);
+            return;
+        }
+
+        // 5.4 PRAZO
+        if (intent === 'prazo') {
+            console.log('⏱️ Cliente perguntou sobre prazo');
+            
+            let servicoLabel = 'Visto Americano';
+            if (clienteDB?.consulado) {
+                servicoLabel = `Visto Americano (${clienteDB.consulado})`;
+            }
+
+            const mensagem = `⏱️ *Olá ${primeiroNome}!*
+
+Prazos para seu *${servicoLabel}*:
+
+📅 *Etapas:*
+• Agendamento CASV: 1 a 2 semanas
+• Agendamento entrevista: 2 a 4 semanas
+• Análise consular: 7 a 10 dias
+• Retorno do passaporte: 5 a 7 dias
+
+⏳ *Total estimado:* 30 a 60 dias
+
+💡 *Quer acelerar?* Preencha o DS-160 hoje!
+
+📱 [Fale com especialista](https://wa.me/5521974601812)
+
+Digite 0 para o menu principal`;
+
+            await sendReply(cleanPhone, mensagem);
+            return;
+        }
+
+        // 5.5 PAGAMENTO
+        if (intent === 'pagamento') {
+            console.log('💰 Cliente perguntou sobre pagamento');
+            
+            const mensagem = `💰 *Olá ${primeiroNome}!*
+
+Investimento para seu *Visto Americano*:
+
+💵 *Taxa Consular:* ~R$ 950,00
+💼 *Assessoria GetVisa:* R$ 350,00
+
+✅ *Inclui:*
+• Preenchimento DS-160
+• Agendamento CASV e entrevista
+• Preparação para entrevista
+• Acompanhamento total
+
+💳 *Formas de pagamento:*
+• PIX (10% off)
+• Cartão de crédito (parcelado)
+• Boleto
+
+📱 [Fale com especialista](https://wa.me/5521974601812)
+
+Digite 0 para o menu principal`;
+
+            await sendReply(cleanPhone, mensagem);
+            return;
+        }
+
+        // 5.6 INDICAR AMIGO
+        if (intent === 'indicar_amigo') {
+            const mensagem = `👥 *Olá ${primeiroNome}!*
+
+Que legal você indicar a GetVisa! 🌟
+
+📱 *Compartilhe:* wa.me/5521974601812
+🌐 *Site:* getvisa.com.br
+📋 *Formulário:* https://app.getvisa.com.br/formulario-ds160
+
+🎁 *Bônus para você:*
+Indique um amigo que feche o processo e ganhe 10% de desconto!
+
+📱 [Fale com especialista](https://wa.me/5521974601812)
+
+Digite 0 para o menu principal`;
+
+            await sendReply(cleanPhone, mensagem);
+            return;
+        }
+
+        // 5.7 FALAR COM ESPECIALISTA
+        if (intent === 'falar_especialista') {
+            const mensagem = `👨‍💼 *Olá ${primeiroNome}!*
+
+Entendi que você tem uma situação específica.
+
+📱 *Fale com Moisés diretamente:*
+[Clique aqui](https://wa.me/5521974601812)
+
+📧 *Ou por e-mail:* contato@getvisa.com.br
+
+⏰ *Atendimento:* Seg-Sex, 9h às 18h
+📌 *Resposta:* até 2 horas
+
+💡 *Dica:* Tenha seu número de protocolo em mãos!
+
+Digite 0 para o menu principal`;
+
+            await sendReply(cleanPhone, mensagem);
+            return;
+        }
+
+        // 5.8 DÚVIDA GERAL
+        if (intent === 'duvida_geral') {
+            const mensagem = `🤔 *Olá ${primeiroNome}!*
+
+Posso ajudar com:
+
+1️⃣ *Documentos* - Quais levar
+2️⃣ *Prazo* - Quanto tempo demora
+3️⃣ *Status* - Andamento do seu processo
+4️⃣ *Valores* - Quanto custa
+
+💡 *Seja específico(a)*, ex: "documentos para visto"
+
+📱 Ou [fale com especialista](https://wa.me/5521974601812)
+
+Digite 0 para o menu principal`;
+
+            await sendReply(cleanPhone, mensagem);
+            return;
+        }
+
+        // 5.9 FEEDBACK
+        if (intent === 'feedback') {
+            const mensagem = `⭐ *Olá ${primeiroNome}!*
+
+Ficamos felizes com seu feedback! 🌟
+
+📱 *Compartilhe sua experiência:*
+[Clique aqui](https://wa.me/5521974601812)
+
+📧 *Ou por e-mail:* contato@getvisa.com.br
+
+⭐ *Avalie-nos:* Excelente | Bom | Regular
+
+Digite 0 para o menu principal`;
+
+            await sendReply(cleanPhone, mensagem);
+            return;
+        }
+
+        // 5.10 VISTO AMERICANO (intenção direta)
         if (intent === 'visto_americano') {
             state.nivel = 'submenu';
             state.service = 'visto_americano';
@@ -2235,7 +2429,9 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
-
+        // ============================================================
+        // 6. INTENÇÃO NÃO RECONHECIDA - FALLBACK
+        // ============================================================
         if (intent) {
             try {
                 const resposta = gerarRespostaBot(intent, state.nome, state.etapaAtual);
@@ -2247,308 +2443,34 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
+        // ============================================================
+        // 7. NENHUMA INTENÇÃO DETECTADA
+        // ============================================================
         console.log('⚠️ Nenhuma intenção detectada para:', messageText);
 
-        try {
-            const menu = await getMenuPrincipal();
-            await sendReply(cleanPhone, '❌ Desculpe, não entendi sua solicitação. Por favor, escolha uma opção ou digite 0 para o menu principal.\n\n' + menu);
-        } catch (e) {
-            console.error('❌ Erro no fallback do menu:', e);
-            await sendReply(cleanPhone, '❌ Desculpe, não entendi sua solicitação. Digite 0 para o menu principal.');
-        }
+        const fallbackMsg = `🤔 *Olá ${primeiroNome}!*
+
+Não entendi sua pergunta. Posso ajudar com:
+
+1️⃣ *Documentos* - Quais levar
+2️⃣ *Prazo* - Quanto tempo demora
+3️⃣ *Status* - Andamento do seu processo
+4️⃣ *Valores* - Quanto custa
+
+💡 *Seja específico(a)*, ex: "documentos para visto americano"
+
+📱 Ou [fale com especialista](https://wa.me/5521974601812)
+
+Digite 0 para o menu principal`;
+
+        await sendReply(cleanPhone, fallbackMsg);
+
     } catch (error) {
         console.error('❌ ERRO NO processarOpcaoNoMenuPrincipal:', error);
         console.error('❌ Stack:', error.stack);
-        await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro ao processar sua solicitação. Digite 0 para tentar novamente.');
-    }
-
-    // ============================================================
-// TRATAMENTO PARA INDICAR AMIGO
-// ============================================================
-if (intent === 'indicar_amigo') {
-    const mensagem = `👥 *INDICAR AMIGO - GETVISA*\n\n` +
-        `Que legal que você quer indicar a GetVisa para um amigo! 🌟\n\n` +
-        `📱 *Compartilhe nosso contato:*\n` +
-        `WhatsApp: [Clique aqui](https://wa.me/5521974601812)\n\n` +
-        `🌐 *Site:* getvisa.com.br\n\n` +
-        `📋 *Formulário:* https://app.getvisa.com.br/formulario-ds160\n\n` +
-        `💡 *Dica:* Seu amigo pode preencher o formulário e agendar uma consultoria gratuita!\n\n` +
-        `🎁 *Você ganha:* Ao indicar um amigo que feche o processo, você ganha 10% de desconto no seu processo!\n\n` +
-        `📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
-        `Digite 0 para o menu principal`;
-    
-    await sendReply(cleanPhone, mensagem);
-    return;
-}
-
-// ============================================================
-// TRATAMENTO PARA FALAR COM ESPECIALISTA
-// ============================================================
-if (intent === 'falar_especialista') {
-    const nomeCliente = state.nome || 'Cliente';
-    const mensagem = `👨‍💼 *FALAR COM ESPECIALISTA - GETVISA*\n\n` +
-        `Olá ${nomeCliente.split(' ')[0]}! Entendi que você tem uma situação específica.\n\n` +
-        `📱 *Entre em contato diretamente com nosso especialista:*\n` +
-        `[Clique aqui para falar no WhatsApp](https://wa.me/5521974601812)\n\n` +
-        `📧 *Ou por e-mail:* contato@getvisa.com.br\n\n` +
-        `📌 *Informações úteis:*\n` +
-        `• Horário de atendimento: Seg-Sex, 9h às 18h\n` +
-        `• Tempo de resposta: até 2 horas\n` +
-        `• Análise gratuita de casos\n\n` +
-        `📋 *Já preencheu o formulário?* https://app.getvisa.com.br/formulario-ds160\n\n` +
-        `💡 *Nos conte:* Qual é a sua dúvida específica? Assim podemos te ajudar melhor.\n\n` +
-        `Digite 0 para o menu principal`;
-    
-    await sendReply(cleanPhone, mensagem);
-    return;
-}
-
-// ============================================================
-// TRATAMENTO PARA DÚVIDA GERAL
-// ============================================================
-if (intent === 'duvida_geral') {
-    const nomeCliente = state.nome || 'Cliente';
-    const mensagem = `🤔 *DÚVIDA GERAL - GETVISA*\n\n` +
-        `Olá ${nomeCliente.split(' ')[0]}! Entendi que você tem uma pergunta.\n\n` +
-        `📌 *Para dúvidas específicas, consulte:*\n\n` +
-        `1️⃣ *Documentos:* Quais documentos são necessários para o visto\n` +
-        `2️⃣ *Prazo:* Quanto tempo demora o processo\n` +
-        `3️⃣ *Status:* Como está o andamento do seu processo\n` +
-        `4️⃣ *Valores:* Quanto custa o visto e a assessoria\n\n` +
-        `📋 *Formulário DS-160:* https://app.getvisa.com.br/formulario-ds160\n\n` +
-        `📱 *Fale com um especialista:* [Clique aqui](https://wa.me/5521974601812)\n\n` +
-        `💡 *Dica:* Se sua dúvida não estiver listada, fale diretamente com nosso especialista!\n\n` +
-        `Digite 0 para o menu principal`;
-    
-    await sendReply(cleanPhone, mensagem);
-    return;
-}
-
-// ============================================================
-// TRATAMENTO PARA FEEDBACK
-// ============================================================
-if (intent === 'feedback') {
-    const nomeCliente = state.nome || 'Cliente';
-    const mensagem = `⭐ *FEEDBACK - GETVISA*\n\n` +
-        `Olá ${nomeCliente.split(' ')[0]}! Ficamos muito felizes com seu feedback! 🌟\n\n` +
-        `📝 *Sua opinião é muito importante para nós.*\n\n` +
-        `📱 *Compartilhe sua experiência:*\n` +
-        `[Clique aqui para nos dar um feedback](https://wa.me/5521974601812)\n\n` +
-        `📧 *Ou por e-mail:* contato@getvisa.com.br\n\n` +
-        `⭐ *Avalie nosso atendimento:*\n` +
-        `• Excelente\n` +
-        `• Bom\n` +
-        `• Regular\n` +
-        `• Precisa melhorar\n\n` +
-        `💡 *Sugestões são sempre bem-vindas!*\n\n` +
-        `Digite 0 para o menu principal`;
-    
-    await sendReply(cleanPhone, mensagem);
-    return;
-}
-
-// ============================================================
-// TRATAMENTO PARA DOCUMENTOS (BUSCA O SERVIÇO DO CLIENTE)
-// ============================================================
-if (intent === 'documentos') {
-    console.log('📄 Cliente perguntou sobre documentos');
-    
-    try {
-        // Buscar o serviço/status do cliente no Supabase
-        const { data: cliente, error } = await supabase
-            .from('clientes')
-            .select('status, etapa_atual, nome, consulado')
-            .eq('telefone', cleanPhone)
-            .maybeSingle();
-        
-        // Determinar o serviço com base nos dados do cliente
-        let servico = 'visto_americano'; // padrão
-        let servicoLabel = 'Visto Americano';
-        
-        if (cliente) {
-            // Se tem consulado BRASILIA, provavelmente é Visto Americano
-            if (cliente.consulado && cliente.consulado.toUpperCase().includes('BRASILIA')) {
-                servico = 'visto_americano';
-                servicoLabel = 'Visto Americano (B1/B2)';
-            }
-            // Se tiver outro consulado, pode ser outro visto
-            else if (cliente.consulado) {
-                servico = 'visto_americano';
-                servicoLabel = `Visto Americano (${cliente.consulado})`;
-            }
-        }
-        
-        // Buscar a mensagem específica do serviço
-        const respostasDocs = {
-            'visto_americano': `📄 *DOCUMENTOS - VISTO AMERICANO (B1/B2)*\n\n` +
-                `📌 *Documentos obrigatórios:*\n` +
-                `• Passaporte válido (mínimo 6 meses de validade)\n` +
-                `• Foto 5x7 recente (fundo branco)\n` +
-                `• Comprovante de pagamento da taxa consular (MRV)\n` +
-                `• DS-160 preenchido e confirmado\n` +
-                `• Agendamento da entrevista\n\n` +
-                `📌 *Documentos recomendados:*\n` +
-                `• Comprovante de renda (holerites, declaração IR)\n` +
-                `• Extratos bancários dos últimos 3 meses\n` +
-                `• Comprovante de imóvel ou veículo\n` +
-                `• Comprovante de vínculo com o Brasil (emprego, família)\n` +
-                `• Histórico de viagens internacionais\n\n` +
-                `💡 *Dica:* Leve TODOS os documentos originais no dia da entrevista!\n\n` +
-                `📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
-                `Digite 0 para o menu principal`,
-            
-            'visto_canadense': `📄 *DOCUMENTOS - VISTO CANADENSE*\n\n` +
-                `📌 *Documentos obrigatórios:*\n` +
-                `• Passaporte válido\n` +
-                `• Foto digital (especificações do IRCC)\n` +
-                `• Comprovantes financeiros\n` +
-                `• Formulário IMM 5257\n\n` +
-                `📌 *Documentos recomendados:*\n` +
-                `• Carta de intenção\n` +
-                `• Histórico de viagens\n` +
-                `• Vínculos com o Brasil\n\n` +
-                `Digite 0 para o menu principal`,
-            
-            'eta_uk': `📄 *DOCUMENTOS - eTA UK*\n\n` +
-                `📌 *Documentos obrigatórios:*\n` +
-                `• Passaporte válido\n` +
-                `• E-mail válido\n` +
-                `• Dados de viagem\n\n` +
-                `💡 *Processo 100% online!*\n\n` +
-                `Digite 0 para o menu principal`,
-            
-            'passaporte': `📄 *DOCUMENTOS - PASSAPORTE*\n\n` +
-                `📌 *Documentos obrigatórios:*\n` +
-                `• RG original\n` +
-                `• CPF\n` +
-                `• Título de eleitor (homens 18-70)\n` +
-                `• Certidão de nascimento/casamento\n` +
-                `• Comprovante de quitação militar (homens)\n\n` +
-                `📍 *Onde fazer:* Polícia Federal (agendamento online)\n\n` +
-                `Digite 0 para o menu principal`
-        };
-        
-        const resposta = respostasDocs[servico] || respostasDocs['visto_americano'];
-        
-        // Adicionar saudação personalizada
-        const nomeCliente = cliente?.nome || state.nome || 'Cliente';
-        const saudacao = `📋 *Olá ${nomeCliente.split(' ')[0]}!*\n\nAqui estão os documentos necessários para o seu *${servicoLabel}*:\n\n`;
-        
-        await sendReply(cleanPhone, saudacao + resposta);
-        return;
-        
-    } catch (err) {
-        console.error('❌ Erro ao buscar documentos:', err);
-        await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro ao buscar os documentos. Digite 0 para o menu principal.');
-        return;
+        await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro. Digite 0 para tentar novamente.');
     }
 }
-
-// ============================================================
-// TRATAMENTO PARA PRAZO (BUSCA O SERVIÇO DO CLIENTE)
-// ============================================================
-if (intent === 'prazo') {
-    console.log('⏱️ Cliente perguntou sobre prazo');
-    
-    try {
-        const { data: cliente, error } = await supabase
-            .from('clientes')
-            .select('status, etapa_atual, nome, consulado')
-            .eq('telefone', cleanPhone)
-            .maybeSingle();
-        
-        let servico = 'visto_americano';
-        let servicoLabel = 'Visto Americano';
-        
-        if (cliente?.consulado) {
-            servico = 'visto_americano';
-            servicoLabel = `Visto Americano (${cliente.consulado})`;
-        }
-        
-        const respostasPrazo = {
-            'visto_americano': `⏱️ *PRAZO - VISTO AMERICANO*\n\n` +
-                `📌 *Etapas e prazos:*\n` +
-                `• Pré-agendamento: 2 a 3 dias úteis\n` +
-                `• Agendamento CASV: 1 a 2 semanas\n` +
-                `• Agendamento entrevista: 2 a 4 semanas\n` +
-                `• Análise consular: 7 a 10 dias úteis\n` +
-                `• Retorno do passaporte: 5 a 7 dias úteis\n\n` +
-                `⏳ *Total estimado:* 30 a 60 dias\n\n` +
-                `💡 *Dica:* Quanto antes preencher o DS-160, mais rápido o processo!\n\n` +
-                `Digite 0 para o menu principal`,
-            
-            'visto_canadense': `⏱️ *PRAZO - VISTO CANADENSE*\n\n` +
-                `• Processamento: 4 a 8 semanas\n` +
-                `• Retorno: 2 a 3 dias úteis\n\n` +
-                `⏳ *Total estimado:* 30 a 60 dias\n\n` +
-                `Digite 0 para o menu principal`
-        };
-        
-        const resposta = respostasPrazo[servico] || respostasPrazo['visto_americano'];
-        const nomeCliente = cliente?.nome || state.nome || 'Cliente';
-        const saudacao = `⏱️ *Olá ${nomeCliente.split(' ')[0]}!*\n\nAqui estão os prazos para o seu *${servicoLabel}*:\n\n`;
-        
-        await sendReply(cleanPhone, saudacao + resposta);
-        return;
-        
-    } catch (err) {
-        console.error('❌ Erro ao buscar prazo:', err);
-        await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro ao buscar os prazos. Digite 0 para o menu principal.');
-        return;
-    }
-}
-
-// ============================================================
-// TRATAMENTO PARA PAGAMENTO (BUSCA O SERVIÇO DO CLIENTE)
-// ============================================================
-if (intent === 'pagamento') {
-    console.log('💰 Cliente perguntou sobre pagamento');
-    
-    try {
-        const { data: cliente, error } = await supabase
-            .from('clientes')
-            .select('status, etapa_atual, nome, consulado')
-            .eq('telefone', cleanPhone)
-            .maybeSingle();
-        
-        const respostasPagamento = {
-            'visto_americano': `💰 *INVESTIMENTO - VISTO AMERICANO*\n\n` +
-                `💵 *Taxa Consular:* ~R$ 950,00 (MRV)\n` +
-                `💼 *Assessoria GetVisa:* R$ 350,00\n\n` +
-                `✅ *Inclui:*\n` +
-                `• Preenchimento DS-160\n` +
-                `• Agendamento CASV e entrevista\n` +
-                `• Preparação para entrevista\n` +
-                `• Acompanhamento total\n\n` +
-                `💳 *Formas de pagamento:*\n` +
-                `• PIX\n` +
-                `• Cartão de crédito (parcelado)\n` +
-                `• Boleto bancário\n\n` +
-                `Digite 0 para o menu principal`,
-            
-            'visto_canadense': `💰 *INVESTIMENTO - VISTO CANADENSE*\n\n` +
-                `💵 *Taxa Consular:* ~R$ 750,00\n` +
-                `💼 *Assessoria GetVisa:* R$ 400,00\n\n` +
-                `Digite 0 para o menu principal`
-        };
-        
-        const servico = cliente?.consulado ? 'visto_americano' : 'visto_americano';
-        const resposta = respostasPagamento[servico] || respostasPagamento['visto_americano'];
-        const nomeCliente = cliente?.nome || state.nome || 'Cliente';
-        const saudacao = `💰 *Olá ${nomeCliente.split(' ')[0]}!*\n\nAqui estão as informações de investimento:\n\n`;
-        
-        await sendReply(cleanPhone, saudacao + resposta);
-        return;
-        
-    } catch (err) {
-        console.error('❌ Erro ao buscar pagamento:', err);
-        await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro. Digite 0 para o menu principal.');
-        return;
-    }
-}
-
-}
-
 
 
 // ============================================================
