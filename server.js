@@ -4438,19 +4438,40 @@ app.get('/api/dashboard-data', async (req, res) => {
     }
 });
 
+/// ============================================================
+// DASHBOARD PRINCIPAL - PAINEL DE CLIENTES
 // ============================================================
-// DASHBOARD CENTRAL
-// ============================================================
-
 app.get('/dashboard', auth.verificarAdmin, (req, res) => {
+    // Primeiro, tenta servir o index.html (dashboard principal)
     const dashboardPath = path.join(__dirname, 'public', 'index.html');
+    
     if (fs.existsSync(dashboardPath)) {
+        console.log('📊 Servindo dashboard: index.html');
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
         res.sendFile(dashboardPath);
     } else {
-        res.send('<h1>📊 Dashboard</h1><p>Arquivo index.html não encontrado.</p>');
+        // Fallback para painel-clientes.html
+        const fallbackPath = path.join(__dirname, 'public', 'painel-clientes.html');
+        if (fs.existsSync(fallbackPath)) {
+            console.log('📊 Servindo dashboard: painel-clientes.html (fallback)');
+            res.sendFile(fallbackPath);
+        } else {
+            // Fallback para dashboard-novo.html
+            const novoPath = path.join(__dirname, 'public', 'dashboard-novo.html');
+            if (fs.existsSync(novoPath)) {
+                console.log('📊 Servindo dashboard: dashboard-novo.html (fallback 2)');
+                res.sendFile(novoPath);
+            } else {
+                res.status(404).send(`
+                    <h1>📊 Dashboard não encontrado</h1>
+                    <p>Nenhum arquivo de dashboard encontrado na pasta public/</p>
+                    <p>Arquivos esperados: index.html, painel-clientes.html ou dashboard-novo.html</p>
+                    <a href="/">Voltar</a>
+                `);
+            }
+        }
     }
 });
 
