@@ -2072,6 +2072,24 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
     await sendReply(cleanPhone, erroMsg);
 }
 
+
+// ============================================================
+// FUNÇÃO DE ENVIO DE RESPOSTA (WHATSAPP)
+// ============================================================
+async function sendReply(phone, message) {
+    try {
+        console.log(`📨 sendReply INICIADA para ${phone}`);
+        console.log(`📨 Mensagem: ${message}`);
+        const resultado = await enviarWhatsApp(phone, message);
+        console.log(`✅ Mensagem enviada: ${resultado}`);
+        return resultado;
+    } catch (error) {
+        console.error(`❌ Erro ao enviar mensagem para ${phone}:`, error);
+        return false;
+    }
+}
+
+
 async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
     console.log('=== MENU PRINCIPAL ===');
     console.log('Mensagem recebida: "' + messageText + '"');
