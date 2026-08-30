@@ -2098,6 +2098,94 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
     return;
 }
 
+        // 🔥 TRATAMENTO ESPECIAL PARA ANDAMENTO (BUSCA NO BANCO)
+        if (intent === 'andamento') {
+            console.log('📊 Cliente quer saber o andamento do processo');
+            
+            try {
+                // Buscar o cliente no Supabase
+                const { data: cliente, error } = await supabase
+                    .from('clientes')
+                    .select('status, etapa_atual, ultima_atualizacao, nome, consulado, email')
+                    .eq('telefone', cleanPhone)
+                    .maybeSingle();
+                
+                if (error || !cliente) {
+                    console.error('❌ Erro ao buscar cliente:', error);
+                    await sendReply(cleanPhone, '❌ Não foi possível encontrar seu processo. Por favor, entre em contato com nosso suporte.\n\nDigite 0 para o menu principal.');
+                    return;
+                }
+                
+                // Mapear status para mensagem amigável
+                const statusLabels = {
+                    'lead': '📋 Cadastro iniciado - aguardando formulário',
+                    'formulario_enviado': '📋 Formulário DS-160 recebido e em análise',
+                    'em_analise': '🔍 Em análise pela nossa equipe',
+                    'processo_aberto': '📌 Processo aberto - aguardando agendamento',
+                    'agendado_casv': '📅 CASV agendado',
+                    'agendado_entrevista': '🎤 Entrevista agendada',
+                    'treinamento_realizado': '✅ Treinamento concluído',
+                    'entrevista_realizada': '🎤 Entrevista realizada - aguardando decisão',
+                    'visto_aprovado': '🎉 Visto APROVADO!',
+                    'visto_recusado': '😔 Visto recusado - vamos analisar juntos',
+                    'passaporte_retornado': '📦 Passaporte disponível para retirada'
+                };
+                
+                const statusAtual = cliente.etapa_atual || cliente.status || 'lead';
+                const label = statusLabels[statusAtual] || statusAtual;
+                const dataAtualizacao = cliente.ultima_atualizacao ? new Date(cliente.ultima_atualizacao).toLocaleDateString('pt-BR') : 'Não disponível';
+                
+                // Próximos passos
+                const proximosPassos = {
+                    'lead': '• Preencha o formulário DS-160\n• Aguarde a análise da equipe',
+                    'formulario_enviado': '• Análise dos dados pela equipe\n• Em breve entraremos em contato',
+                    'em_analise': '• Correções (se necessário)\n• Preparação para agendamento',
+                    'processo_aberto': '• Agendamento do CASV\n• Preparação para entrevista',
+                    'agendado_casv': '• Comparecer ao CASV na data agendada\n• Aguardar entrevista',
+                    'agendado_entrevista': '• Preparar-se para a entrevista\n• Revisar documentos',
+                    'treinamento_realizado': '• Aguardar data da entrevista\n• Manter a calma e confiança',
+                    'entrevista_realizada': '• Aguardar decisão consular (7-10 dias)\n• Fique atento ao e-mail',
+                    'visto_aprovado': '• Aguardar liberação do passaporte\n• Planejar sua viagem! ✈️',
+                    'visto_recusado': '• Análise do motivo da negativa\n• Nova tentativa com orientação',
+                    'passaporte_retornado': '• Retirar o passaporte\n• Sua jornada está completa! 🎉'
+                };
+                
+                const passos = proximosPassos[statusAtual] || '• Aguarde contato da nossa equipe';
+                
+                const mensagem = `📊 *ANDAMENTO DO SEU PROCESSO*\n\n` +
+                    `👤 *Cliente:* ${cliente.nome || 'MOISES'}\n` +
+                    `📍 *Status atual:* ${label}\n` +
+                    `📅 *Última atualização:* ${dataAtualizacao}\n` +
+                    `${cliente.consulado ? `🏛️ *Consulado:* ${cliente.consulado}\n` : ''}\n` +
+                    `📌 *Próximos passos:*\n${passos}\n\n` +
+                    `📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+                    `Digite 0 para o menu principal`;
+                
+                await sendReply(cleanPhone, mensagem);
+                return;
+                
+            } catch (err) {
+                console.error('❌ Erro ao processar andamento:', err);
+                await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro ao buscar seu processo. Digite 0 para o menu principal.');
+                return;
+            }
+        }
+
+        // Intenção para Visto Americano
+        if (intent === 'visto_americano') {
+            state.nivel = 'submenu';
+            state.service = 'visto_americano';
+            userState.set(cleanPhone, state);
+            try {
+                const submenuTexto = getSubmenu('visto_americano');
+                await sendReply(cleanPhone, submenuTexto);
+            } catch (err) {
+                console.error('❌ Erro ao gerar submenu americano:', err);
+                await sendReply(cleanPhone, '🇺🇸 VISTO AMERICANO\n\nDigite 0 para voltar ao menu principal.');
+            }
+            return;
+        }
+
         if (intent === 'visto_americano') {
             state.nivel = 'submenu';
             state.service = 'visto_americano';
