@@ -191,20 +191,67 @@ async function processarMensagem(cleanPhone, incomingMessageContent) {
     console.log('🔍 messageText (após String):', messageText);
 
     try {
+        // 🔥 PRIMEIRO: Buscar cliente no Supabase
         let state = userState.get(cleanPhone);
+        let clienteDB = null;
 
-        if (!state) {
-            console.log('🔄 Criando novo estado para:', cleanPhone);
-            state = {
-                nivel: 'onboarding',
-                onboardingStep: ONBOARDING_STEPS.SAUDACAO,
-                onboardingCompleto: false,
-                nome: null,
-                email: null,
-                service: null,
-                lastActivity: Date.now()
-            };
-            userState.set(cleanPhone, state);
+        try {
+            const { data, error } = await supabase
+                .from('clientes')
+                .select('*')
+                .eq('telefone', cleanPhone)
+                .maybeSingle();
+
+            if (!error && data) {
+                clienteDB = data;
+                console.log('✅ Cliente encontrado no Supabase:', clienteDB.nome);
+            } else {
+                console.log('⚠️ Cliente não encontrado no Supabase ou erro:', error?.message);
+            }
+        } catch (err) {
+            console.error('❌ Erro ao buscar cliente no Supabase:', err);
+        }
+
+        // Se não tem estado local OU o estado local está incompleto, restaurar do banco
+        if (!state || !state.nome) {
+            if (clienteDB && clienteDB.onboarding_completo === true) {
+                console.log('🔄 Restaurando estado do Supabase para', cleanPhone);
+                state = {
+                    nivel: 'principal',
+                    onboardingStep: ONBOARDING_STEPS.COMPLETO,
+                    onboardingCompleto: true,
+                    nome: clienteDB.nome || 'Cliente',
+                    email: clienteDB.email || '',
+                    service: null,
+                    lastActivity: Date.now()
+                };
+                userState.set(cleanPhone, state);
+                console.log('✅ Estado restaurado com sucesso');
+            } else if (clienteDB && clienteDB.onboarding_completo === false) {
+                console.log('🔄 Cliente existe mas onboarding incompleto');
+                state = {
+                    nivel: 'onboarding',
+                    onboardingStep: ONBOARDING_STEPS.SAUDACAO,
+                    onboardingCompleto: false,
+                    nome: null,
+                    email: null,
+                    service: null,
+                    lastActivity: Date.now()
+                };
+                userState.set(cleanPhone, state);
+            } else {
+                console.log('🔄 Criando novo estado para:', cleanPhone);
+                state = {
+                    nivel: 'onboarding',
+                    onboardingStep: ONBOARDING_STEPS.SAUDACAO,
+                    onboardingCompleto: false,
+                    nome: null,
+                    email: null,
+                    service: null,
+                    lastActivity: Date.now()
+                };
+                userState.set(cleanPhone, state);
+            }
         } else {
             state.lastActivity = Date.now();
             userState.set(cleanPhone, state);
