@@ -2278,44 +2278,52 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
-        // ============================================================
-        // 8. NENHUMA INTENÇÃO DETECTADA
+               // ============================================================
+        // 8. NENHUMA INTENÇÃO DETECTADA - CONTATO DIRETO COM ESPECIALISTA
         // ============================================================
         console.log('⚠️ Nenhuma intenção detectada para:', messageText);
         
-        await sendReply(cleanPhone, `🤔 *Olá ${primeiroNome}!*
+        // Buscar nome do cliente
+        let nomeFallback = state?.nome || 'Cliente';
+        try {
+            const { data } = await supabase
+                .from('clientes')
+                .select('nome')
+                .eq('telefone', cleanPhone)
+                .maybeSingle();
+            if (data?.nome) nomeFallback = data.nome;
+        } catch (e) {}
+        
+        const primeiroNomeFallback = nomeFallback.split(' ')[0];
+        
+        // 🔥 MENSAGEM DIRETA COM CONTATO DO ESPECIALISTA EM DESTAQUE
+        const fallbackMsg = `🤔 *Olá ${primeiroNomeFallback}!*
 
-Não entendi sua pergunta. Posso ajudar com:
+Não entendi sua pergunta. 😅
 
-📋 *Documentos* - Quais levar para o visto
-⏱️ *Prazo* - Quanto tempo demora
-📊 *Status* - Andamento do seu processo
-💰 *Valores* - Quanto custa
+Mas não se preocupe! Nosso especialista pode ajudar com qualquer dúvida.
 
-💡 *Exemplos:* "documentos", "prazo", "status", "valores"
+📱 *FALE DIRETAMENTE COM MOISÉS:*
+[Clique aqui](https://wa.me/5521974601812)
 
-📱 Ou [fale com especialista](https://wa.me/5521974601812)
+📧 *Ou por e-mail:* contato@getvisa.com.br
 
-Digite 0 para o menu principal`);
+💡 *Dica:* Para respostas rápidas, use:
+• "documentos" - Lista de documentos
+• "prazo" - Prazos do processo  
+• "status" - Andamento do seu caso
+• "valores" - Investimento
+
+Digite 0 para o menu principal`;
+
+        await sendReply(cleanPhone, fallbackMsg);
 
     } catch (error) {
-        console.error('❌ ERRO:', error);
+        console.error('❌ ERRO NO processarOpcaoNoMenuPrincipal:', error);
+        console.error('❌ Stack:', error.stack);
         await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro. Digite 0 para tentar novamente.');
     }
-}
-
-async function sendReply(phone, message) {
-    try {
-        console.log(`📨 sendReply INICIADA para ${phone}`);
-        console.log(`📨 Mensagem: ${message}`);
-        const resultado = await enviarWhatsApp(phone, message);
-        console.log(`✅ Mensagem enviada: ${resultado}`);
-        return resultado;
-    } catch (error) {
-        console.error(`❌ Erro ao enviar mensagem para ${phone}:`, error);
-        return false;
-    }
-}
+} // <-- FECHA A FUNÇÃO processarOpcaoNoMenuPrincipal
 
 // ============================================================
 // 17. WEBHOOK PRINCIPAL (Z-API)
