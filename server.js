@@ -2282,9 +2282,9 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
         }
 
         // ============================================================
-        // 7. FALLBACK - INTENÇÃO NÃO RECONHECIDA
+        // 7. FALLBACK - APENAS PARA INTENÇÕES VÁLIDAS NÃO TRATADAS
         // ============================================================
-        if (intent) {
+        if (intent && intent !== 'desconhecida' && intent !== 'andamento' && intent !== 'documentos' && intent !== 'prazo' && intent !== 'pagamento') {
             let nome = state?.nome || 'Cliente';
             try {
                 const { data } = await supabase.from('clientes').select('nome').eq('telefone', cleanPhone).maybeSingle();
