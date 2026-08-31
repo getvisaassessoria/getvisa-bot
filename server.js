@@ -1236,20 +1236,41 @@ async function atualizarStatusCliente(telefone, novoStatus, dadosAdicionais = {}
 async function enviarNotificacaoStatus(telefone, status, nome) {
     const mensagens = {
         'lead': `👋 Olá ${nome}! Seu cadastro foi iniciado. Em breve enviaremos o formulário DS-160.`,
-        'formulario_enviado': `📋 Olá ${nome}! Recebemos seu formulário DS-160 e já estamos analisando.\n\nEm breve entraremos em contato com os próximos passos.`,
-        'em_analise': `🔍 Olá ${nome}! Estamos analisando seus documentos.\n\nEm breve iniciaremos o agendamento.`,
-        'processo_aberto': `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\nAgora vamos agendar sua coleta biométrica (CASV).`,
-        'agendado_casv': `📅 Olá ${nome}! Seu CASV foi agendado!\n\nVerifique seu e-mail para mais detalhes.`,
-        'agendado_entrevista': `🎤 Olá ${nome}! Sua entrevista foi agendada!\n\nVerifique seu e-mail para mais detalhes.`,
-        'visto_aprovado': `🎉 PARABÉNS ${nome}! Seu visto foi aprovado!\n\nSeu passaporte será liberado em breve.`,
-        'visto_recusado': `😔 Olá ${nome}! Infelizmente seu visto foi recusado.\n\nEntre em contato para entendermos os motivos.`
+        
+        'formulario_solicitado': `📋 Olá ${nome}! O link do formulário DS-160 foi enviado para você. Preencha com atenção e nos avise quando terminar.`,
+        
+        'formulario_enviado': `✅ Olá ${nome}! Recebemos seu formulário DS-160 com sucesso!\n\n📌 Nossa equipe já está analisando seus dados.\n\n⏳ Em até 24h entraremos em contato com os próximos passos.`,
+        
+        'em_analise': `🔍 Olá ${nome}! Estamos analisando seus documentos e formulário com atenção.\n\n📌 Se houver necessidade de correções, entraremos em contato.\n\n⏳ Aguarde nosso retorno em breve!`,
+        
+        'analise_correcoes': `📝 Olá ${nome}! Identificamos alguns pontos que precisam de ajuste no seu formulário.\n\n📌 Em breve nossa equipe entrará em contato para orientar as correções necessárias.`,
+        
+        'processo_aberto': `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\n✅ Próximos passos:\n• Agendamento da coleta biométrica (CASV)\n• Preparação para a entrevista\n\n📱 Em breve enviaremos mais detalhes.`,
+        
+        'boleto_emitido': `💰 Olá ${nome}! O boleto da taxa consular foi emitido.\n\n📌 Verifique seu e-mail para acessar o boleto.\n⏰ Prazo de pagamento: 7 dias úteis.`,
+        
+        'boleto_pago': `✅ Olá ${nome}! Confirmamos o pagamento da taxa consular!\n\n📌 Agora vamos prosseguir com o agendamento da sua entrevista.`,
+        
+        'agendado_casv': `📅 Olá ${nome}! Seu CASV (coleta biométrica) foi agendado!\n\n📍 Verifique seu e-mail com os detalhes do local e horário.\n\n📌 Não se esqueça de levar:\n• Passaporte original\n• Comprovante de agendamento\n• Documentos pessoais`,
+        
+        'agendado_entrevista': `🎤 Olá ${nome}! Sua entrevista no Consulado foi agendada!\n\n📍 Verifique seu e-mail com a data, horário e local.\n\n📌 Dicas importantes:\n• Chegue com 30 minutos de antecedência\n• Leve todos os documentos originais\n• Mantenha a calma e seja sincero(a)`,
+        
+        'treinamento_realizado': `✅ Olá ${nome}! Seu treinamento para a entrevista foi concluído!\n\n🎯 Você está preparado(a) para a entrevista!\n\n📌 Lembre-se:\n• Confiança é a chave\n• Responda com clareza\n• Seja objetivo(a)`,
+        
+        'entrevista_realizada': `🎤 Olá ${nome}! Sua entrevista foi realizada!\n\n⏳ Agora é aguardar a decisão consular.\n\n📌 O prazo médio é de 7 a 10 dias úteis.\n\n🌟 Fique tranquilo(a)! Em breve teremos novidades.`,
+        
+        'visto_aprovado': `🎉 PARABÉNS, ${nome}! 🎉\n\nSeu visto foi APROVADO!\n\n📌 Próximos passos:\n• Seu passaporte será liberado em 5 a 7 dias úteis\n• Você receberá notificação para retirada/entrega\n\n✈️ Agora é planejar sua viagem!\n\n🌟 A GetVisa Assessoria agradece pela confiança!`,
+        
+        'visto_recusado': `😔 Olá ${nome}!\n\nInfelizmente seu visto foi recusado.\n\n📌 Não desanime! Isso é mais comum do que parece.\n\n🔍 Vamos analisar com você os motivos e planejar uma nova tentativa.\n\n📱 Fale com a gente agora: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n💪 Isso não muda o seu objetivo! Vamos trabalhar juntos para reverter esse cenário!`,
+        
+        'passaporte_retornado': `📦 Olá ${nome}!\n\nSeu passaporte com o visto já está disponível para retirada/entrega!\n\n✅ Processo concluído com sucesso!\n\n✈️ Agora é realizar seus sonhos!\n\n🌟 Agradecemos por confiar na GetVisa Assessoria!`
     };
 
     const mensagem = mensagens[status] || `🔄 Seu status foi atualizado para: ${status}`;
     
     try {
         await enviarWhatsApp(telefone, mensagem);
-        console.log(`📱 Notificação de status enviada para ${telefone}`);
+        console.log(`📱 Notificação de status enviada para ${telefone}: ${status}`);
     } catch (error) {
         console.error('❌ Erro ao enviar notificação de status:', error);
     }
