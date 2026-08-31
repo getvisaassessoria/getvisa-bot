@@ -1277,6 +1277,167 @@ async function enviarNotificacaoStatus(telefone, status, nome) {
 }
 
 // ============================================================
+// MAPEAMENTO DE ETAPAS
+// ============================================================
+const ETAPA_LABELS = {
+    'formulario_enviado': '📋 Formulário Enviado',
+    'analise_correcoes': '🔍 Análise e Correções',
+    'abertura_processo': '📌 Processo Aberto',
+    'boleto_emitido': '💰 Boleto Emitido',
+    'boleto_pago': '✅ Boleto Pago',
+    'agendado_casv': '📅 CASV Agendado',
+    'treinamento_agendado': '🎯 Treinamento Agendado',
+    'treinamento_realizado': '✅ Treinamento Realizado',
+    'agendado_entrevista': '🎤 Entrevista Agendada',
+    'entrevista_realizada': '🎤 Entrevista Realizada',
+    'visto_aprovado': '🎉 Visto Aprovado',
+    'passaporte_retornado': '📦 Passaporte Retornado',
+    'visto_recusado': '😔 Visto Recusado',
+    'finalizado': '🏁 Processo Finalizado'
+};
+
+// ============================================================
+// FUNÇÃO PARA ATUALIZAR ETAPA (USANDO etapas_processo)
+// ============================================================
+async function atualizarEtapa(telefone, novaEtapa, dadosAdicionais = {}) {
+    try {
+        const updateData = {
+            etapa_atual: novaEtapa,
+            [`data_${novaEtapa}`]: new Date().toISOString(),
+            data_atualizacao: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            ...dadosAdicionais
+        };
+
+        const { data, error } = await supabase
+            .from('etapas_processo')
+            .upsert({
+                cliente_telefone: telefone,
+                ...updateData
+            }, { onConflict: 'cliente_telefone' })
+            .select()
+            .single();
+
+        if (error) {
+            console.error(`❌ Erro ao atualizar etapa ${novaEtapa}:`, error);
+            return { success: false, error };
+        }
+
+        console.log(`✅ Etapa ${novaEtapa} atualizada para ${telefone}`);
+        
+        // Enviar notificação WhatsApp sobre a mudança
+        await enviarNotificacaoEtapa(telefone, novaEtapa, data);
+        
+        return { success: true, data };
+    } catch (error) {
+        console.error('❌ Erro ao atualizar etapa:', error);
+        return { success: false, error };
+    }
+}
+
+// ============================================================
+// FUNÇÃO PARA ENVIAR NOTIFICAÇÃO DE ETAPA
+// ============================================================
+async function enviarNotificacaoEtapa(telefone, etapa, dadosCliente) {
+    const mensagens = {
+        'formulario_enviado': (nome) => `✅ Olá ${nome}! Recebemos seu formulário DS-160 com sucesso!\n\n📌 Nossa equipe já está analisando seus dados.\n\n⏳ Em até 24h entraremos em contato.`,
+        'analise_correcoes': (nome) => `🔍 Olá ${nome}! Estamos analisando seus documentos.\n\n📌 Em breve entraremos em contato se houver correções.`,
+        'abertura_processo': (nome) => `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\n✅ Próximos passos:\n• Agendamento CASV\n• Preparação para entrevista`,
+        'boleto_emitido': (nome) => `💰 Olá ${nome}! O boleto da taxa consular foi emitido.\n\n📌 Verifique seu e-mail para acessar o boleto.\n⏰ Prazo: 7 dias úteis.`,
+        'boleto_pago': (nome) => `✅ Olá ${nome}! Pagamento confirmado!\n\n📌 Agora vamos agendar sua coleta biométrica.`,
+        'agendado_casv': (nome) => `📅 Olá ${nome}! Seu CASV foi agendado!\n\n📍 Verifique seu e-mail com os detalhes.\n\n⚠️ Leve a CONFIRMATION IMPRESSA e PASSAPORTE.`,
+        'treinamento_agendado': (nome) => `🎯 Olá ${nome}! Seu treinamento foi agendado!\n\n📅 Data e horário enviados por e-mail.\n\n📌 Prepare-se! Estamos com você!`,
+        'treinamento_realizado': (nome) => `✅ Olá ${nome}! Treinamento concluído!\n\n🎯 Você está preparado(a) para a entrevista!\n\n💪 Confie no seu potencial!`,
+        'agendado_entrevista': (nome) => `🎤 Olá ${nome}! Sua entrevista foi agendada!\n\n📍 Verifique seu e-mail com data, horário e local.\n\n📌 Dicas: chegue com 30 min de antecedência.`,
+        'entrevista_realizada': (nome) => `🎤 Olá ${nome}! Entrevista realizada!\n\n⏳ Agora é aguardar a decisão consular.\n\n📌 Prazo médio: 7 a 10 dias úteis.`,
+        'visto_aprovado': (nome) => `🎉 PARABÉNS, ${nome}! 🎉\n\nSeu visto foi APROVADO!\n\n📌 Passaporte será liberado em 5 a 7 dias úteis.\n\n✈️ Agora é planejar sua viagem!`,
+        'visto_recusado': (nome) => `😔 Olá ${nome}!\n\nInfelizmente seu visto foi recusado.\n\n📌 Não desanime! Vamos analisar os motivos.\n\n📱 [Fale com especialista](https://wa.me/5521974601812)`,
+        'passaporte_retornado': (nome) => `📦 Olá ${nome}!\n\nSeu passaporte com o visto está disponível!\n\n✅ Processo concluído com sucesso!\n\n🌟 Agradecemos por confiar na GetVisa!`,
+        'finalizado': (nome) => `🏁 Olá ${nome}!\n\nSeu processo foi finalizado com sucesso!\n\n🌟 Agradecemos por confiar na GetVisa Assessoria!`
+    };
+
+    const nome = dadosCliente?.nome || 'Cliente';
+    const mensagem = mensagens[etapa]?.(nome) || `🔄 Seu processo foi atualizado para: ${ETAPA_LABELS[etapa] || etapa}`;
+    
+    try {
+        await enviarWhatsApp(telefone, mensagem);
+        console.log(`📱 Notificação de etapa enviada para ${telefone}: ${etapa}`);
+    } catch (error) {
+        console.error('❌ Erro ao enviar notificação:', error);
+    }
+}
+
+// ============================================================
+// FUNÇÃO PARA BUSCAR ETAPAS DO CLIENTE
+// ============================================================
+async function buscarEtapasCliente(telefone) {
+    const { data, error } = await supabase
+        .from('etapas_processo')
+        .select('*')
+        .eq('cliente_telefone', telefone)
+        .maybeSingle();
+
+    if (error) {
+        console.error('❌ Erro ao buscar etapas:', error);
+        return { success: false, error };
+    }
+
+    return { success: true, data };
+}
+
+// ============================================================
+// FUNÇÃO PARA SALVAR AGENDAMENTOS (CASV + ENTREVISTA)
+// ============================================================
+async function salvarAgendamentos(telefone, casv, entrevista) {
+    const { data, error } = await supabase
+        .from('etapas_processo')
+        .upsert({
+            cliente_telefone: telefone,
+            etapa_atual: 'agendado_casv',
+            data_agendado_casv: new Date().toISOString(),
+            dados_casv: casv,
+            dados_entrevista: entrevista,
+            data_atualizacao: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'cliente_telefone' })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('❌ Erro ao salvar agendamentos:', error);
+        return { success: false, error };
+    }
+
+    return { success: true, data };
+}
+
+// ============================================================
+// FUNÇÃO PARA SALVAR TREINAMENTO
+// ============================================================
+async function salvarTreinamento(telefone, treinamento) {
+    const { data, error } = await supabase
+        .from('etapas_processo')
+        .upsert({
+            cliente_telefone: telefone,
+            etapa_atual: 'treinamento_agendado',
+            data_treinamento_agendado: new Date().toISOString(),
+            dados_treinamento: treinamento,
+            data_atualizacao: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'cliente_telefone' })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('❌ Erro ao salvar treinamento:', error);
+        return { success: false, error };
+    }
+
+    return { success: true, data };
+}
+
+
+// ============================================================
 // 12. FUNÇÕES DE CLASSIFICAÇÃO E RESPOSTAS DO BOT
 // ============================================================
 
@@ -4754,6 +4915,77 @@ app.post('/api/admin/atualizar-status', async (req, res) => {
         });
     }
 });
+
+// ============================================================
+// ROTA PARA ATUALIZAR TREINAMENTO (EDITÁVEL PELA EQUIPE)
+// ============================================================
+app.post('/api/admin/atualizar-treinamento', async (req, res) => {
+    try {
+        const adminKey = req.headers['x-admin-key'];
+        if (adminKey !== ADMIN_API_KEY) {
+            return res.status(401).json({ error: 'Não autorizado' });
+        }
+
+        const { 
+            telefone, 
+            treinamento_data, 
+            treinamento_hora, 
+            treinamento_local, 
+            treinamento_modalidade, 
+            treinamento_link 
+        } = req.body;
+
+        if (!telefone) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Telefone é obrigatório' 
+            });
+        }
+
+        // Buscar nome do cliente para notificação
+        const { data: cliente } = await supabase
+            .from('clientes')
+            .select('nome')
+            .eq('telefone', telefone)
+            .maybeSingle();
+
+        const treinamento = {
+            data: treinamento_data,
+            hora: treinamento_hora,
+            local: treinamento_local,
+            modalidade: treinamento_modalidade || 'presencial',
+            link: treinamento_link || null
+        };
+
+        // Salvar na tabela etapas_processo
+        const resultado = await salvarTreinamento(telefone, treinamento);
+
+        if (!resultado.success) {
+            return res.status(500).json({ 
+                success: false, 
+                error: resultado.error 
+            });
+        }
+
+        // Enviar notificação WhatsApp
+        const nome = cliente?.nome || 'Cliente';
+        await enviarNotificacaoEtapa(telefone, 'treinamento_agendado', { nome });
+
+        res.json({
+            success: true,
+            message: 'Treinamento atualizado com sucesso!',
+            data: resultado.data
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao atualizar treinamento:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
 
 // ============================================================
 // PROCESSADOR DA FILA DE MENSAGENS
