@@ -766,17 +766,17 @@ console.log('✅ ROTA /api/agendamentos/upload-pdf REGISTRADA COM SUCESSO!');
 // ============================================================
 // 9. ROTA PRINCIPAL - DASHBOARD
 // ============================================================
-app.get('/', (req, res) => {
-    const dashboardPath = path.join(__dirname, 'public', 'index.html');
-    if (fs.existsSync(dashboardPath)) {
-        res.sendFile(dashboardPath);
-    } else {
-        res.send(`
-            <h1>📊 Dashboard</h1>
-            <p>Arquivo não encontrado. Copie <code>index.html</code> para a pasta <code>public/</code></p>
-        `);
-    }
-});
+// app.get('/', (req, res) => {
+//  const dashboardPath = path.join(__dirname, 'public', 'index.html');
+   //  if (fs.existsSync(dashboardPath)) {
+      //   res.sendFile(dashboardPath);
+    // } else {
+       //  res.send(`
+          //   <h1>📊 Dashboard</h1>
+          //   <p>Arquivo não encontrado. Copie <code>index.html</code> para a pasta <code>public/</code></p>
+       //  `);
+  //   }
+// });
 
 
 // 🔥 ROTA DIRETA PARA O FORMULÁRIO DS-160

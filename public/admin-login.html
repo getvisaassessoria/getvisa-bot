@@ -146,7 +146,7 @@
             localStorage.setItem('admin_api_key', apiKey);
             
             // Redirecionar para o admin com a chave na URL
-            window.location.href = `/admin.html?api_key=${encodeURIComponent(apiKey)}`;
+            window.location.href = `/dashboard?api_key=${encodeURIComponent(apiKey)}`;
         });
         
         // Preencher com chave salva
