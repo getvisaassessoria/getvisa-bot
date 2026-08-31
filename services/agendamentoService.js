@@ -45,9 +45,6 @@ function mapAtividadeToText(atividade) {
 
 
 // ============================================================
-// FUNÇÃO DE EXTRAÇÃO DO PDF (COM CORREÇÃO DE ENCODING)
-// ============================================================
-// ============================================================
 // FUNÇÃO DE EXTRAÇÃO SIMPLIFICADA - APENAS 3 DADOS
 // ============================================================
 function extractAgendamentoDetailsFromText(pdfText) {
@@ -56,41 +53,77 @@ function extractAgendamentoDetailsFromText(pdfText) {
     console.log('🔍 Extraindo dados do PDF (versão simplificada)...');
     
     // ============================================================
-    // 1. EXTRAIR NOMES - BUSCA POR "Nome do Solicitante"
+    // 1. EXTRAIR NOMES - PRIORIDADE: "Nome do Solicitante"
     // ============================================================
     const nomes = [];
     
-    // Busca "Nome do Solicitante" no texto
-    const nomeRegex = /Nome do Solicitante\s+([A-Z\s]+?)(?=\s+Classe|$)/gi;
+    // 🔥 Estratégia 1: "Nome do Solicitante" - MAIS CONFIÁVEL
+    console.log('🔍 Buscando "Nome do Solicitante"...');
+    const nomeRegex = /Nome do Solicitante\s+([A-Z\s]+?)(?=\s+Classe|$|\n)/gi;
     let match;
     while ((match = nomeRegex.exec(pdfText)) !== null) {
         let nome = match[1].trim();
-        // Remove caracteres especiais e espaços extras
+        // Remove caracteres especiais
         nome = nome.replace(/[^A-Z\s]/g, '').trim();
-        if (nome && nome.length > 5 && nome.split(/\s+/).length >= 2) {
+        // Verifica se é um nome válido (2+ palavras, mais de 10 caracteres)
+        if (nome && nome.length > 10 && nome.split(/\s+/).length >= 2) {
             // Verifica se não é um cabeçalho
-            const headers = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 'PROTOCOLO'];
-            if (!headers.some(h => nome.includes(h))) {
+            const headers = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 'PROTOCOLO', 
+                           'INSTRUÇÕES', 'DEPARTAMENTO', 'DOCUMENTAÇÃO', 'VISITANTE', 'NEGÓCIOS', 
+                           'TURISMO', 'TRATAMENTO', 'MÉDICO', 'TAXA', 'SOLICITAÇÃO', 'ENTREGA'];
+            if (!headers.some(h => nome.toUpperCase().includes(h))) {
                 nomes.push(nome);
                 console.log(`✅ Nome encontrado: ${nome}`);
             }
         }
     }
     
-    // Se não encontrou, tenta fallback com linhas em maiúsculas
+    // 🔥 Estratégia 2: Fallback - linhas em maiúsculas (apenas se a estratégia 1 falhou)
     if (nomes.length === 0) {
-        console.log('🔍 Tentando fallback para nomes...');
+        console.log('🔍 Fallback: buscando nomes em maiúsculas...');
         const linhas = pdfText.split('\n');
+        let nomesTemp = [];
         for (const linha of linhas) {
             const trimmed = linha.trim();
-            // Nome em maiúsculas com 3+ palavras
+            // Nome em maiúsculas com 3+ palavras, mais de 15 caracteres
             if (trimmed === trimmed.toUpperCase() && 
                 trimmed.length > 15 && 
                 trimmed.split(/\s+/).length >= 3) {
-                const headers = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 'PROTOCOLO', 'INSTRUÇÕES'];
-                if (!headers.some(h => trimmed.includes(h))) {
-                    nomes.push(trimmed);
-                    console.log(`✅ Nome encontrado (fallback): ${trimmed}`);
+                // Verifica se NÃO é um cabeçalho (palavras proibidas)
+                const palavrasProibidas = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 
+                                          'PROTOCOLO', 'INSTRUÇÕES', 'DEPARTAMENTO', 'DOCUMENTAÇÃO', 
+                                          'VISITANTE', 'NEGÓCIOS', 'TURISMO', 'TRATAMENTO', 'MÉDICO', 
+                                          'TAXA', 'SOLICITAÇÃO', 'ENTREGA', 'PASSAPORTE', 'VISTO'];
+                if (!palavrasProibidas.some(p => trimmed.includes(p))) {
+                    nomesTemp.push(trimmed);
+                }
+            }
+        }
+        
+        // Remove duplicatas e pega os primeiros (evita capturar coisas erradas)
+        const nomesUnicosTemp = [...new Set(nomesTemp)];
+        for (const n of nomesUnicosTemp.slice(0, 10)) {
+            // Verifica se parece um nome (não tem números, não tem parênteses)
+            if (!n.includes('(') && !n.includes(')') && !/\d/.test(n)) {
+                nomes.push(n);
+                console.log(`✅ Nome encontrado (fallback): ${n}`);
+            }
+        }
+    }
+    
+    // Se ainda não encontrou, tenta extrair nomes específicos do PDF
+    if (nomes.length === 0) {
+        console.log('🔍 Tentando extrair nomes específicos...');
+        // Busca padrões como "LUCIO MARTINS DOS SANTOS"
+        const nomeEspecifico = /([A-Z]{3,}\s+[A-Z]{3,}(?:\s+[A-Z]{3,})*)/g;
+        while ((match = nomeEspecifico.exec(pdfText)) !== null) {
+            const nome = match[1].trim();
+            if (nome && nome.length > 15 && nome.split(/\s+/).length >= 3) {
+                const palavrasProibidas = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 
+                                          'PROTOCOLO', 'INSTRUÇÕES', 'DEPARTAMENTO'];
+                if (!palavrasProibidas.some(p => nome.includes(p))) {
+                    nomes.push(nome);
+                    console.log(`✅ Nome encontrado (específico): ${nome}`);
                 }
             }
         }
@@ -103,7 +136,8 @@ function extractAgendamentoDetailsFromText(pdfText) {
     
     // Remove duplicatas
     const nomesUnicos = [...new Set(nomes)];
-    console.log(`📋 ${nomesUnicos.length} nomes encontrados`);
+    console.log(`📋 ${nomesUnicos.length} nomes encontrados:`);
+    nomesUnicos.forEach((n, i) => console.log(`   ${i+1}. ${n}`));
 
     // ============================================================
     // 2. EXTRAIR DATAS - CASV E ENTREVISTA
@@ -313,7 +347,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             console.log(`✅ Salvo: ${ag.atividade} - ${ag.dataCompromisso}`);
         }
 
-        // 🔥 PREPARA DADOS PARA RETORNO
+                // 🔥 PREPARA DADOS PARA RETORNO
         const casv = agendamentosExtraidos.find(a => a.atividade === 'CASV');
         const entrevista = agendamentosExtraidos.find(a => a.atividade === 'ENTREVISTA');
 
@@ -341,13 +375,12 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             console.log(`⏭️ WhatsApp desabilitado`);
         }
 
-        // 🔥 RETORNO
+        // 🔥 RETORNO - CORRIGIDO
         return { 
             success: true, 
             agendamentosSalvos,
-            dados: dadosExtraidos
+            dados: dadosExtraidos  // <-- AQUI ESTAVA O ERRO: dadosParaRetorno
         };
-
     } catch (error) {
         console.error('❌ Erro:', error);
         return { success: false, message: 'Erro interno.', error: error.message };
@@ -421,14 +454,7 @@ function gerarMensagemAgendamentos(agendamentos, nomeCliente) {
         `🌟 Boa sorte!`;
 }
 
-// ============================================================
-// FUNÇÃO PRINCIPAL: EXTRAIR E SALVAR PDF
-// ============================================================
-// services/agendamentoService.js
 
-// ============================================================
-// FUNÇÃO PRINCIPAL: EXTRAIR E SALVAR PDF (VERSÃO CORRIGIDA)
-// ============================================================
 // ============================================================
 // FUNÇÃO PRINCIPAL: EXTRAIR E SALVAR PDF (COM LISTA DE MEMBROS)
 // ============================================================
