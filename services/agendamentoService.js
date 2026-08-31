@@ -46,112 +46,245 @@ function mapAtividadeToText(atividade) {
 // ============================================================
 // FUNÇÃO DE EXTRAÇÃO DO PDF
 // ============================================================
+// ============================================================
+// FUNÇÃO DE EXTRAÇÃO DO PDF (VERSÃO MELHORADA)
+// ============================================================
 function extractAgendamentoDetailsFromText(pdfText) {
     const agendamentos = [];
     
     console.log('🔍 Extraindo dados do PDF...');
+    console.log('📄 Texto do PDF (primeiros 1000 caracteres):', pdfText.substring(0, 1000));
     
-    // Regex para extrair informações
-    const regexInfo = {
-        nome: /^([A-ZÀ-Ú\s]+?)(?=\s+Classe do visto|$)/,
-        ds160: /Número DS-160\s+([A-Z0-9]+)/,
-        casv: /Data do Agendamento no CASV:\s*(\d{1,2})\s+([A-Za-zçã]+),\s+(\d{4}),\s+(\d{2}:\d{2})\s+([A-Za-z\s-]+?)(?:\s+Horário local|$)/,
-        entrevista: /Data da entrevista no Consulado:\s*(\d{1,2})\s+([A-Za-zçã]+),\s+(\d{4}),\s+(\d{2}:\d{2})\s+([A-Za-z\s-]+?)(?:\s+Horário local|$)/
-    };
+    // ============================================================
+    // 1. EXTRAIR PROTOCOLO DS-160
+    // ============================================================
+    let ds160 = null;
+    const ds160Patterns = [
+        /DS-160[:\s]*([A-Z0-9]{10,})/i,
+        /N[úu]mero DS-160[:\s]*([A-Z0-9]{10,})/i,
+        /DS160[:\s]*([A-Z0-9]{10,})/i,
+        /Confirmation Number[:\s]*([A-Z0-9]{10,})/i,
+        /N[úu]mero de Confirma[çc][ãa]o[:\s]*([A-Z0-9]{10,})/i
+    ];
     
-    // Extrair CASV e Entrevista globais
-    let matchCasv = pdfText.match(regexInfo.casv);
-    let matchEntrevista = pdfText.match(regexInfo.entrevista);
+    for (const pattern of ds160Patterns) {
+        const match = pdfText.match(pattern);
+        if (match) {
+            ds160 = match[1].trim();
+            console.log(`✅ Protocolo DS-160 encontrado: ${ds160}`);
+            break;
+        }
+    }
+
+    // ============================================================
+    // 2. EXTRAIR NOMES DOS SOLICITANTES
+    // ============================================================
+    const nomes = [];
     
-    let casvData = null, casvHora = null, casvLocal = null;
-    let entrevistaData = null, entrevistaHora = null, entrevistaLocal = null;
-    
-    if (matchCasv) {
-        const [, dia, mes_nome, ano, hora, local] = matchCasv;
-        const dataFormatada = formatarDataPdf(dia, mes_nome, ano);
-        if (dataFormatada) {
-            casvData = dataFormatada;
-            casvHora = hora;
-            casvLocal = local.trim();
-            console.log(`✅ CASV encontrado: ${casvData} ${casvHora} - ${casvLocal}`);
+    // Padrão 1: "Nome do Solicitante: NOME"
+    const nomePattern1 = /Nome do Solicitante[:\s]+([A-ZÀ-Ú\s]+?)(?=\s+Classe do visto|\s+Data|\s+DS-160|$)/gi;
+    let match1;
+    while ((match1 = nomePattern1.exec(pdfText)) !== null) {
+        const nome = match1[1].trim();
+        if (nome && nome.length > 2) {
+            nomes.push(nome);
+            console.log(`✅ Nome encontrado (padrão 1): ${nome}`);
         }
     }
     
-    if (matchEntrevista) {
-        const [, dia, mes_nome, ano, hora, local] = matchEntrevista;
-        const dataFormatada = formatarDataPdf(dia, mes_nome, ano);
-        if (dataFormatada) {
-            entrevistaData = dataFormatada;
-            entrevistaHora = hora;
-            entrevistaLocal = local.trim();
-            console.log(`✅ Entrevista encontrada: ${entrevistaData} ${entrevistaHora} - ${entrevistaLocal}`);
-        }
-    }
-    
-    if (!casvData && !entrevistaData) {
-        console.log('⚠️ Nenhuma data de agendamento encontrada no PDF.');
-        return agendamentos;
-    }
-    
-    // Extrair nomes dos solicitantes
-    const blocos = pdfText.split(/Nome do Solicitante\s*/);
-    const blocosSolicitantes = blocos.slice(1);
-    
-    console.log(`📋 ${blocosSolicitantes.length} blocos de solicitantes encontrados`);
-    
-    // Extrair DS-160
-    const matchDs160 = pdfText.match(regexInfo.ds160);
-    let ds160 = matchDs160 ? matchDs160[1].trim() : null;
-    
-    for (const bloco of blocosSolicitantes) {
-        const linhasBloco = bloco.split('\n');
-        let nome = null;
-        
-        if (linhasBloco.length > 0) {
-            const primeiraLinha = linhasBloco[0].trim();
-            const matchNome = primeiraLinha.match(/^([A-ZÀ-Ú\s]+?)(?=\s+Classe do visto|$)/);
-            if (matchNome) {
-                nome = matchNome[1].trim();
+    // Padrão 2: Linhas com nomes em maiúsculas
+    if (nomes.length === 0) {
+        const linhas = pdfText.split('\n');
+        for (const linha of linhas) {
+            const linhaTrim = linha.trim();
+            // Nome em maiúsculas com pelo menos 2 palavras
+            if (linhaTrim === linhaTrim.toUpperCase() && 
+                linhaTrim.length > 5 && 
+                linhaTrim.split(' ').length >= 2) {
+                // Verifica se não é um cabeçalho
+                const headers = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 'PROTOCOLO'];
+                if (!headers.some(h => linhaTrim.includes(h))) {
+                    nomes.push(linhaTrim);
+                    console.log(`✅ Nome encontrado (padrão 2): ${linhaTrim}`);
+                }
             }
         }
+    }
+
+    // Se não encontrou nomes, usa um nome genérico
+    if (nomes.length === 0) {
+        nomes.push('Cliente');
+        console.log('⚠️ Nenhum nome encontrado, usando "Cliente"');
+    }
+
+    // ============================================================
+    // 3. EXTRAIR DATAS E HORÁRIOS
+    // ============================================================
+    
+    // Padrão para data no formato: "16 de Setembro de 2026"
+    const dataPattern = /(\d{1,2})\s+de\s+([A-Za-zçã]+)\s+de\s+(\d{4})/gi;
+    const datasEncontradas = [];
+    let dataMatch;
+    while ((dataMatch = dataPattern.exec(pdfText)) !== null) {
+        const dia = dataMatch[1];
+        const mes = dataMatch[2];
+        const ano = dataMatch[3];
+        const mesNumero = mesesMap[mes] || mesesMap[mes + ','];
+        if (mesNumero) {
+            const dataFormatada = `${String(parseInt(dia)).padStart(2, '0')}/${mesNumero}/${ano}`;
+            datasEncontradas.push(dataFormatada);
+            console.log(`📅 Data encontrada: ${dataFormatada}`);
+        }
+    }
+
+    // Padrão para horário: "09:45"
+    const horaPattern = /(\d{1,2}:\d{2})/g;
+    const horasEncontradas = pdfText.match(horaPattern) || [];
+    console.log(`⏰ Horários encontrados: ${horasEncontradas.join(', ')}`);
+
+    // ============================================================
+    // 4. EXTRAIR LOCAIS
+    // ============================================================
+    let localCASV = null;
+    let localEntrevista = null;
+    
+    // Procura por locais específicos
+    const localPatterns = [
+        /CASV[:\s]+([^\n]+)/i,
+        /Entrevista[:\s]+([^\n]+)/i,
+        /Consulado[:\s]+([^\n]+)/i,
+        /Local[:\s]+([^\n]+)/i
+    ];
+    
+    // Primeiro tenta encontrar locais específicos
+    const localMatchCASV = pdfText.match(/CASV[:\s]+([^\n]+)/i);
+    if (localMatchCASV) {
+        localCASV = localMatchCASV[1].trim();
+        console.log(`📍 Local CASV: ${localCASV}`);
+    }
+    
+    const localMatchEntrevista = pdfText.match(/Entrevista[:\s]+([^\n]+)/i);
+    if (localMatchEntrevista) {
+        localEntrevista = localMatchEntrevista[1].trim();
+        console.log(`📍 Local Entrevista: ${localEntrevista}`);
+    }
+
+    // Se não encontrou locais específicos, tenta identificar pelo contexto
+    if (!localCASV || !localEntrevista) {
+        const linhas = pdfText.split('\n');
+        let encontrouCASV = false;
+        let encontrouEntrevista = false;
         
-        if (!nome) {
-            const matchNome = bloco.match(regexInfo.nome);
-            if (matchNome) {
-                nome = matchNome[1].trim();
+        for (const linha of linhas) {
+            const linhaLower = linha.toLowerCase();
+            if (linhaLower.includes('casv') && !encontrouCASV) {
+                // Pega a próxima linha que não seja vazia
+                const idx = linhas.indexOf(linha);
+                for (let i = idx + 1; i < Math.min(idx + 3, linhas.length); i++) {
+                    const proxLinha = linhas[i].trim();
+                    if (proxLinha && !proxLinha.match(/^\d/)) {
+                        if (!localCASV) {
+                            localCASV = proxLinha;
+                            console.log(`📍 Local CASV (contexto): ${localCASV}`);
+                        }
+                        encontrouCASV = true;
+                        break;
+                    }
+                }
+            }
+            if (linhaLower.includes('entrevista') && !encontrouEntrevista) {
+                const idx = linhas.indexOf(linha);
+                for (let i = idx + 1; i < Math.min(idx + 3, linhas.length); i++) {
+                    const proxLinha = linhas[i].trim();
+                    if (proxLinha && !proxLinha.match(/^\d/)) {
+                        if (!localEntrevista) {
+                            localEntrevista = proxLinha;
+                            console.log(`📍 Local Entrevista (contexto): ${localEntrevista}`);
+                        }
+                        encontrouEntrevista = true;
+                        break;
+                    }
+                }
             }
         }
+    }
+
+    // ============================================================
+    // 5. ORGANIZAR OS DADOS POR SOLICITANTE
+    // ============================================================
+    
+    // Se temos 2 datas, a primeira é CASV e a segunda é Entrevista
+    // Se temos 2 horários, o primeiro é CASV e o segundo é Entrevista
+    let casvData = datasEncontradas[0] || null;
+    let entrevistaData = datasEncontradas[1] || null;
+    let casvHora = horasEncontradas[0] || null;
+    let entrevistaHora = horasEncontradas[1] || null;
+    
+    // Se só tem uma data, tenta identificar pelo contexto
+    if (datasEncontradas.length === 1) {
+        const textoLower = pdfText.toLowerCase();
+        // Verifica se a data está associada a CASV ou Entrevista
+        const dataPos = pdfText.indexOf(datasEncontradas[0]);
+        const contextoAntes = pdfText.substring(Math.max(0, dataPos - 50), dataPos);
         
-        if (!nome) {
-            console.warn(`⚠️ Nome não encontrado em um bloco. Pulando.`);
-            continue;
+        if (contextoAntes.toLowerCase().includes('casv')) {
+            casvData = datasEncontradas[0];
+            console.log(`📅 CASV Data: ${casvData}`);
+        } else if (contextoAntes.toLowerCase().includes('entrevista')) {
+            entrevistaData = datasEncontradas[0];
+            console.log(`📅 Entrevista Data: ${entrevistaData}`);
+        } else {
+            // Por padrão, assume que é CASV
+            casvData = datasEncontradas[0];
+            console.log(`📅 CASV Data (default): ${casvData}`);
         }
-        
-        console.log(`✅ Nome encontrado: ${nome}`);
-        
-        if (casvData && casvHora && casvLocal) {
+    }
+
+    // Se só tem um horário
+    if (horasEncontradas.length === 1) {
+        casvHora = horasEncontradas[0];
+        console.log(`⏰ CASV Hora (default): ${casvHora}`);
+    }
+
+    // Se não tem local, usa o padrão
+    if (!localCASV) localCASV = 'Consulado Americano - Rio de Janeiro';
+    if (!localEntrevista) localEntrevista = 'Consulado Americano - Rio de Janeiro';
+
+    console.log('📊 RESUMO DOS DADOS EXTRAÍDOS:');
+    console.log(`  CASV: ${casvData || 'A definir'} ${casvHora || 'A definir'} - ${localCASV}`);
+    console.log(`  Entrevista: ${entrevistaData || 'A definir'} ${entrevistaHora || 'A definir'} - ${localEntrevista}`);
+
+    // ============================================================
+    // 6. CRIAR OS AGENDAMENTOS
+    // ============================================================
+    for (const nome of nomes) {
+        // CASV
+        if (casvData && casvHora) {
             agendamentos.push({
                 nomeCliente: nome,
                 atividade: 'CASV',
                 dataCompromisso: casvData,
                 horaCompromisso: casvHora,
-                localCompromisso: casvLocal,
+                localCompromisso: localCASV,
                 protocolo_ds160: ds160,
             });
+            console.log(`✅ Agendamento CASV criado para ${nome}`);
         }
         
-        if (entrevistaData && entrevistaHora && entrevistaLocal) {
+        // Entrevista
+        if (entrevistaData && entrevistaHora) {
             agendamentos.push({
                 nomeCliente: nome,
                 atividade: 'ENTREVISTA',
                 dataCompromisso: entrevistaData,
                 horaCompromisso: entrevistaHora,
-                localCompromisso: entrevistaLocal,
+                localCompromisso: localEntrevista,
                 protocolo_ds160: ds160,
             });
+            console.log(`✅ Agendamento Entrevista criado para ${nome}`);
         }
     }
-    
+
     console.log(`📋 Total de ${agendamentos.length} agendamentos extraídos.`);
     return agendamentos;
 }
