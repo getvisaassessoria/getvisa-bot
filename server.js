@@ -780,7 +780,7 @@ Seus agendamentos foram confirmados! 📅
 
 console.log('✅ ROTA /api/agendamentos/upload-pdf REGISTRADA COM SUCESSO!');
 
-// Proteger as outras rotas de agendamento
+// 🔥 PROTEÇÃO DAS DEMAIS ROTAS DE AGENDAMENTO (DEVE VIR DEPOIS DA ROTA PÚBLICA)
 app.use('/api/agendamentos', auth.verificarApiKey);
 app.use('/api/admin/agendamentos', auth.verificarApiKey);
 
