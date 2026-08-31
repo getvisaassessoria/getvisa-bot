@@ -968,7 +968,6 @@ ${entrevistaLocal}
 
 console.log('✅ ROTA /api/agendamentos/upload-pdf REGISTRADA COM SUCESSO!');
 
-// 🔥 PROTEÇÃO DAS DEMAIS ROTAS DE AGENDAMENTO (APENAS AS QUE PRECISAM DE AUTENTICAÇÃO)
 // ⚠️ NÃO COLOCAR auth.verificarApiKey ANTES DA ROTA DE UPLOAD
 app.use('/api/admin/agendamentos', auth.verificarApiKey);
 
@@ -1052,6 +1051,80 @@ app.get('/agendamentos', auth.verificarAdmin, (req, res) => {
         res.sendFile(adminPath);
     } else {
         res.send('<h1>📅 Agendamentos</h1><p>Arquivo não encontrado.</p>');
+    }
+});
+
+// ============================================================
+// LISTAR AGENDAMENTOS (API) - PÚBLICA COM AUTENTICAÇÃO
+// ============================================================
+app.get('/api/agendamentos', auth.verificarApiKey, async (req, res) => {
+    console.log('📨 GET /api/agendamentos chamada!');
+    
+    try {
+        const { data, error } = await supabase
+            .from('agendamentos')
+            .select(`
+                *,
+                clientes (nome, telefone)
+            `)
+            .order('data_agendamento', { ascending: true });
+
+        if (error) {
+            console.error('❌ Erro ao buscar agendamentos:', error);
+            return res.status(500).json({ 
+                success: false, 
+                error: error.message 
+            });
+        }
+
+        console.log(`✅ ${data?.length || 0} agendamentos encontrados`);
+        res.json({ 
+            success: true, 
+            agendamentos: data || [] 
+        });
+    } catch (error) {
+        console.error('❌ Erro:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// ============================================================
+// LISTAR LEMBRETES (API) - PÚBLICA COM AUTENTICAÇÃO
+// ============================================================
+app.get('/api/lembretes', auth.verificarApiKey, async (req, res) => {
+    console.log('📨 GET /api/lembretes chamada!');
+    
+    try {
+        const { data, error } = await supabase
+            .from('lembretes')
+            .select(`
+                *,
+                clientes (nome, telefone)
+            `)
+            .order('data_disparo', { ascending: true });
+
+        if (error) {
+            console.error('❌ Erro ao buscar lembretes:', error);
+            return res.status(500).json({ 
+                success: false, 
+                error: error.message 
+            });
+        }
+
+        console.log(`✅ ${data?.length || 0} lembretes encontrados`);
+        res.json({ 
+            success: true, 
+            lembretes: data || [] 
+        });
+    } catch (error) {
+        console.error('❌ Erro:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
     }
 });
 

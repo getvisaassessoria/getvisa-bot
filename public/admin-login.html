@@ -3,204 +3,445 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login Admin - GetVisa</title>
+    <title>GETVISA - Painel de Agendamentos</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #003366, #1a5276);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            background: #f0f2f5;
             padding: 20px;
         }
-        .login-box {
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
             background: white;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-            width: 100%;
-            max-width: 400px;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        .login-box h1 {
-            color: #003366;
-            text-align: center;
-            margin-bottom: 10px;
-            font-size: 28px;
-        }
-        .login-box .subtitle {
-            text-align: center;
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-        .login-box label {
-            display: block;
-            color: #333;
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-        .login-box input[type="password"] {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.3s;
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
-        .login-box input[type="password"]:focus {
-            border-color: #003366;
-            outline: none;
+        .header h1 {
+            color: #003366;
+            font-size: 24px;
         }
-        .login-box button {
-            width: 100%;
-            padding: 14px;
-            background: #003366;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        .login-box button:hover {
-            background: #1a5276;
-        }
-        .login-box button:disabled {
-            background: #999;
-            cursor: not-allowed;
-        }
-        .login-box .error {
-            color: #dc3545;
-            text-align: center;
-            margin-top: 15px;
-            display: none;
-            padding: 10px;
-            background: #f8d7da;
+        .header .back {
+            color: #003366;
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid #003366;
             border-radius: 5px;
         }
-        .login-box .hint {
+        .header .back:hover {
+            background: #003366;
+            color: white;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tabs button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            background: #e9ecef;
+            color: #333;
+        }
+        .tabs button.active {
+            background: #003366;
+            color: white;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stats .stat {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
             text-align: center;
-            margin-top: 15px;
-            color: #999;
+        }
+        .stats .stat .number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #003366;
+        }
+        .stats .stat .label {
+            color: #666;
             font-size: 12px;
         }
-        .login-box .hint strong {
-            color: #666;
+        .filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
         }
-        .login-box .loading {
-            display: none;
-            text-align: center;
-            margin-top: 15px;
-            color: #003366;
+        .filters input, .filters select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .filters button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            background: #003366;
+            color: white;
+            cursor: pointer;
+        }
+        .filters button:hover {
+            background: #1a5276;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
             font-size: 14px;
+        }
+        table th {
+            background: #003366;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+        table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+        }
+        table tr:hover {
+            background: #f8f9fa;
+        }
+        .status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status.pendente {
+            background: #ffc107;
+            color: #333;
+        }
+        .status.concluido {
+            background: #28a745;
+            color: white;
+        }
+        .actions button {
+            padding: 4px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 2px;
+        }
+        .actions .whatsapp {
+            background: #25d366;
+            color: white;
+        }
+        .actions .pdf {
+            background: #dc3545;
+            color: white;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        @media (max-width: 600px) {
+            .container { padding: 15px; }
+            table { font-size: 12px; }
+            table th, table td { padding: 6px 8px; }
+            .stats { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
 <body>
-    <div class="login-box">
-        <h1>🔐 GetVisa Admin</h1>
-        <p class="subtitle">Digite sua chave de acesso</p>
-        
-        <form id="loginForm">
-            <label for="apiKey">Chave de Acesso (API Key)</label>
-            <input type="password" id="apiKey" placeholder="Digite sua chave de acesso" required autofocus>
-            
-            <button type="submit" id="btnLogin">Entrar</button>
-        </form>
-        
-        <div id="error" class="error">Chave de acesso inválida. Tente novamente.</div>
-        <div id="loading" class="loading">⏳ Verificando...</div>
-        <div class="hint">🔒 Chave padrão: <strong>admin123</strong></div>
+    <div class="container">
+        <div class="header">
+            <h1>📅 GETVISA - Painel de Agendamentos</h1>
+            <a href="/" class="back">⬅ Voltar</a>
+        </div>
+
+        <div class="tabs">
+            <button class="active" onclick="carregarAgendamentos()">Agendamentos</button>
+            <button onclick="carregarLembretes()">Lembretes</button>
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat">
+                <div class="number" id="total">-</div>
+                <div class="label">Total</div>
+            </div>
+            <div class="stat">
+                <div class="number" id="concluidos">-</div>
+                <div class="label">Concluídos</div>
+            </div>
+            <div class="stat">
+                <div class="number" id="pendentes">-</div>
+                <div class="label">Pendentes</div>
+            </div>
+        </div>
+
+        <div class="filters">
+            <input type="text" id="searchInput" placeholder="Buscar cliente..." onkeyup="filtrarTabela()">
+            <select id="statusFilter" onchange="filtrarTabela()">
+                <option value="">Todas as atividades</option>
+                <option value="CASV">CASV</option>
+                <option value="Entrevista">Entrevista</option>
+            </select>
+            <button onclick="carregarAgendamentos()">Atualizar</button>
+            <button onclick="exportarCSV()">Exportar CSV</button>
+        </div>
+
+        <div id="tableContainer">
+            <div class="loading">🔄 Carregando agendamentos...</div>
+        </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const form = document.getElementById('loginForm');
-            const apiKeyInput = document.getElementById('apiKey');
-            const errorDiv = document.getElementById('error');
-            const loadingDiv = document.getElementById('loading');
-            const btnLogin = document.getElementById('btnLogin');
+        // 🔥 PEGA A CHAVE DA URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const apiKey = urlParams.get('api_key') || sessionStorage.getItem('adminKey') || 'admin123';
 
-            // Verifica se já está logado
-            const chaveExistente = sessionStorage.getItem('adminKey');
-            if (chaveExistente) {
-                // Se já tem chave, redireciona direto
-                window.location.href = '/?api_key=' + encodeURIComponent(chaveExistente);
+        let agendamentosData = [];
+
+        // ============================================================
+        // CARREGAR AGENDAMENTOS
+        // ============================================================
+        async function carregarAgendamentos() {
+            const container = document.getElementById('tableContainer');
+            container.innerHTML = '<div class="loading">🔄 Carregando agendamentos...</div>';
+
+            try {
+                console.log('📨 Buscando agendamentos...');
+                const response = await fetch('/api/agendamentos?api_key=' + apiKey);
+                
+                if (!response.ok) {
+                    throw new Error('Erro ao carregar agendamentos: ' + response.status);
+                }
+                
+                const data = await response.json();
+                console.log('📊 Dados recebidos:', data);
+                
+                if (data.success && data.agendamentos) {
+                    agendamentosData = data.agendamentos;
+                    renderizarTabela(agendamentosData);
+                    atualizarStats(agendamentosData);
+                } else {
+                    container.innerHTML = '<div class="no-data">❌ Nenhum agendamento encontrado.</div>';
+                }
+            } catch (error) {
+                console.error('❌ Erro:', error);
+                container.innerHTML = '<div class="no-data">❌ Erro ao carregar agendamentos: ' + error.message + '</div>';
+            }
+        }
+
+        // ============================================================
+        // RENDERIZAR TABELA
+        // ============================================================
+        function renderizarTabela(dados) {
+            const container = document.getElementById('tableContainer');
+            
+            if (!dados || dados.length === 0) {
+                container.innerHTML = '<div class="no-data">📭 Nenhum agendamento encontrado.</div>';
                 return;
             }
 
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                const apiKey = apiKeyInput.value.trim();
-                
-                // Limpa erro anterior
-                errorDiv.style.display = 'none';
-                errorDiv.textContent = '';
-                
-                if (!apiKey) {
-                    errorDiv.textContent = 'Por favor, digite a chave de acesso.';
-                    errorDiv.style.display = 'block';
-                    apiKeyInput.focus();
-                    return;
-                }
-                
-                // Mostra loading
-                loadingDiv.style.display = 'block';
-                btnLogin.disabled = true;
-                btnLogin.textContent = 'Verificando...';
-                
-                try {
-                    console.log('📨 Enviando requisição para /api/admin/login');
-                    console.log('🔑 Chave:', apiKey);
-                    
-                    const response = await fetch('/api/admin/login', {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json' 
-                        },
-                        body: JSON.stringify({ apiKey })
-                    });
-                    
-                    console.log('📨 Status:', response.status);
-                    
-                    const data = await response.json();
-                    console.log('📨 Resposta:', data);
-                    
-                    if (data.success) {
-                        // 🔥 SALVA A CHAVE NO SESSION STORAGE
-                        sessionStorage.setItem('adminKey', apiKey);
-                        console.log('✅ Chave salva no sessionStorage');
-                        
-                        // Redireciona para o dashboard com a chave
-                        window.location.href = '/?api_key=' + encodeURIComponent(apiKey);
-                    } else {
-                        errorDiv.textContent = data.message || 'Chave de acesso inválida.';
-                        errorDiv.style.display = 'block';
-                        apiKeyInput.value = '';
-                        apiKeyInput.focus();
-                    }
-                } catch (error) {
-                    console.error('❌ Erro:', error);
-                    errorDiv.textContent = 'Erro ao conectar ao servidor. Verifique sua internet.';
-                    errorDiv.style.display = 'block';
-                } finally {
-                    loadingDiv.style.display = 'none';
-                    btnLogin.disabled = false;
-                    btnLogin.textContent = 'Entrar';
-                }
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Telefone</th>
+                            <th>Atividade</th>
+                            <th>Data</th>
+                            <th>Hora</th>
+                            <th>Local</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            dados.forEach(ag => {
+                const clienteNome = ag.clientes?.nome || 'N/A';
+                const clienteTelefone = ag.clientes?.telefone || 'N/A';
+                const dataFormatada = ag.data_agendamento ? new Date(ag.data_agendamento).toLocaleDateString('pt-BR') : '-';
+                const horaFormatada = ag.hora_agendamento ? ag.hora_agendamento.substring(0, 5) : '-';
+                const statusClass = ag.concluido ? 'concluido' : 'pendente';
+                const statusText = ag.concluido ? '✅ Concluído' : '⏳ Pendente';
+
+                html += `
+                    <tr>
+                        <td><strong>${clienteNome}</strong></td>
+                        <td>${clienteTelefone}</td>
+                        <td>${ag.atividade || '-'}</td>
+                        <td>${dataFormatada}</td>
+                        <td>${horaFormatada}</td>
+                        <td>${ag.local_agendamento || '-'}</td>
+                        <td><span class="status ${statusClass}">${statusText}</span></td>
+                        <td class="actions">
+                            <button class="whatsapp" onclick="enviarWhatsApp('${clienteTelefone}', '${clienteNome}', '${ag.atividade}', '${dataFormatada}', '${horaFormatada}')">📱</button>
+                        </td>
+                    </tr>
+                `;
             });
 
-            // Permite Enter no campo de senha
-            apiKeyInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    form.dispatchEvent(new Event('submit'));
-                }
+            html += `
+                    </tbody>
+                </table>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        // ============================================================
+        // ATUALIZAR ESTATÍSTICAS
+        // ============================================================
+        function atualizarStats(dados) {
+            const total = dados.length;
+            const concluidos = dados.filter(a => a.concluido).length;
+            const pendentes = total - concluidos;
+
+            document.getElementById('total').textContent = total;
+            document.getElementById('concluidos').textContent = concluidos;
+            document.getElementById('pendentes').textContent = pendentes;
+        }
+
+        // ============================================================
+        // FILTRAR TABELA
+        // ============================================================
+        function filtrarTabela() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('statusFilter').value;
+
+            let filtrados = agendamentosData;
+
+            if (search) {
+                filtrados = filtrados.filter(a => 
+                    (a.clientes?.nome || '').toLowerCase().includes(search) ||
+                    (a.clientes?.telefone || '').includes(search)
+                );
+            }
+
+            if (statusFilter) {
+                filtrados = filtrados.filter(a => a.atividade && a.atividade.includes(statusFilter));
+            }
+
+            renderizarTabela(filtrados);
+        }
+
+        // ============================================================
+        // ENVIAR WHATSAPP
+        // ============================================================
+        function enviarWhatsApp(telefone, nome, atividade, data, hora) {
+            const mensagem = `Olá ${nome}! Seu ${atividade} está agendado para ${data} às ${hora}.`;
+            const url = `https://wa.me/55${telefone}?text=${encodeURIComponent(mensagem)}`;
+            window.open(url, '_blank');
+        }
+
+        // ============================================================
+        // EXPORTAR CSV
+        // ============================================================
+        function exportarCSV() {
+            if (!agendamentosData || agendamentosData.length === 0) {
+                alert('Nenhum dado para exportar.');
+                return;
+            }
+
+            let csv = 'Cliente,Telefone,Atividade,Data,Hora,Local,Status\n';
+            agendamentosData.forEach(a => {
+                const clienteNome = a.clientes?.nome || 'N/A';
+                const clienteTelefone = a.clientes?.telefone || 'N/A';
+                const dataFormatada = a.data_agendamento ? new Date(a.data_agendamento).toLocaleDateString('pt-BR') : '-';
+                const horaFormatada = a.hora_agendamento ? a.hora_agendamento.substring(0, 5) : '-';
+                const status = a.concluido ? 'Concluído' : 'Pendente';
+                csv += `"${clienteNome}","${clienteTelefone}","${a.atividade || '-'}","${dataFormatada}","${horaFormatada}","${a.local_agendamento || '-'}","${status}"\n`;
             });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'agendamentos.csv';
+            link.click();
+        }
+
+        // ============================================================
+        // CARREGAR LEMBRETES
+        // ============================================================
+        async function carregarLembretes() {
+            const container = document.getElementById('tableContainer');
+            container.innerHTML = '<div class="loading">🔄 Carregando lembretes...</div>';
+
+            try {
+                const response = await fetch('/api/lembretes?api_key=' + apiKey);
+                const data = await response.json();
+                
+                if (data.success && data.lembretes) {
+                    let html = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Mensagem</th>
+                                    <th>Disparo</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    data.lembretes.forEach(l => {
+                        const clienteNome = l.clientes?.nome || 'N/A';
+                        const dataDisparo = l.data_disparo ? new Date(l.data_disparo).toLocaleString('pt-BR') : '-';
+                        const status = l.status_envio || 'pendente';
+                        const statusText = status === 'enviado' ? '✅ Enviado' : status === 'pendente' ? '⏳ Pendente' : '❌ Falha';
+                        
+                        html += `
+                            <tr>
+                                <td><strong>${clienteNome}</strong></td>
+                                <td>${l.mensagem ? l.mensagem.substring(0, 50) + '...' : '-'}</td>
+                                <td>${dataDisparo}</td>
+                                <td><span class="status ${status === 'enviado' ? 'concluido' : 'pendente'}">${statusText}</span></td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += `
+                            </tbody>
+                        </table>
+                    `;
+                    
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<div class="no-data">📭 Nenhum lembrete encontrado.</div>';
+                }
+            } catch (error) {
+                console.error('❌ Erro:', error);
+                container.innerHTML = '<div class="no-data">❌ Erro ao carregar lembretes.</div>';
+            }
+        }
+
+        // ============================================================
+        // INICIAR
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarAgendamentos();
         });
     </script>
 </body>
