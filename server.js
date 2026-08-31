@@ -4698,7 +4698,7 @@ app.post('/api/debug/criar-tabela', async (req, res) => {
 // 22. CRON JOB
 // ============================================================
 
-cron.cron.schedule('*/5 * * * *', async () => {
+cron.schedule('*/5 * * * *', async () => {
     console.log('⏰ Executando cron job: processPendingReminders');
     try {
         const lembretesService = require('./services/lembretes.service');
