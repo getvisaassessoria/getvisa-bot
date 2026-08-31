@@ -532,6 +532,12 @@ try {
 console.log('🔧 Carregando rotas de Agendamentos...');
 
 // 🔥 ROTA DE UPLOAD DE PDF (NÃO PROTEGIDA - DEVE VIR ANTES DO MIDDLEWARE)
+// ============================================================
+// 7.2 ROTA DE AGENDAMENTOS (REFATORADA - COM EXTRAÇÃO CORRETA DE DATAS)
+// ============================================================
+console.log('🔧 Carregando rotas de Agendamentos...');
+
+// 🔥 ROTA DE UPLOAD DE PDF (NÃO PROTEGIDA - DEVE VIR ANTES DO MIDDLEWARE)
 app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (req, res) => {
     console.log('🔥 ROTA /api/agendamentos/upload-pdf CHAMADA!');
     console.log('📥 req.file:', req.file ? 'Arquivo recebido' : 'Nenhum arquivo');
@@ -592,12 +598,16 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
         }
 
         // 4. EXTRAIR DADOS DO PDF
+        console.log('🔄 Extraindo dados do PDF...');
         const resultado = await agendamentoService.extractAndSavePdfAgendamentos(
             req.file.buffer,
             telefone
         );
 
+        console.log('📊 Resultado da extração:', JSON.stringify(resultado, null, 2));
+
         if (!resultado.success) {
+            console.error('❌ Extração falhou:', resultado);
             return res.status(400).json(resultado);
         }
 
@@ -626,10 +636,97 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
 
         console.log(`✅ Cliente encontrado: ${cliente.nome} (${cliente.email})`);
 
-        // 6. EXTRAIR DADOS CASV E ENTREVISTA
+        // 6. EXTRAIR DADOS CASV E ENTREVISTA - COM FALLBACKS
         const dadosExtraidos = resultado.dados || resultado.data || {};
-        const casv = dadosExtraidos.casv || {};
-        const entrevista = dadosExtraidos.entrevista || {};
+        
+        // 🔥 TENTAR EXTRAIR DATAS DE VÁRIAS FORMAS POSSÍVEIS
+        let casv = dadosExtraidos.casv || {};
+        let entrevista = dadosExtraidos.entrevista || {};
+
+        // Se não encontrou os dados na estrutura esperada, tenta extrair diretamente do resultado
+        if (!casv.data && !entrevista.data) {
+            console.log('🔍 Tentando extrair datas diretamente do resultado...');
+            
+            // Tenta encontrar campos de data no resultado
+            const possiveisCampos = ['data', 'date', 'agendamento', 'casv_data', 'entrevista_data', 'schedule'];
+            for (const campo of possiveisCampos) {
+                if (resultado[campo]) {
+                    console.log(`📅 Encontrado campo "${campo}":`, resultado[campo]);
+                    if (!casv.data) casv.data = resultado[campo];
+                }
+                if (resultado[`${campo}_casv`]) {
+                    casv.data = resultado[`${campo}_casv`];
+                }
+                if (resultado[`${campo}_entrevista`]) {
+                    entrevista.data = resultado[`${campo}_entrevista`];
+                }
+            }
+
+            // Tenta extrair horários
+            const possiveisHorarios = ['hora', 'time', 'horario', 'schedule_time'];
+            for (const campo of possiveisHorarios) {
+                if (resultado[campo]) {
+                    console.log(`⏰ Encontrado campo "${campo}":`, resultado[campo]);
+                    if (!casv.hora) casv.hora = resultado[campo];
+                }
+                if (resultado[`${campo}_casv`]) {
+                    casv.hora = resultado[`${campo}_casv`];
+                }
+                if (resultado[`${campo}_entrevista`]) {
+                    entrevista.hora = resultado[`${campo}_entrevista`];
+                }
+            }
+        }
+
+        // 🔥 SE AINDA NÃO TEM DADOS, TENTA EXTRAIR DO TEXTO BRUTO
+        if (!casv.data || casv.data === 'A definir') {
+            console.log('🔍 Tentando extrair datas do texto bruto...');
+            try {
+                const pdfText = req.file.buffer.toString('utf8');
+                // Procura por padrões de data no texto
+                const dataPattern = /(\d{1,2}\/\d{1,2}\/\d{4})/g;
+                const datasEncontradas = pdfText.match(dataPattern) || [];
+                console.log('📅 Datas encontradas no texto:', datasEncontradas);
+                
+                if (datasEncontradas.length >= 2) {
+                    casv.data = datasEncontradas[0];
+                    entrevista.data = datasEncontradas[1];
+                    console.log(`✅ CASV: ${casv.data}, ENTREVISTA: ${entrevista.data}`);
+                } else if (datasEncontradas.length === 1) {
+                    casv.data = datasEncontradas[0];
+                    console.log(`✅ CASV: ${casv.data}`);
+                }
+
+                // Procura por horários
+                const horaPattern = /(\d{1,2}:\d{2})/g;
+                const horasEncontradas = pdfText.match(horaPattern) || [];
+                console.log('⏰ Horários encontrados no texto:', horasEncontradas);
+                
+                if (horasEncontradas.length >= 2) {
+                    casv.hora = horasEncontradas[0];
+                    entrevista.hora = horasEncontradas[1];
+                    console.log(`✅ CASV: ${casv.hora}, ENTREVISTA: ${entrevista.hora}`);
+                } else if (horasEncontradas.length === 1) {
+                    casv.hora = horasEncontradas[0];
+                    console.log(`✅ CASV: ${casv.hora}`);
+                }
+
+                // Procura por local
+                const localPattern = /(?:Local|Endereço|Lugar)[:\s]+([^\n]+)/gi;
+                const localMatch = localPattern.exec(pdfText);
+                if (localMatch) {
+                    casv.local = localMatch[1].trim();
+                    console.log(`📍 Local: ${casv.local}`);
+                }
+            } catch (textError) {
+                console.error('❌ Erro ao extrair texto do PDF:', textError);
+            }
+        }
+
+        // Log final dos dados extraídos
+        console.log('📊 DADOS EXTRAÍDOS FINAIS:');
+        console.log(`📍 CASV - Data: ${casv.data || 'A definir'}, Hora: ${casv.hora || 'A definir'}, Local: ${casv.local || 'A definir'}`);
+        console.log(`📍 ENTREVISTA - Data: ${entrevista.data || 'A definir'}, Hora: ${entrevista.hora || 'A definir'}, Local: ${entrevista.local || 'A definir'}`);
 
         // 7. SALVAR NA TABELA etapas_processo
         try {
@@ -654,7 +751,7 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             console.error('❌ Erro ao salvar etapa:', err);
         }
 
-        // 8. ENVIAR E-MAIL COM PDF
+        // 8. ENVIAR E-MAIL COM PDF E DATAS
         let emailEnviado = false;
         try {
             if (!cliente.email) {
@@ -667,14 +764,17 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
                     html: `
                         <h2>✅ Olá ${cliente.nome}!</h2>
                         <p>Seus agendamentos foram confirmados!</p>
+                        
                         <h3>📍 CASV (Coleta Biométrica)</h3>
-                        <p><strong>Data:</strong> ${casv.data || 'A definir'}</p>
-                        <p><strong>Horário:</strong> ${casv.hora || 'A definir'}</p>
-                        <p><strong>Local:</strong> ${casv.local || 'A definir'}</p>
+                        <p><strong>📅 Data:</strong> ${casv.data || 'A definir'}</p>
+                        <p><strong>⏰ Horário:</strong> ${casv.hora || 'A definir'}</p>
+                        <p><strong>📍 Local:</strong> ${casv.local || 'A definir'}</p>
+                        
                         <h3>📍 ENTREVISTA NO CONSULADO</h3>
-                        <p><strong>Data:</strong> ${entrevista.data || 'A definir'}</p>
-                        <p><strong>Horário:</strong> ${entrevista.hora || 'A definir'}</p>
-                        <p><strong>Local:</strong> ${entrevista.local || 'A definir'}</p>
+                        <p><strong>📅 Data:</strong> ${entrevista.data || 'A definir'}</p>
+                        <p><strong>⏰ Horário:</strong> ${entrevista.hora || 'A definir'}</p>
+                        <p><strong>📍 Local:</strong> ${entrevista.local || 'A definir'}</p>
+                        
                         <hr>
                         <p><strong>⚠️ IMPORTANTE:</strong></p>
                         <ul>
@@ -682,6 +782,7 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
                             <li>Leve seu <strong>PASSAPORTE(S)</strong></li>
                             <li>Chegue com 30 minutos de antecedência</li>
                         </ul>
+                        
                         <p>📎 Em anexo o PDF oficial do agendamento.</p>
                         <p>🌟 Boa sorte! Estamos com você!</p>
                     `,
@@ -699,22 +800,31 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             console.error('❌ Erro ao enviar e-mail:', emailError);
         }
 
-        // 9. ENVIAR WHATSAPP
+        // 9. ENVIAR WHATSAPP COM DATAS EM DESTAQUE
         let whatsEnviado = false;
         try {
+            // Formata as mensagens com as datas de forma mais legível
+            const casvData = casv.data && casv.data !== 'A definir' ? `📅 *${casv.data}*` : '📅 *A definir*';
+            const casvHora = casv.hora && casv.hora !== 'A definir' ? `⏰ *${casv.hora}*` : '⏰ *A definir*';
+            const casvLocal = casv.local && casv.local !== 'A definir' ? `📍 *${casv.local}*` : '📍 *A definir*';
+            
+            const entrevistaData = entrevista.data && entrevista.data !== 'A definir' ? `📅 *${entrevista.data}*` : '📅 *A definir*';
+            const entrevistaHora = entrevista.hora && entrevista.hora !== 'A definir' ? `⏰ *${entrevista.hora}*` : '⏰ *A definir*';
+            const entrevistaLocal = entrevista.local && entrevista.local !== 'A definir' ? `📍 *${entrevista.local}*` : '📍 *A definir*';
+
             const mensagem = `✅ *Olá ${cliente.nome}!*
 
 Seus agendamentos foram confirmados! 📅
 
 📍 *CASV (Coleta Biométrica):*
-📅 Data: *${casv.data || 'A definir'}*
-⏰ Horário: *${casv.hora || 'A definir'}*
-📍 Local: *${casv.local || 'A definir'}*
+${casvData}
+${casvHora}
+${casvLocal}
 
 📍 *ENTREVISTA NO CONSULADO:*
-📅 Data: *${entrevista.data || 'A definir'}*
-⏰ Horário: *${entrevista.hora || 'A definir'}*
-📍 Local: *${entrevista.local || 'A definir'}*
+${entrevistaData}
+${entrevistaHora}
+${entrevistaLocal}
 
 ⚠️ *IMPORTANTE:*
 • Leve a *CONFIRMATION IMPRESSA*
@@ -729,7 +839,7 @@ Seus agendamentos foram confirmados! 📅
 
             await enviarWhatsApp(telefone, mensagem);
             whatsEnviado = true;
-            console.log(`📱 WhatsApp enviado para ${telefone}`);
+            console.log(`📱 WhatsApp enviado para ${telefone} com datas`);
         } catch (whatsError) {
             console.error('❌ Erro ao enviar WhatsApp:', whatsError);
         }
@@ -780,7 +890,7 @@ Seus agendamentos foram confirmados! 📅
 
 console.log('✅ ROTA /api/agendamentos/upload-pdf REGISTRADA COM SUCESSO!');
 
-// 🔥 PROTEÇÃO DAS DEMAIS ROTAS DE AGENDAMENTO (DEVE VIR DEPOIS DA ROTA PÚBLICA)
+// 🔥 PROTEÇÃO DAS DEMAIS ROTAS DE AGENDAMENTO
 app.use('/api/agendamentos', auth.verificarApiKey);
 app.use('/api/admin/agendamentos', auth.verificarApiKey);
 
