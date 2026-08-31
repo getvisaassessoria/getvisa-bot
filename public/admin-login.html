@@ -7,58 +7,53 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #003366 0%, #005599 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #003366, #1a5276);
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
         }
-        .login-container {
+        .login-box {
             background: white;
             padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
             width: 100%;
             max-width: 400px;
         }
-        .login-container h1 {
+        .login-box h1 {
             color: #003366;
             text-align: center;
+            margin-bottom: 10px;
             font-size: 28px;
-            margin-bottom: 5px;
         }
-        .login-container .subtitle {
+        .login-box .subtitle {
             text-align: center;
             color: #666;
             margin-bottom: 30px;
             font-size: 14px;
         }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        .form-group label {
+        .login-box label {
             display: block;
-            font-weight: 600;
-            margin-bottom: 6px;
             color: #333;
-            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 5px;
         }
-        .form-group input {
+        .login-box input[type="password"] {
             width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #e0e0e0;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
             border-radius: 8px;
             font-size: 16px;
-            box-sizing: border-box;
+            transition: border-color 0.3s;
+            margin-bottom: 20px;
         }
-        .form-group input:focus {
+        .login-box input[type="password"]:focus {
             border-color: #003366;
             outline: none;
         }
-        .btn-login {
+        .login-box button {
             width: 100%;
             padding: 14px;
             background: #003366;
@@ -70,90 +65,87 @@
             cursor: pointer;
             transition: background 0.3s;
         }
-        .btn-login:hover {
-            background: #005599;
+        .login-box button:hover {
+            background: #1a5276;
         }
-        .error-message {
+        .login-box .error {
             color: #dc3545;
             text-align: center;
             margin-top: 15px;
-            font-size: 14px;
             display: none;
+            padding: 10px;
+            background: #f8d7da;
+            border-radius: 5px;
         }
-        .logo {
+        .login-box .hint {
             text-align: center;
-            font-size: 48px;
-            margin-bottom: 10px;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 20px;
+            margin-top: 15px;
             color: #999;
             font-size: 12px;
         }
-        .chave-exemplo {
-            text-align: center;
-            margin-top: 15px;
-            font-size: 12px;
+        .login-box .hint strong {
             color: #666;
-            background: #f5f5f5;
-            padding: 10px;
-            border-radius: 5px;
-        }
-        .chave-exemplo strong {
-            color: #003366;
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="logo">🇺🇸</div>
-        <h1>GetVisa Admin</h1>
+    <div class="login-box">
+        <h1>🔐 GetVisa Admin</h1>
         <p class="subtitle">Digite sua chave de acesso</p>
-
+        
         <form id="loginForm">
-            <div class="form-group">
-                <label for="apiKey">🔑 Chave de Acesso (API Key)</label>
-                <input type="password" id="apiKey" placeholder="Digite sua chave" required autofocus>
-            </div>
-            <button type="submit" class="btn-login">Entrar</button>
-            <div id="errorMessage" class="error-message">❌ Chave inválida. Tente novamente.</div>
+            <label for="apiKey">Chave de Acesso (API Key)</label>
+            <input type="password" id="apiKey" placeholder="Digite sua chave de acesso" required>
+            
+            <button type="submit">Entrar</button>
         </form>
-
-        <div class="chave-exemplo">
-            💡 Chave padrão: <strong>admin123</strong>
-        </div>
-
-        <div class="footer">
-            <p>GetVisa Assessoria - Sistema de Administração</p>
-        </div>
+        
+        <div id="error" class="error">Chave de acesso inválida. Tente novamente.</div>
+        <div class="hint">🔒 Chave padrão: <strong>admin123</strong></div>
     </div>
 
+    <!-- 🔥 SCRIPT NO FINAL DO BODY -->
     <script>
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const apiKey = document.getElementById('apiKey').value.trim();
-            const errorMsg = document.getElementById('errorMessage');
-            
-            if (!apiKey) {
-                errorMsg.textContent = '❌ Por favor, digite a chave de acesso.';
-                errorMsg.style.display = 'block';
-                return;
-            }
-            
-            // Salvar a chave no localStorage
-            localStorage.setItem('admin_api_key', apiKey);
-            
-            // Redirecionar para o admin com a chave na URL
-            window.location.href = `/dashboard?api_key=${encodeURIComponent(apiKey)}`;
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('loginForm');
+            const apiKeyInput = document.getElementById('apiKey');
+            const errorDiv = document.getElementById('error');
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const apiKey = apiKeyInput.value.trim();
+                errorDiv.style.display = 'none';
+                
+                if (!apiKey) {
+                    errorDiv.textContent = 'Por favor, digite a chave de acesso.';
+                    errorDiv.style.display = 'block';
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/api/admin/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ apiKey })
+                    });
+                    
+                    const data = await response.json();
+                    console.log('Resposta:', data);
+                    
+                    if (data.success) {
+                        window.location.href = '/?api_key=' + encodeURIComponent(apiKey);
+                    } else {
+                        errorDiv.textContent = data.message || 'Chave inválida.';
+                        errorDiv.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Erro:', error);
+                    errorDiv.textContent = 'Erro ao conectar ao servidor.';
+                    errorDiv.style.display = 'block';
+                }
+            });
         });
-        
-        // Preencher com chave salva
-        const savedKey = localStorage.getItem('admin_api_key');
-        if (savedKey) {
-            document.getElementById('apiKey').value = savedKey;
-        }
     </script>
 </body>
 </html>
