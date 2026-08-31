@@ -276,17 +276,21 @@ function renderClientes(clientes) {
         const tr = document.createElement('tr');
         
         const statusMap = {
-            'lead': { class: 'lead', label: 'Lead' },
-            'formulario_enviado': { class: 'formulario_enviado', label: 'Formulário Enviado' },
-            'em_analise': { class: 'em_analise', label: 'Em Análise' },
-            'processo_aberto': { class: 'processos_aberto', label: 'Processo Aberto' },
-            'visto_aprovado': { class: 'visto_aprovado', label: 'Visto Aprovado' },
-            'visto_recusado': { class: 'visto_recusado', label: 'Visto Recusado' },
-            'passaporte_retornado': { class: 'visto_aprovado', label: 'Passaporte Retornado' },
-            'agendado_casv': { class: 'em_analise', label: 'CASV Agendado' },
-            'agendado_entrevista': { class: 'em_analise', label: 'Entrevista Agendada' },
-            'treinamento_realizado': { class: 'em_analise', label: 'Treinamento Realizado' },
-            'entrevista_realizada': { class: 'em_analise', label: 'Entrevista Realizada' }
+            'lead': { class: 'lead', label: '📋 Lead' },
+            'formulario_solicitado': { class: 'formulario_enviado', label: '📋 Formulário Solicitado' },
+            'formulario_enviado': { class: 'formulario_enviado', label: '📋 Formulário Enviado' },
+            'em_analise': { class: 'em_analise', label: '🔍 Em Análise' },
+            'analise_correcoes': { class: 'em_analise', label: '📝 Análise e Correções' },
+            'processo_aberto': { class: 'processos_aberto', label: '📌 Processo Aberto' },
+            'boleto_emitido': { class: 'processos_aberto', label: '💰 Boleto Emitido' },
+            'boleto_pago': { class: 'processos_aberto', label: '✅ Boleto Pago' },
+            'agendado_casv': { class: 'em_analise', label: '📅 CASV Agendado' },
+            'agendado_entrevista': { class: 'em_analise', label: '🎤 Entrevista Agendada' },
+            'treinamento_realizado': { class: 'em_analise', label: '✅ Treinamento Realizado' },
+            'entrevista_realizada': { class: 'em_analise', label: '🎤 Entrevista Realizada' },
+            'visto_aprovado': { class: 'visto_aprovado', label: '🎉 Visto Aprovado' },
+            'visto_recusado': { class: 'visto_recusado', label: '😔 Visto Recusado' },
+            'passaporte_retornado': { class: 'visto_aprovado', label: '📦 Passaporte Retornado' }
         };
         
         const statusInfo = statusMap[cliente.status] || { class: '', label: cliente.status || 'Novo' };
@@ -315,16 +319,19 @@ function renderClientes(clientes) {
 // ============================================================
 function abrirModal(telefone, nome) {
     const statusOptions = [
-        { value: 'em_analise', label: '🔍 Em Análise' },
-        { value: 'processo_aberto', label: '📌 Processo Aberto' },
-        { value: 'agendado_casv', label: '📅 CASV Agendado' },
-        { value: 'agendado_entrevista', label: '🎤 Entrevista Agendada' },
-        { value: 'treinamento_realizado', label: '✅ Treinamento Realizado' },
-        { value: 'entrevista_realizada', label: '🎤 Entrevista Realizada' },
-        { value: 'visto_aprovado', label: '🎉 Visto Aprovado' },
-        { value: 'visto_recusado', label: '😔 Visto Recusado' },
-        { value: 'passaporte_retornado', label: '📦 Passaporte Retornado' }
-    ];
+    { value: 'em_analise', label: '🔍 Em Análise' },
+    { value: 'analise_correcoes', label: '📝 Análise e Correções' },
+    { value: 'processo_aberto', label: '📌 Processo Aberto' },
+    { value: 'boleto_emitido', label: '💰 Boleto Emitido' },
+    { value: 'boleto_pago', label: '✅ Boleto Pago' },
+    { value: 'agendado_casv', label: '📅 CASV Agendado' },
+    { value: 'agendado_entrevista', label: '🎤 Entrevista Agendada' },
+    { value: 'treinamento_realizado', label: '✅ Treinamento Realizado' },
+    { value: 'entrevista_realizada', label: '🎤 Entrevista Realizada' },
+    { value: 'visto_aprovado', label: '🎉 Visto Aprovado' },
+    { value: 'visto_recusado', label: '😔 Visto Recusado' },
+    { value: 'passaporte_retornado', label: '📦 Passaporte Retornado' }
+];
 
     const selectHTML = statusOptions.map(s => 
         `<option value="${s.value}">${s.label}</option>`
