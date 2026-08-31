@@ -846,68 +846,49 @@ app.get('/dashboard', auth.verificarAdmin, (req, res) => {
 app.get('/admin.html', auth.verificarAdmin, (req, res) => {
     const adminPath = path.join(__dirname, 'public', 'admin.html');
     if (fs.existsSync(adminPath)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
         res.sendFile(adminPath);
     } else {
-        res.send('<h1>🔐 Admin Panel</h1><p>Arquivo admin.html não encontrado.</p>');
+        res.status(404).send(`
+            <h1>🔐 Admin Panel</h1>
+            <p>Arquivo admin.html não encontrado.</p>
+            <a href="/">⬅️ Voltar ao Dashboard</a>
+        `);
     }
 });
 
-// 7.4 PAINEL DE CLIENTES (PROTEGIDO)
+// 7.4 PAINEL PRINCIPAL - /painel (sem .html)
 app.get('/painel', auth.verificarAdmin, (req, res) => {
     const painelPath = path.join(__dirname, 'public', 'painel-clientes.html');
     
     if (fs.existsSync(painelPath)) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
         res.sendFile(painelPath);
     } else {
-        // Fallbacks
-        const fallback1 = path.join(__dirname, 'public', 'painel-novo.html');
-        if (fs.existsSync(fallback1)) {
-            res.sendFile(fallback1);
-        } else {
-            const fallback2 = path.join(__dirname, 'public', 'painel.html');
-            if (fs.existsSync(fallback2)) {
-                res.sendFile(fallback2);
-            } else {
-                res.status(404).send(`
-                    <h1>📊 Painel de Clientes</h1>
-                    <p>Nenhum arquivo de painel encontrado.</p>
-                    <p>Arquivos esperados:</p>
-                    <ul>
-                        <li>painel-clientes.html</li>
-                        <li>painel-novo.html</li>
-                        <li>painel.html</li>
-                    </ul>
-                    <a href="/">⬅️ Voltar ao Dashboard</a>
-                `);
-            }
-        }
-    }
-});
-
-// 7.5 PAINEL DE CLIENTES (.html) (PROTEGIDO)
-app.get('/painel.html', auth.verificarAdmin, (req, res) => {
-    const painelPath = path.join(__dirname, 'public', 'painel-novo.html');
-    
-    if (fs.existsSync(painelPath)) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        res.sendFile(painelPath);
-    } else {
-        const fallback = path.join(__dirname, 'public', 'painel-clientes.html');
+        // Fallback único
+        const fallback = path.join(__dirname, 'public', 'painel-novo.html');
         if (fs.existsSync(fallback)) {
             res.sendFile(fallback);
         } else {
             res.status(404).send(`
-                <h1>📊 Painel</h1>
-                <p>Arquivo painel-novo.html não encontrado.</p>
+                <h1>📊 Painel de Clientes</h1>
+                <p>Arquivo não encontrado.</p>
+                <p>Arquivos esperados:</p>
+                <ul>
+                    <li>painel-clientes.html</li>
+                    <li>painel-novo.html</li>
+                </ul>
                 <a href="/">⬅️ Voltar ao Dashboard</a>
             `);
         }
     }
+});
+
+// 7.5 REDIRECIONAMENTO - /painel.html -> /painel
+app.get('/painel.html', auth.verificarAdmin, (req, res) => {
+    res.redirect('/painel');
 });
 
 // 7.6 REDIRECIONAMENTOS (PROTEGIDOS)
