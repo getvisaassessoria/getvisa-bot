@@ -13,6 +13,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            padding: 20px;
         }
         .login-box {
             background: white;
@@ -68,6 +69,10 @@
         .login-box button:hover {
             background: #1a5276;
         }
+        .login-box button:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
         .login-box .error {
             color: #dc3545;
             text-align: center;
@@ -86,6 +91,13 @@
         .login-box .hint strong {
             color: #666;
         }
+        .login-box .loading {
+            display: none;
+            text-align: center;
+            margin-top: 15px;
+            color: #003366;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -95,54 +107,98 @@
         
         <form id="loginForm">
             <label for="apiKey">Chave de Acesso (API Key)</label>
-            <input type="password" id="apiKey" placeholder="Digite sua chave de acesso" required>
+            <input type="password" id="apiKey" placeholder="Digite sua chave de acesso" required autofocus>
             
-            <button type="submit">Entrar</button>
+            <button type="submit" id="btnLogin">Entrar</button>
         </form>
         
         <div id="error" class="error">Chave de acesso inválida. Tente novamente.</div>
+        <div id="loading" class="loading">⏳ Verificando...</div>
         <div class="hint">🔒 Chave padrão: <strong>admin123</strong></div>
     </div>
 
-    <!-- 🔥 SCRIPT NO FINAL DO BODY -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.getElementById('loginForm');
             const apiKeyInput = document.getElementById('apiKey');
             const errorDiv = document.getElementById('error');
+            const loadingDiv = document.getElementById('loading');
+            const btnLogin = document.getElementById('btnLogin');
+
+            // Verifica se já está logado
+            const chaveExistente = sessionStorage.getItem('adminKey');
+            if (chaveExistente) {
+                // Se já tem chave, redireciona direto
+                window.location.href = '/?api_key=' + encodeURIComponent(chaveExistente);
+                return;
+            }
 
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 
                 const apiKey = apiKeyInput.value.trim();
+                
+                // Limpa erro anterior
                 errorDiv.style.display = 'none';
+                errorDiv.textContent = '';
                 
                 if (!apiKey) {
                     errorDiv.textContent = 'Por favor, digite a chave de acesso.';
                     errorDiv.style.display = 'block';
+                    apiKeyInput.focus();
                     return;
                 }
                 
+                // Mostra loading
+                loadingDiv.style.display = 'block';
+                btnLogin.disabled = true;
+                btnLogin.textContent = 'Verificando...';
+                
                 try {
+                    console.log('📨 Enviando requisição para /api/admin/login');
+                    console.log('🔑 Chave:', apiKey);
+                    
                     const response = await fetch('/api/admin/login', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json' 
+                        },
                         body: JSON.stringify({ apiKey })
                     });
                     
+                    console.log('📨 Status:', response.status);
+                    
                     const data = await response.json();
-                    console.log('Resposta:', data);
+                    console.log('📨 Resposta:', data);
                     
                     if (data.success) {
+                        // 🔥 SALVA A CHAVE NO SESSION STORAGE
+                        sessionStorage.setItem('adminKey', apiKey);
+                        console.log('✅ Chave salva no sessionStorage');
+                        
+                        // Redireciona para o dashboard com a chave
                         window.location.href = '/?api_key=' + encodeURIComponent(apiKey);
                     } else {
-                        errorDiv.textContent = data.message || 'Chave inválida.';
+                        errorDiv.textContent = data.message || 'Chave de acesso inválida.';
                         errorDiv.style.display = 'block';
+                        apiKeyInput.value = '';
+                        apiKeyInput.focus();
                     }
                 } catch (error) {
-                    console.error('Erro:', error);
-                    errorDiv.textContent = 'Erro ao conectar ao servidor.';
+                    console.error('❌ Erro:', error);
+                    errorDiv.textContent = 'Erro ao conectar ao servidor. Verifique sua internet.';
                     errorDiv.style.display = 'block';
+                } finally {
+                    loadingDiv.style.display = 'none';
+                    btnLogin.disabled = false;
+                    btnLogin.textContent = 'Entrar';
+                }
+            });
+
+            // Permite Enter no campo de senha
+            apiKeyInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    form.dispatchEvent(new Event('submit'));
                 }
             });
         });
