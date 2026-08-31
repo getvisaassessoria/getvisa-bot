@@ -709,11 +709,12 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
 
         console.log(`📄 Recebendo PDF: ${req.file.originalname}, tamanho: ${req.file.size} bytes`);
 
-        // 🔥 PEGAR O TELEFONE DO BODY
         const telefone = req.body.telefone || '21985234917';
         console.log(`📱 Telefone informado: ${telefone}`);
 
-        // Importa o serviço
+        // ============================================================
+        // 1. IMPORTAR SERVIÇO DE EXTRAÇÃO
+        // ============================================================
         let agendamentoService;
         try {
             agendamentoService = require('./services/agendamentoService');
@@ -735,20 +736,176 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             });
         }
 
-        // 🔥 PASSAR O TELEFONE CORRETAMENTE
+        // ============================================================
+        // 2. EXTRAIR DADOS DO PDF
+        // ============================================================
         const resultado = await agendamentoService.extractAndSavePdfAgendamentos(
             req.file.buffer,
-            telefone  // <-- TELEFONE CORRETO
+            telefone
         );
 
         if (!resultado.success) {
             return res.status(400).json(resultado);
         }
 
+        // ============================================================
+        // 3. BUSCAR DADOS DO CLIENTE
+        // ============================================================
+        const { data: cliente, error: clienteError } = await supabase
+            .from('clientes')
+            .select('nome, email, telefone')
+            .eq('telefone', telefone)
+            .maybeSingle();
+
+        if (clienteError || !cliente) {
+            console.error('❌ Cliente não encontrado:', clienteError);
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Cliente não encontrado' 
+            });
+        }
+
+        // ============================================================
+        // 4. EXTRAIR DADOS CASV E ENTREVISTA DO RESULTADO
+        // ============================================================
+        // Assumindo que o serviço retorna os dados extraídos
+        const dadosExtraidos = resultado.dados || resultado.data || {};
+        const casv = dadosExtraidos.casv || {};
+        const entrevista = dadosExtraidos.entrevista || {};
+
+        // ============================================================
+        // 5. SALVAR NA TABELA etapas_processo
+        // ============================================================
+        try {
+            const { data: etapaData, error: etapaError } = await supabase
+                .from('etapas_processo')
+                .upsert({
+                    cliente_telefone: telefone,
+                    etapa_atual: 'agendado_casv',
+                    data_agendado_casv: new Date().toISOString(),
+                    dados_casv: casv,
+                    dados_entrevista: entrevista,
+                    data_atualizacao: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'cliente_telefone' })
+                .select()
+                .single();
+
+            if (etapaError) {
+                console.error('❌ Erro ao salvar etapa:', etapaError);
+            } else {
+                console.log('✅ Etapa agendado_casv salva com sucesso');
+            }
+        } catch (err) {
+            console.error('❌ Erro ao salvar etapa:', err);
+        }
+
+        // ============================================================
+        // 6. ENVIAR E-MAIL COM PDF
+        // ============================================================
+        try {
+            const emailOptions = {
+                from: 'GetVisa <contato@getvisa.com.br>',
+                to: cliente.email,
+                subject: `📋 Confirmação de Agendamento - ${cliente.nome}`,
+                html: `
+                    <h2>✅ Olá ${cliente.nome}!</h2>
+                    <p>Seus agendamentos foram confirmados!</p>
+                    
+                    <h3>📍 CASV (Coleta Biométrica)</h3>
+                    <p><strong>Data:</strong> ${casv.data || 'A definir'}</p>
+                    <p><strong>Horário:</strong> ${casv.hora || 'A definir'}</p>
+                    <p><strong>Local:</strong> ${casv.local || 'A definir'}</p>
+                    
+                    <h3>📍 ENTREVISTA NO CONSULADO</h3>
+                    <p><strong>Data:</strong> ${entrevista.data || 'A definir'}</p>
+                    <p><strong>Horário:</strong> ${entrevista.hora || 'A definir'}</p>
+                    <p><strong>Local:</strong> ${entrevista.local || 'A definir'}</p>
+                    
+                    <hr>
+                    <p><strong>⚠️ IMPORTANTE:</strong></p>
+                    <ul>
+                        <li>Leve a <strong>CONFIRMATION IMPRESSA</strong></li>
+                        <li>Leve seu <strong>PASSAPORTE(S)</strong></li>
+                        <li>Chegue com 30 minutos de antecedência</li>
+                    </ul>
+                    
+                    <p>📎 Em anexo o PDF oficial do agendamento.</p>
+                    <p>🌟 Boa sorte! Estamos com você!</p>
+                `,
+                attachments: [{
+                    filename: `Agendamento_${cliente.nome.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+                    content: req.file.buffer.toString('base64')
+                }]
+            };
+
+            await resend.emails.send(emailOptions);
+            console.log(`📧 E-mail enviado para ${cliente.email} com PDF anexado`);
+        } catch (emailError) {
+            console.error('❌ Erro ao enviar e-mail:', emailError);
+        }
+
+        // ============================================================
+        // 7. ENVIAR WHATSAPP COM DATAS EM DESTAQUE
+        // ============================================================
+        try {
+            const mensagem = `✅ *Olá ${cliente.nome}!*
+
+Seus agendamentos foram confirmados! 📅
+
+📍 *CASV (Coleta Biométrica):*
+📅 Data: *${casv.data || 'A definir'}*
+⏰ Horário: *${casv.hora || 'A definir'}*
+📍 Local: *${casv.local || 'A definir'}*
+
+📍 *ENTREVISTA NO CONSULADO:*
+📅 Data: *${entrevista.data || 'A definir'}*
+⏰ Horário: *${entrevista.hora || 'A definir'}*
+📍 Local: *${entrevista.local || 'A definir'}*
+
+⚠️ *IMPORTANTE:*
+• Leve a *CONFIRMATION IMPRESSA*
+• Leve seu *PASSAPORTE(S)*
+• Chegue com 30 minutos de antecedência
+
+📎 O PDF oficial foi enviado para seu e-mail.
+
+📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)
+
+🌟 *Boa sorte! Estamos com você!*`;
+
+            await enviarWhatsApp(telefone, mensagem);
+            console.log(`📱 WhatsApp enviado para ${telefone}`);
+        } catch (whatsError) {
+            console.error('❌ Erro ao enviar WhatsApp:', whatsError);
+        }
+
+        // ============================================================
+        // 8. ATUALIZAR STATUS NO SUPABASE
+        // ============================================================
+        try {
+            await supabase
+                .from('clientes')
+                .update({
+                    status: 'agendado_casv',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('telefone', telefone);
+            console.log(`✅ Status atualizado para agendado_casv`);
+        } catch (err) {
+            console.error('❌ Erro ao atualizar status:', err);
+        }
+
+        // ============================================================
+        // 9. RESPOSTA
+        // ============================================================
         res.json({
             success: true,
-            message: `PDF processado com sucesso! ${resultado.agendamentosSalvos?.length || 0} agendamentos criados.`,
-            data: resultado
+            message: `PDF processado e enviado com sucesso! Agendamentos criados: ${resultado.agendamentosSalvos?.length || 0}`,
+            data: {
+                casv: casv,
+                entrevista: entrevista
+            }
         });
 
     } catch (error) {
