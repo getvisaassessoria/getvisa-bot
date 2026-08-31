@@ -99,6 +99,7 @@
             color: #dc3545;
             text-decoration: none;
             font-weight: 600;
+            cursor: pointer;
         }
         .logout-btn:hover { text-decoration: underline; }
         .version {
@@ -120,16 +121,16 @@
     <p class="subtitle">Acesse todos os painéis administrativos em um só lugar</p>
 
     <div class="grid">
-        <!-- 👥 CLIENTES -->
-        <a href="/painel" class="card">
+        <!-- 👥 CLIENTES - Link direto -->
+        <a href="/painel?api_key=admin123" class="card">
             <div class="icon">👥</div>
             <h3>Clientes</h3>
             <p>Visualize e gerencie todos os clientes</p>
             <span class="badge">Ativo</span>
         </a>
 
-        <!-- 📅 AGENDAMENTOS -->
-        <a href="/admin.html" class="card">
+        <!-- 📅 AGENDAMENTOS - Link direto -->
+        <a href="/admin.html?api_key=admin123" class="card">
             <div class="icon">📅</div>
             <h3>Agendamentos</h3>
             <p>Gerencie agendamentos e treinamentos</p>
@@ -152,8 +153,8 @@
             <span class="badge publico">Público</span>
         </a>
 
-        <!-- 📤 UPLOAD CASV -->
-        <a href="/upload-casv-pdf" class="card">
+        <!-- 📤 UPLOAD CASV - Link direto -->
+        <a href="/upload-casv-pdf?api_key=admin123" class="card">
             <div class="icon">📤</div>
             <h3>Upload CASV PDF</h3>
             <p>Envie PDF de agendamento</p>
@@ -167,5 +168,16 @@
         <a href="/admin-login.html" class="logout-btn">🚪 Sair</a>
     </div>
 </div>
+
+<script>
+    // Verifica se está autenticado
+    document.addEventListener('DOMContentLoaded', function() {
+        const apiKey = sessionStorage.getItem('adminKey');
+        if (!apiKey) {
+            // Se não tem chave, redireciona para o login
+            window.location.href = '/admin-login.html';
+        }
+    });
+</script>
 </body>
 </html>
