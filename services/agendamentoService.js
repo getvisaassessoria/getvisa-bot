@@ -49,28 +49,54 @@ function mapAtividadeToText(atividade) {
 // ============================================================
 // FUNÇÃO DE EXTRAÇÃO DO PDF (VERSÃO SIMPLIFICADA E ROBUSTA)
 // ============================================================
+// ============================================================
+// FUNÇÃO DE EXTRAÇÃO DO PDF (COM CORREÇÃO DE ENCODING)
+// ============================================================
 function extractAgendamentoDetailsFromText(pdfText) {
     const agendamentos = [];
     
-    console.log('🔍 Extraindo dados do PDF (versão simplificada)...');
-    console.log('📄 Tamanho do texto:', pdfText.length);
+    console.log('🔍 Extraindo dados do PDF (com correção de encoding)...');
+    
+    // 🔥 CORRIGE O ENCODING DOS CARACTERES ESPECIAIS
+    let textoLimpo = pdfText;
+    try {
+        // Remove caracteres de controle e normaliza
+        textoLimpo = textoLimpo.replace(/\uFFFD/g, '');
+        textoLimpo = textoLimpo.replace(/[^\x20-\x7E\u00C0-\u00FF\u0100-\u017F]/g, '');
+        console.log('✅ Encoding corrigido');
+    } catch (e) {
+        console.log('⚠️ Erro ao corrigir encoding:', e.message);
+    }
+    
+    console.log('📄 Tamanho do texto limpo:', textoLimpo.length);
     
     // ============================================================
-    // 1. LOG PARA DEBUG - MOSTRA PARTE DO TEXTO
+    // 1. LOG PARA DEBUG - MOSTRA PARTE DO TEXTO LIMPO
     // ============================================================
-    console.log('📄 PRIMEIROS 300 CARACTERES DO PDF:');
+    console.log('📄 TEXTO LIMPO (primeiros 500 caracteres):');
     console.log('=' .repeat(50));
-    console.log(pdfText.substring(0, 300));
+    console.log(textoLimpo.substring(0, 500));
     console.log('=' .repeat(50));
     
     // ============================================================
-    // 2. EXTRAIR DS-160
+    // 2. EXTRAIR DS-160 (vários formatos)
     // ============================================================
     let ds160 = null;
-    const ds160Match = pdfText.match(/N[uú]mero DS-160\s+([A-Z0-9]{10,})/i);
-    if (ds160Match) {
-        ds160 = ds160Match[1].trim();
-        console.log(`✅ DS-160 encontrado: ${ds160}`);
+    const ds160Patterns = [
+        /N[uú]mero DS-160\s+([A-Z0-9]{10,})/i,
+        /DS-160\s*[:;]\s*([A-Z0-9]{10,})/i,
+        /DS160\s*[:;]\s*([A-Z0-9]{10,})/i,
+        /Confirmation Number\s*[:;]\s*([A-Z0-9]{10,})/i,
+        /N[uú]mero de Confirma[cç][aã]o\s*[:;]\s*([A-Z0-9]{10,})/i
+    ];
+    
+    for (const pattern of ds160Patterns) {
+        const match = textoLimpo.match(pattern);
+        if (match) {
+            ds160 = match[1].trim();
+            console.log(`✅ DS-160 encontrado: ${ds160}`);
+            break;
+        }
     }
 
     // ============================================================
@@ -78,90 +104,111 @@ function extractAgendamentoDetailsFromText(pdfText) {
     // ============================================================
     const nomes = [];
     
-    // Estratégia 1: "Nome do Solicitante" (com acentos)
-    const nomeRegex1 = /Nome do Solicitante\s+([A-ZÀ-Ú\s]+?)(?=\s+Classe|$)/gi;
+    // 🔥 Estratégia 1: Buscar "Nome do Solicitante" independente de acentos
+    const nomeRegex1 = /Nome do Solicitante\s+([A-Z\s]+?)(?=\s+Classe|$|\n)/gi;
     let match;
-    while ((match = nomeRegex1.exec(pdfText)) !== null) {
+    while ((match = nomeRegex1.exec(textoLimpo)) !== null) {
         const nome = match[1].trim();
         if (nome && nome.length > 5) {
-            nomes.push(nome);
-            console.log(`✅ Nome encontrado (Regex1): ${nome}`);
+            // Verifica se o nome tem pelo menos 2 palavras
+            if (nome.split(/\s+/).length >= 2) {
+                nomes.push(nome);
+                console.log(`✅ Nome encontrado (Regex1): ${nome}`);
+            }
         }
     }
     
-    // Estratégia 2: "Nome do Solicitante" com quebra de linha
+    // 🔥 Estratégia 2: Buscar "Nome do Solicitante" com quebras de linha
     if (nomes.length === 0) {
-        const nomeRegex2 = /Nome do Solicitante[\s\n]+([A-ZÀ-Ú\s]+?)(?=\s+Classe|$)/gi;
-        while ((match = nomeRegex2.exec(pdfText)) !== null) {
+        const nomeRegex2 = /Nome do Solicitante[\s\n]+([A-Z\s]+?)(?=\s+Classe|$|\n)/gi;
+        while ((match = nomeRegex2.exec(textoLimpo)) !== null) {
             const nome = match[1].trim();
-            if (nome && nome.length > 5) {
+            if (nome && nome.length > 5 && nome.split(/\s+/).length >= 2) {
                 nomes.push(nome);
                 console.log(`✅ Nome encontrado (Regex2): ${nome}`);
             }
         }
     }
     
-    // Estratégia 3: Linhas em maiúsculas (fallback)
+    // 🔥 Estratégia 3: Buscar "Nome do Solicitante" com texto até "Classe do visto"
     if (nomes.length === 0) {
-        console.log('🔍 Tentando encontrar nomes em maiúsculas...');
-        const linhas = pdfText.split('\n');
-        for (const linha of linhas) {
-            const trimmed = linha.trim();
-            // Nome em maiúsculas com 2+ palavras e mais de 10 caracteres
-            if (trimmed === trimmed.toUpperCase() && 
-                trimmed.length > 10 && 
-                trimmed.split(/\s+/).length >= 2 &&
-                !trimmed.includes('DATA') &&
-                !trimmed.includes('HORA') &&
-                !trimmed.includes('LOCAL') &&
-                !trimmed.includes('DS-160') &&
-                !trimmed.includes('PASSAPORTE') &&
-                !trimmed.includes('NÚMERO') &&
-                !trimmed.includes('INSTRUÇÕES') &&
-                !trimmed.includes('SOLICITANTE')) {
-                nomes.push(trimmed);
-                console.log(`✅ Nome encontrado (maiúsculas): ${trimmed}`);
+        const regexCompleto = /Nome do Solicitante\s*([A-Z\s]+?)\s+Classe do visto/gi;
+        while ((match = regexCompleto.exec(textoLimpo)) !== null) {
+            const nome = match[1].trim();
+            if (nome && nome.length > 5) {
+                nomes.push(nome);
+                console.log(`✅ Nome encontrado (Regex3): ${nome}`);
             }
         }
     }
     
-    // Estratégia 4: Buscar qualquer nome com 2+ palavras em maiúsculas no texto
+    // 🔥 Estratégia 4: Buscar padrão "LUCIO MARTINS DOS SANTOS" (maiúsculas)
     if (nomes.length === 0) {
-        const nomeRegex3 = /([A-Z]{3,}\s+[A-Z]{3,}(?:\s+[A-Z]{3,})*)/g;
-        while ((match = nomeRegex3.exec(pdfText)) !== null) {
+        const nomeRegex4 = /([A-Z]{3,}\s+[A-Z]{3,}(?:\s+[A-Z]{3,})*)/g;
+        const nomesTemp = [];
+        while ((match = nomeRegex4.exec(textoLimpo)) !== null) {
             const nome = match[1].trim();
-            if (nome && nome.length > 10 && nome.split(/\s+/).length >= 2) {
+            if (nome && nome.length > 10 && nome.split(/\s+/).length >= 3) {
                 // Verifica se não é um cabeçalho
-                const headers = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 'PROTOCOLO', 'DS-160'];
+                const headers = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 'PROTOCOLO', 'DS-160', 'INSTRUÇÕES', 'DEPARTAMENTO'];
                 if (!headers.some(h => nome.includes(h))) {
-                    nomes.push(nome);
-                    console.log(`✅ Nome encontrado (Regex3): ${nome}`);
+                    nomesTemp.push(nome);
                 }
             }
+        }
+        // Pega os nomes únicos
+        const nomesUnicosTemp = [...new Set(nomesTemp)];
+        // Limita a 10 nomes (evita capturar coisas erradas)
+        for (const n of nomesUnicosTemp.slice(0, 10)) {
+            nomes.push(n);
+            console.log(`✅ Nome encontrado (Regex4): ${n}`);
+        }
+    }
+    
+    // 🔥 Estratégia 5: Buscar no texto bruto (fallback final)
+    if (nomes.length === 0) {
+        console.log('🔍 Tentando fallback final...');
+        // Procura por "Solicitante" no texto
+        const partes = textoLimpo.split(/Solicitante/i);
+        for (const parte of partes) {
+            // Pega a primeira linha que tenha maiúsculas
+            const linhas = parte.split('\n');
+            for (const linha of linhas) {
+                const trimmed = linha.trim();
+                if (trimmed === trimmed.toUpperCase() && 
+                    trimmed.length > 10 && 
+                    trimmed.split(/\s+/).length >= 2) {
+                    nomes.push(trimmed);
+                    console.log(`✅ Nome encontrado (fallback): ${trimmed}`);
+                    break;
+                }
+            }
+            if (nomes.length > 0) break;
         }
     }
     
     // Se não encontrou nenhum nome
     if (nomes.length === 0) {
-        console.log('⚠️ NENHUM NOME ENCONTRADO!');
-        console.log('📄 Últimos 300 caracteres do PDF:');
-        console.log(pdfText.substring(pdfText.length - 300));
+        console.log('❌ NENHUM NOME ENCONTRADO!');
+        console.log('📄 Últimos 300 caracteres do texto:');
+        console.log(textoLimpo.substring(textoLimpo.length - 300));
         return agendamentos;
     }
     
     // Remove duplicatas
     const nomesUnicos = [...new Set(nomes)];
-    console.log(`📋 ${nomesUnicos.length} nomes únicos encontrados:`, nomesUnicos);
+    console.log(`📋 ${nomesUnicos.length} nomes únicos encontrados:`);
+    nomesUnicos.forEach((n, i) => console.log(`   ${i+1}. ${n}`));
 
     // ============================================================
-    // 4. EXTRAIR DATAS E HORÁRIOS DO CASV
+    // 4. EXTRAIR DATAS E HORÁRIOS
     // ============================================================
     let casvData = null, casvHora = null, casvLocal = null;
     let entrevistaData = null, entrevistaHora = null, entrevistaLocal = null;
     
-    // CASV
+    // 🔥 CASV - Padrão oficial
     const casvPattern = /Data do Agendamento no CASV:\s*(\d{1,2})\s+([A-Za-zçã]+),\s+(\d{4}),\s+(\d{2}:\d{2})\s+([^\n]+)/i;
-    const casvMatch = pdfText.match(casvPattern);
+    const casvMatch = textoLimpo.match(casvPattern);
     if (casvMatch) {
         const [, dia, mes, ano, hora, local] = casvMatch;
         const mesNumero = mesesMap[mes] || mesesMap[mes + ','];
@@ -173,9 +220,9 @@ function extractAgendamentoDetailsFromText(pdfText) {
         }
     }
     
-    // Entrevista
+    // 🔥 Entrevista - Padrão oficial
     const entrevistaPattern = /Data da entrevista no Consulado:\s*(\d{1,2})\s+([A-Za-zçã]+),\s+(\d{4}),\s+(\d{2}:\d{2})\s+([^\n]+)/i;
-    const entrevistaMatch = pdfText.match(entrevistaPattern);
+    const entrevistaMatch = textoLimpo.match(entrevistaPattern);
     if (entrevistaMatch) {
         const [, dia, mes, ano, hora, local] = entrevistaMatch;
         const mesNumero = mesesMap[mes] || mesesMap[mes + ','];
@@ -187,23 +234,20 @@ function extractAgendamentoDetailsFromText(pdfText) {
         }
     }
 
-    // ============================================================
-    // 5. SE NÃO ENCONTROU DATAS, TENTA PADRÕES ALTERNATIVOS
-    // ============================================================
+    // 🔥 Fallback: Se não encontrou as datas, tenta padrões alternativos
     if (!casvData && !entrevistaData) {
         console.log('🔍 Tentando encontrar datas em formato alternativo...');
         
-        // Tenta encontrar datas no formato "16/09/2026"
-        const dataAltPattern = /(\d{1,2})\/(\d{1,2})\/(\d{4})/g;
+        // Tenta encontrar datas no formato "16 Setembro, 2026"
+        const dataAltPattern = /(\d{1,2})\s+([A-Za-zçã]+),\s+(\d{4})/g;
         const datasAlt = [];
-        let dataMatch;
-        while ((dataMatch = dataAltPattern.exec(pdfText)) !== null) {
-            const dia = dataMatch[1];
-            const mes = dataMatch[2];
-            const ano = dataMatch[3];
-            // Verifica se é uma data válida (ano 2024-2030)
-            if (parseInt(ano) >= 2024 && parseInt(ano) <= 2030) {
-                datasAlt.push(`${dia}/${mes}/${ano}`);
+        while ((match = dataAltPattern.exec(textoLimpo)) !== null) {
+            const dia = match[1];
+            const mes = match[2];
+            const ano = match[3];
+            const mesNumero = mesesMap[mes] || mesesMap[mes + ','];
+            if (mesNumero && parseInt(ano) >= 2024 && parseInt(ano) <= 2030) {
+                datasAlt.push(`${String(parseInt(dia)).padStart(2, '0')}/${mesNumero}/${ano}`);
             }
         }
         
@@ -219,11 +263,11 @@ function extractAgendamentoDetailsFromText(pdfText) {
         
         // Tenta encontrar horários
         const horaAltPattern = /(\d{1,2}:\d{2})/g;
-        const horasAlt = pdfText.match(horaAltPattern) || [];
+        const horasAlt = textoLimpo.match(horaAltPattern) || [];
         if (horasAlt.length >= 2) {
             casvHora = horasAlt[0];
             entrevistaHora = horasAlt[1];
-            console.log(`✅ Horários encontrados: ${casvHora}, ${entrevistaHora}`);
+            console.log(`✅ Horários: ${casvHora}, ${entrevistaHora}`);
         } else if (horasAlt.length === 1) {
             casvHora = horasAlt[0];
             console.log(`✅ Horário CASV: ${casvHora}`);
@@ -235,16 +279,16 @@ function extractAgendamentoDetailsFromText(pdfText) {
     }
 
     // ============================================================
-    // 6. VERIFICA SE TEM DADOS SUFICIENTES
+    // 5. VERIFICA SE TEM DADOS SUFICIENTES
     // ============================================================
     if (!casvData && !entrevistaData) {
-        console.log('⚠️ Nenhuma data de agendamento encontrada!');
+        console.log('❌ Nenhuma data de agendamento encontrada!');
         console.log('📄 Procure por: "Data do Agendamento no CASV" no texto');
         return agendamentos;
     }
 
     // ============================================================
-    // 7. CRIA OS AGENDAMENTOS PARA CADA NOME
+    // 6. CRIA OS AGENDAMENTOS PARA CADA NOME
     // ============================================================
     for (const nome of nomesUnicos) {
         // CASV
