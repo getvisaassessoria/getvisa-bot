@@ -1,6 +1,3 @@
-// server.js - VERSÃO DEFINITIVA E SEGURA (COM DUPLICIDADES REMOVIDAS)
-console.log('--- 🚀 SERVER.JS INICIADO (VERSÃO DEFINITIVA) ---');
-
 // ============================================================
 // 1. DEPENDÊNCIAS E CONFIGURAÇÕES INICIAIS
 // ============================================================
@@ -15,10 +12,33 @@ const fs = require('fs');
 const cron = require('node-cron');
 const multer = require('multer');
 const auth = require('./middleware/auth');
+const session = require('express-session');      // ← ADICIONAR
+const cookieParser = require('cookie-parser');   // ← ADICIONAR
 
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY || '');
 const PORT = process.env.PORT || 10000;
+
+
+// ============================================================
+// 1.5 CONFIGURAÇÃO DE SESSÃO (ADICIONAR AQUI)
+// ============================================================
+app.use(cookieParser());  // ← ADICIONAR
+
+app.use(session({         // ← ADICIONAR
+    secret: process.env.SESSION_SECRET || 'getvisa-super-secret-key-2026',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: false,
+        httpOnly: true,
+        maxAge: 8 * 60 * 60 * 1000, // 8 horas
+        sameSite: 'lax'
+    },
+    name: 'getvisa_session'
+}));
+
+console.log('✅ Sessão configurada');
 
 // ============================================================
 // 2. CONFIGURAÇÃO DO SUPABASE
@@ -36,6 +56,29 @@ console.log(`✅ URL do Supabase: ${supabaseUrl || 'NÃO CONFIGURADO'}`);
 console.log(`✅ Cliente Supabase: ${supabase ? 'INICIALIZADO' : 'NÃO DISPONÍVEL'}`);
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'admin123';
+
+// ============================================================
+// 2.5 CONFIGURAÇÃO DE SESSÃO (NOVO)
+// ============================================================
+app.use(cookieParser());
+
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'getvisa-super-secret-key-2026',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: false, // Em produção com HTTPS, mude para true
+        httpOnly: true,
+        maxAge: 8 * 60 * 60 * 1000, // 8 horas
+        sameSite: 'lax'
+    },
+    name: 'getvisa_session'
+}));
+
+// Middleware para renovar sessão (usando o do auth)
+app.use(auth.renovarSessao);
+
+console.log('✅ Sessão configurada com sucesso');
 
 // ============================================================
 // 3. MIDDLEWARES BÁSICOS
@@ -65,7 +108,7 @@ console.log('✅ Multer configurado com memoryStorage');
 // 5. ROTAS PÚBLICAS (NÃO PROTEGIDAS) - DEVEM VIR PRIMEIRO
 // ============================================================
 
-// 5.1 ROTA DE LOGIN ADMIN (PÚBLICA)
+// 5.1 ROTA DE LOGIN ADMIN (PÚBLICA) - COM SESSÃO
 app.post('/api/admin/login', (req, res) => {
     const { apiKey } = req.body;
     const validKey = 'admin123';
@@ -83,9 +126,44 @@ app.post('/api/admin/login', (req, res) => {
 
     if (apiKey === validKey) {
         console.log('✅ Login admin autorizado.');
-        return res.json({ 
-            success: true, 
-            message: 'Login autorizado' 
+        
+        // 🔥 CRIA SESSÃO - ESSA É A PARTE QUE FALTAVA!
+        req.session.admin = {
+            authenticated: true,
+            loginAt: new Date().toISOString(),
+            ip: req.ip,
+            userAgent: req.headers['user-agent']
+        };
+        
+        // CRIA COOKIE COMO BACKUP (para caso a sessão falhe)
+        res.cookie('admin_session', JSON.stringify({
+            authenticated: true,
+            loginAt: new Date().toISOString()
+        }), {
+            httpOnly: true,
+            maxAge: 8 * 60 * 60 * 1000,
+            sameSite: 'lax'
+        });
+        
+        // SALVA A SESSÃO EXPLICITAMENTE
+        req.session.save((err) => {
+            if (err) {
+                console.error('❌ Erro ao salvar sessão:', err);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Erro ao criar sessão'
+                });
+            }
+            
+            console.log('✅ Sessão criada com sucesso');
+            console.log(`   Session ID: ${req.session.id}`);
+            console.log(`   Admin: ${JSON.stringify(req.session.admin)}`);
+            
+            return res.json({ 
+                success: true, 
+                message: 'Login autorizado',
+                redirect: '/dashboard'  // ← Importante!
+            });
         });
     } else {
         console.warn('❌ Tentativa de login com chave inválida.');
@@ -94,6 +172,51 @@ app.post('/api/admin/login', (req, res) => {
             message: 'Chave de acesso inválida.' 
         });
     }
+});
+    // 5.1.1 ROTA DE LOGOUT
+    app.post('/api/admin/logout', (req, res) => {
+        req.session.destroy((err) => {
+            if (err) {
+                console.error('Erro ao destruir sessão:', err);
+            }
+            res.clearCookie('admin_session');
+            res.clearCookie('getvisa_session');
+            res.json({
+                success: true,
+                message: 'Logout realizado'
+            });
+        });
+    });
+
+    // 5.1.2 ROTA PARA VERIFICAR SESSÃO
+app.get('/api/admin/check-session', (req, res) => {
+    const isAuthenticated = req.session?.admin?.authenticated === true;
+    
+    if (isAuthenticated) {
+        return res.json({
+            authenticated: true,
+            admin: {
+                loginAt: req.session.admin.loginAt,
+                ip: req.session.admin.ip
+            }
+        });
+    }
+    
+    // Verifica cookie como fallback
+    if (req.cookies?.admin_session) {
+        try {
+            const sessionData = JSON.parse(req.cookies.admin_session);
+            if (sessionData.authenticated === true) {
+                req.session.admin = sessionData;
+                return res.json({
+                    authenticated: true,
+                    admin: sessionData
+                });
+            }
+        } catch (e) {}
+    }
+    
+    res.json({ authenticated: false });
 });
 
 // 5.2 ROTA DE UPLOAD DE PDF (PÚBLICA - NÃO TEM AUTH)

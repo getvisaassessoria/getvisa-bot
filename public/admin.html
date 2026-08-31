@@ -36,6 +36,20 @@
             border-radius: 20px;
             font-size: 14px;
         }
+        .header .btn-voltar {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+            text-decoration: none;
+        }
+        .header .btn-voltar:hover {
+            background: rgba(255,255,255,0.3);
+        }
 
         /* ============================================================
            CONTAINER
@@ -144,6 +158,10 @@
             background: #6c757d;
         }
         .filters button.secondary:hover { background: #5a6268; }
+        .filters button.success {
+            background: #28a745;
+        }
+        .filters button.success:hover { background: #1e7e34; }
 
         /* ============================================================
            TABELAS
@@ -250,6 +268,11 @@
             color: white;
         }
         .btn-action.pdf:hover { background: #5a32a3; }
+        .btn-action.voltar {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-action.voltar:hover { background: #5a6268; }
 
         /* ============================================================
            MODAL
@@ -325,6 +348,27 @@
         .modal-actions .cancel:hover { background: #5a6268; }
 
         /* ============================================================
+           LOADING OVERLAY
+           ============================================================ */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            font-size: 18px;
+            color: #003366;
+        }
+        .loading-overlay.hidden {
+            display: none;
+        }
+
+        /* ============================================================
            UTILITÁRIOS
            ============================================================ */
         .loading {
@@ -335,6 +379,7 @@
         .text-center { text-align: center; }
         .text-muted { color: #999; }
         .text-small { font-size: 11px; color: #888; }
+        .mt-10 { margin-top: 10px; }
 
         /* ============================================================
            RESPONSIVIDADE
@@ -362,16 +407,24 @@
             }
         }
     </style>
-<link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
 <body>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div>🔐 Verificando autenticação...</div>
+    </div>
 
     <!-- ============================================================
     HEADER
     ============================================================ -->
     <div class="header">
         <h1>📊 GETVISA - Painel de Agendamentos</h1>
-        <div class="badge">🟢 Sistema Online</div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <span class="badge">🟢 Sistema Online</span>
+            <a href="/dashboard" class="btn-voltar">⬅ Voltar ao Dashboard</a>
+        </div>
     </div>
 
     <!-- ============================================================
@@ -428,9 +481,9 @@
                     <option value="pendente">Pendentes</option>
                     <option value="concluido">Concluídos</option>
                 </select>
-                <button onclick="carregarAgendamentos()">🔍 Buscar</button>
+                <button onclick="aplicarFiltros()">🔍 Buscar</button>
                 <button class="secondary" onclick="resetarFiltros()">🔄 Limpar</button>
-                <button class="secondary" onclick="exportarCSV()">📥 Exportar CSV</button>
+                <button class="success" onclick="exportarCSV()">📥 Exportar CSV</button>
             </div>
 
             <!-- Tabela -->
@@ -452,7 +505,7 @@
                         </tr>
                     </thead>
                     <tbody id="tableBody">
-                        <tr><td colspan="11" class="loading">Carregando agendamentos...</td></tr>
+                        <tr><td colspan="11" class="loading">🔄 Carregando agendamentos...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -497,7 +550,7 @@
                         </tr>
                     </thead>
                     <tbody id="lembreteTableBody">
-                        <tr><td colspan="6" class="loading">Carregando lembretes...</td></tr>
+                        <tr><td colspan="6" class="loading">🔄 Carregando lembretes...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -572,12 +625,539 @@
     </div>
 
     <!-- ============================================================
-    JAVASCRIPT
+    JAVASCRIPT - COMPLETO COM SESSÃO
     ============================================================ -->
-   <!-- ============================================================
-SCRIPTS
-============================================================ -->
-<script src="/admin.js"></script>
+    <script>
+        // ============================================================
+        // VARIÁVEIS GLOBAIS
+        // ============================================================
+        let agendamentosData = [];
+        let lembretesData = [];
+        let dadosFiltrados = [];
+
+        // ============================================================
+        // VERIFICAR SESSÃO
+        // ============================================================
+        async function verificarSessao() {
+            try {
+                console.log('🔍 Verificando sessão...');
+                const response = await fetch('/api/admin/check-session');
+                const data = await response.json();
+                
+                if (!data.authenticated) {
+                    console.log('❌ Não autenticado, redirecionando para login');
+                    window.location.href = '/admin-login.html';
+                    return false;
+                }
+                
+                console.log('✅ Sessão válida');
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                return true;
+            } catch (error) {
+                console.error('❌ Erro ao verificar sessão:', error);
+                window.location.href = '/admin-login.html';
+                return false;
+            }
+        }
+
+        // ============================================================
+        // CARREGAR AGENDAMENTOS
+        // ============================================================
+        async function carregarAgendamentos() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '<tr><td colspan="11" class="loading">🔄 Carregando agendamentos...</td></tr>';
+
+            try {
+                console.log('📨 Buscando agendamentos...');
+                const response = await fetch('/api/agendamentos');
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin-login.html';
+                        return;
+                    }
+                    throw new Error('Erro: ' + response.status);
+                }
+                
+                const data = await response.json();
+                console.log('📊 Dados recebidos:', data);
+                
+                if (data.success && data.agendamentos) {
+                    agendamentosData = data.agendamentos;
+                    dadosFiltrados = [...agendamentosData];
+                    renderizarAgendamentos(dadosFiltrados);
+                    atualizarStats(agendamentosData);
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="11" class="text-center">❌ Nenhum agendamento encontrado.</td></tr>';
+                }
+            } catch (error) {
+                console.error('❌ Erro:', error);
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center">❌ Erro ao carregar: ' + error.message + '</td></tr>';
+            }
+        }
+
+        // ============================================================
+        // RENDERIZAR AGENDAMENTOS
+        // ============================================================
+        function renderizarAgendamentos(dados) {
+            const tbody = document.getElementById('tableBody');
+            if (!tbody) return;
+            
+            if (!dados || dados.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center">📭 Nenhum agendamento encontrado.</td></tr>';
+                return;
+            }
+
+            let html = '';
+            dados.forEach(ag => {
+                const clienteNome = ag.clientes?.nome || 'N/A';
+                const clienteTelefone = ag.clientes?.telefone || 'N/A';
+                const dataFormatada = ag.data_agendamento ? new Date(ag.data_agendamento).toLocaleDateString('pt-BR') : '-';
+                const horaFormatada = ag.hora_agendamento ? ag.hora_agendamento.substring(0, 5) : '-';
+                const statusClass = ag.concluido ? 'concluido' : 'pendente';
+                const statusText = ag.concluido ? '✅ Concluído' : '⏳ Pendente';
+                const protocolo = ag.protocolo_ds160 || '-';
+
+                html += `
+                    <tr>
+                        <td><strong>${clienteNome}</strong></td>
+                        <td>${clienteTelefone}</td>
+                        <td>${ag.atividade || '-'}</td>
+                        <td>${dataFormatada}</td>
+                        <td>${horaFormatada}</td>
+                        <td>${ag.local_agendamento || '-'}</td>
+                        <td>${protocolo}</td>
+                        <td>
+                            ${ag.pdf_url ? `<a href="${ag.pdf_url}" target="_blank" class="btn-action pdf">📄</a>` : '-'}
+                        </td>
+                        <td><span class="badge-status ${statusClass}">${statusText}</span></td>
+                        <td>
+                            <button class="btn-action edit" onclick="editarAgendamento('${ag.id}')">✏️</button>
+                            <button class="btn-action done" onclick="toggleConcluido('${ag.id}', ${ag.concluido})">${ag.concluido ? '↩️' : '✅'}</button>
+                            <button class="btn-action upload" onclick="abrirModalUploadPDF('${ag.id}')">📤</button>
+                        </td>
+                        <td>
+                            <button class="btn-action whatsapp" onclick="enviarWhatsApp('${clienteTelefone}', '${clienteNome}', '${ag.atividade}', '${dataFormatada}', '${horaFormatada}')">📱</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        // ============================================================
+        // ATUALIZAR STATS
+        // ============================================================
+        function atualizarStats(dados) {
+            const total = dados.length;
+            const concluidos = dados.filter(a => a.concluido).length;
+            const pendentes = total - concluidos;
+            const agora = new Date();
+            const proximos = dados.filter(a => {
+                if (!a.data_agendamento || a.concluido) return false;
+                const data = new Date(a.data_agendamento);
+                const diff = (data - agora) / (1000 * 60 * 60 * 24);
+                return diff >= 0 && diff <= 30;
+            }).length;
+
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statConcluidos').textContent = concluidos;
+            document.getElementById('statPendentes').textContent = pendentes;
+            document.getElementById('statProximos').textContent = proximos;
+        }
+
+        // ============================================================
+        // APLICAR FILTROS
+        // ============================================================
+        function aplicarFiltros() {
+            const inicio = document.getElementById('filterInicio').value;
+            const fim = document.getElementById('filterFim').value;
+            const atividade = document.getElementById('filterAtividade').value;
+            const status = document.getElementById('filterStatus').value;
+
+            let filtrados = [...agendamentosData];
+
+            if (inicio) {
+                filtrados = filtrados.filter(a => a.data_agendamento && a.data_agendamento >= inicio);
+            }
+            if (fim) {
+                filtrados = filtrados.filter(a => a.data_agendamento && a.data_agendamento <= fim);
+            }
+            if (atividade) {
+                filtrados = filtrados.filter(a => a.atividade && a.atividade.includes(atividade));
+            }
+            if (status) {
+                const isConcluido = status === 'concluido';
+                filtrados = filtrados.filter(a => a.concluido === isConcluido);
+            }
+
+            dadosFiltrados = filtrados;
+            renderizarAgendamentos(dadosFiltrados);
+        }
+
+        // ============================================================
+        // RESETAR FILTROS
+        // ============================================================
+        function resetarFiltros() {
+            document.getElementById('filterInicio').value = '';
+            document.getElementById('filterFim').value = '';
+            document.getElementById('filterAtividade').value = '';
+            document.getElementById('filterStatus').value = '';
+            dadosFiltrados = [...agendamentosData];
+            renderizarAgendamentos(dadosFiltrados);
+        }
+
+        // ============================================================
+        // CARREGAR LEMBRETES
+        // ============================================================
+        async function carregarLembretes() {
+            const tbody = document.getElementById('lembreteTableBody');
+            tbody.innerHTML = '<tr><td colspan="6" class="loading">🔄 Carregando lembretes...</td></tr>';
+
+            try {
+                const response = await fetch('/api/lembretes');
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin-login.html';
+                        return;
+                    }
+                    throw new Error('Erro: ' + response.status);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.lembretes) {
+                    lembretesData = data.lembretes;
+                    renderizarLembretes(lembretesData);
+                    atualizarStatsLembretes(lembretesData);
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">📭 Nenhum lembrete encontrado.</td></tr>';
+                }
+            } catch (error) {
+                console.error('❌ Erro:', error);
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">❌ Erro ao carregar lembretes.</td></tr>';
+            }
+        }
+
+        // ============================================================
+        // RENDERIZAR LEMBRETES
+        // ============================================================
+        function renderizarLembretes(dados) {
+            const tbody = document.getElementById('lembreteTableBody');
+            if (!tbody) return;
+            
+            if (!dados || dados.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">📭 Nenhum lembrete encontrado.</td></tr>';
+                return;
+            }
+
+            let html = '';
+            dados.forEach(l => {
+                const clienteNome = l.clientes?.nome || 'N/A';
+                const dataDisparo = l.data_disparo ? new Date(l.data_disparo).toLocaleString('pt-BR') : '-';
+                const status = l.status_envio || 'pendente';
+                const statusClass = status === 'enviado' ? 'enviado' : status === 'pendente' ? 'pendente' : 'falha';
+                const statusText = status === 'enviado' ? '✅ Enviado' : status === 'pendente' ? '⏳ Pendente' : '❌ Falha';
+
+                html += `
+                    <tr>
+                        <td><strong>${clienteNome}</strong></td>
+                        <td>${l.agendamento_id || '-'}</td>
+                        <td>${l.tipo || 'Lembrete'}</td>
+                        <td>${dataDisparo}</td>
+                        <td><span class="badge-status ${statusClass}">${statusText}</span></td>
+                        <td>
+                            ${status === 'pendente' ? `<button class="btn-action reenviar" onclick="reenviarLembrete('${l.id}')">🔄 Reenviar</button>` : '-'}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        // ============================================================
+        // ATUALIZAR STATS LEMBRETES
+        // ============================================================
+        function atualizarStatsLembretes(dados) {
+            const total = dados.length;
+            const pendentes = dados.filter(l => l.status_envio === 'pendente').length;
+            const enviados = dados.filter(l => l.status_envio === 'enviado').length;
+            const falhas = dados.filter(l => l.status_envio === 'falha').length;
+
+            document.getElementById('lembreteTotal').textContent = total;
+            document.getElementById('lembretePendentes').textContent = pendentes;
+            document.getElementById('lembreteEnviados').textContent = enviados;
+            document.getElementById('lembreteFalhas').textContent = falhas;
+        }
+
+        // ============================================================
+        // MUDAR TAB
+        // ============================================================
+        function mudarTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            
+            if (tab === 'agendamentos') {
+                document.querySelector('.tab:first-child').classList.add('active');
+                document.getElementById('tabAgendamentos').style.display = 'block';
+                document.getElementById('tabLembretes').style.display = 'none';
+                if (agendamentosData.length === 0) {
+                    carregarAgendamentos();
+                }
+            } else {
+                document.querySelector('.tab:last-child').classList.add('active');
+                document.getElementById('tabAgendamentos').style.display = 'none';
+                document.getElementById('tabLembretes').style.display = 'block';
+                if (lembretesData.length === 0) {
+                    carregarLembretes();
+                }
+            }
+        }
+
+        // ============================================================
+        // ENVIAR WHATSAPP
+        // ============================================================
+        function enviarWhatsApp(telefone, nome, atividade, data, hora) {
+            if (!telefone || telefone === 'N/A') {
+                alert('Telefone não disponível');
+                return;
+            }
+            const mensagem = `Olá ${nome}! Seu ${atividade} está agendado para ${data} às ${hora}.`;
+            const url = `https://wa.me/55${telefone}?text=${encodeURIComponent(mensagem)}`;
+            window.open(url, '_blank');
+        }
+
+        // ============================================================
+        // EXPORTAR CSV
+        // ============================================================
+        function exportarCSV() {
+            const dados = dadosFiltrados.length > 0 ? dadosFiltrados : agendamentosData;
+            
+            if (!dados || dados.length === 0) {
+                alert('Nenhum dado para exportar.');
+                return;
+            }
+
+            let csv = '\uFEFF'; // BOM para Excel
+            csv += 'Cliente,Telefone,Atividade,Data,Hora,Local,Protocolo,Status\n';
+            dados.forEach(a => {
+                const clienteNome = a.clientes?.nome || 'N/A';
+                const clienteTelefone = a.clientes?.telefone || 'N/A';
+                const dataFormatada = a.data_agendamento ? new Date(a.data_agendamento).toLocaleDateString('pt-BR') : '-';
+                const horaFormatada = a.hora_agendamento ? a.hora_agendamento.substring(0, 5) : '-';
+                const status = a.concluido ? 'Concluído' : 'Pendente';
+                csv += `"${clienteNome}","${clienteTelefone}","${a.atividade || '-'}","${dataFormatada}","${horaFormatada}","${a.local_agendamento || '-'}","${a.protocolo_ds160 || '-'}","${status}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `agendamentos_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+
+        // ============================================================
+        // EDIÇÃO DE AGENDAMENTO
+        // ============================================================
+        let editandoId = null;
+
+        function editarAgendamento(id) {
+            const ag = agendamentosData.find(a => a.id == id);
+            if (!ag) return;
+
+            editandoId = id;
+            document.getElementById('editId').value = id;
+            document.getElementById('editCliente').value = ag.clientes?.nome || 'N/A';
+            document.getElementById('editAtividade').value = ag.atividade || 'CASV';
+            document.getElementById('editData').value = ag.data_agendamento ? ag.data_agendamento.split('T')[0] : '';
+            document.getElementById('editHora').value = ag.hora_agendamento || '';
+            document.getElementById('editLocal').value = ag.local_agendamento || '';
+            document.getElementById('editProtocolo').value = ag.protocolo_ds160 || '';
+            document.getElementById('editStatus').value = ag.concluido ? 'true' : 'false';
+            
+            document.getElementById('modal').classList.add('show');
+        }
+
+        async function salvarEdicao() {
+            const id = document.getElementById('editId').value;
+            const data = {
+                atividade: document.getElementById('editAtividade').value,
+                data_agendamento: document.getElementById('editData').value,
+                hora_agendamento: document.getElementById('editHora').value,
+                local_agendamento: document.getElementById('editLocal').value,
+                protocolo_ds160: document.getElementById('editProtocolo').value,
+                concluido: document.getElementById('editStatus').value === 'true'
+            };
+
+            try {
+                const response = await fetch(`/api/agendamentos/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin-login.html';
+                        return;
+                    }
+                    throw new Error('Erro ao salvar');
+                }
+
+                await response.json();
+                fecharModal();
+                carregarAgendamentos();
+            } catch (error) {
+                console.error('❌ Erro:', error);
+                alert('Erro ao salvar agendamento.');
+            }
+        }
+
+        function fecharModal() {
+            document.getElementById('modal').classList.remove('show');
+        }
+
+        // ============================================================
+        // TOGGLE CONCLUÍDO
+        // ============================================================
+        async function toggleConcluido(id, atual) {
+            try {
+                const response = await fetch(`/api/agendamentos/${id}/toggle`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ concluido: !atual })
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin-login.html';
+                        return;
+                    }
+                    throw new Error('Erro ao atualizar');
+                }
+
+                await response.json();
+                carregarAgendamentos();
+            } catch (error) {
+                console.error('❌ Erro:', error);
+                alert('Erro ao atualizar status.');
+            }
+        }
+
+        // ============================================================
+        // UPLOAD DE PDF
+        // ============================================================
+        function abrirModalUploadPDF(id) {
+            document.getElementById('uploadAgendamentoId').value = id;
+            document.getElementById('uploadPDFFile').value = '';
+            document.getElementById('modalUploadPDF').classList.add('show');
+        }
+
+        function fecharModalUploadPDF() {
+            document.getElementById('modalUploadPDF').classList.remove('show');
+        }
+
+        async function fazerUploadPDF() {
+            const id = document.getElementById('uploadAgendamentoId').value;
+            const fileInput = document.getElementById('uploadPDFFile');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert('Selecione um arquivo PDF');
+                return;
+            }
+
+            if (file.type !== 'application/pdf') {
+                alert('Apenas arquivos PDF são permitidos');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('pdf', file);
+
+            try {
+                const response = await fetch(`/api/agendamentos/${id}/upload-pdf`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin-login.html';
+                        return;
+                    }
+                    throw new Error('Erro ao enviar PDF');
+                }
+
+                await response.json();
+                fecharModalUploadPDF();
+                carregarAgendamentos();
+                alert('📄 PDF enviado com sucesso!');
+            } catch (error) {
+                console.error('❌ Erro:', error);
+                alert('Erro ao enviar PDF.');
+            }
+        }
+
+        // ============================================================
+        // REENVIAR LEMBRETE
+        // ============================================================
+        async function reenviarLembrete(id) {
+            if (!confirm('Reenviar este lembrete?')) return;
+
+            try {
+                const response = await fetch(`/api/lembretes/${id}/reenviar`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin-login.html';
+                        return;
+                    }
+                    throw new Error('Erro ao reenviar');
+                }
+
+                await response.json();
+                carregarLembretes();
+                alert('✅ Lembrete reenviado!');
+            } catch (error) {
+                console.error('❌ Erro:', error);
+                alert('Erro ao reenviar lembrete.');
+            }
+        }
+
+        // ============================================================
+        // INICIAR - VERIFICAR SESSÃO E CARREGAR DADOS
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Página carregada, verificando sessão...');
+            
+            const autenticado = await verificarSessao();
+            if (autenticado) {
+                carregarAgendamentos();
+            }
+        });
+
+        // Fechar modal com ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                fecharModal();
+                fecharModalUploadPDF();
+            }
+        });
+
+        // Fechar modal clicando fora
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('show');
+                }
+            });
+        });
+    </script>
 
 </body>
 </html>
