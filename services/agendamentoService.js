@@ -348,18 +348,28 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         }
 
                 // 🔥 PREPARA DADOS PARA RETORNO
+                // 🔥 PREPARA DADOS PARA RETORNO
         const casv = agendamentosExtraidos.find(a => a.atividade === 'CASV');
         const entrevista = agendamentosExtraidos.find(a => a.atividade === 'ENTREVISTA');
 
-        const dadosExtraidos = {
-            casv: casv ? { data: casv.dataCompromisso, hora: casv.horaCompromisso } : null,
-            entrevista: entrevista ? { data: entrevista.dataCompromisso, hora: entrevista.horaCompromisso } : null,
+        // 🔥 CRIA O OBJETO DE RETORNO (CORRIGIDO)
+        const dadosRetorno = {
+            casv: casv ? { 
+                data: casv.dataCompromisso, 
+                hora: casv.horaCompromisso,
+                local: casv.localCompromisso 
+            } : null,
+            entrevista: entrevista ? { 
+                data: entrevista.dataCompromisso, 
+                hora: entrevista.horaCompromisso,
+                local: entrevista.localCompromisso 
+            } : null,
             todosMembros: todosMembros
         };
 
         console.log('📊 DADOS EXTRAÍDOS:');
-        console.log(`   CASV: ${dadosExtraidos.casv?.data || 'N/A'} ${dadosExtraidos.casv?.hora || 'N/A'}`);
-        console.log(`   ENTREVISTA: ${dadosExtraidos.entrevista?.data || 'N/A'} ${dadosExtraidos.entrevista?.hora || 'N/A'}`);
+        console.log(`   CASV: ${dadosRetorno.casv?.data || 'N/A'} ${dadosRetorno.casv?.hora || 'N/A'}`);
+        console.log(`   ENTREVISTA: ${dadosRetorno.entrevista?.data || 'N/A'} ${dadosRetorno.entrevista?.hora || 'N/A'}`);
         console.log(`   MEMBROS: ${todosMembros.join(', ')}`);
 
         // 🔥 ENVIA WHATSAPP SE PERMITIDO
@@ -375,11 +385,11 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             console.log(`⏭️ WhatsApp desabilitado`);
         }
 
-        // 🔥 RETORNO - CORRIGIDO
+        // 🔥 RETORNO - USANDO A VARIÁVEL CORRETA
         return { 
             success: true, 
             agendamentosSalvos,
-            dados: dadosExtraidos  // <-- AQUI ESTAVA O ERRO: dadosParaRetorno
+            dados: dadosRetorno  // <-- AQUI: USAR dadosRetorno
         };
     } catch (error) {
         console.error('❌ Erro:', error);
