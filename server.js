@@ -3242,7 +3242,7 @@ app.post('/api/etapas/finalizar', async function(req, res) {
                     etapa: etapaFinal,
                     data: new Date().toISOString(),
                     nota: nota || 'Processo finalizado',
-                    observacao: `Cliente finalizado com ${resultado}`
+                    observacoes_finalizacao: `Cliente finalizado com ${resultado}`
                 }]);
 
                 await supabase
@@ -4705,13 +4705,12 @@ app.post('/api/admin/atualizar-status', async (req, res) => {
                 message: 'Cliente não encontrado' 
             });
         }
-
-        // Atualizar status
-        const resultado = await atualizarStatusCliente(telefone, status, { 
-            observacao: observacao || null,
-            data_status: new Date().toISOString()
-        });
-
+        /// Atualizar status
+            const resultado = await atualizarStatusCliente(telefone, status, { 
+                // observacoes_finalizacao: observacao || null,
+                
+                updated_at: new Date().toISOString()
+            });
         if (resultado.success) {
             res.json({
                 success: true,
