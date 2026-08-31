@@ -112,7 +112,7 @@
             .grid { grid-template-columns: 1fr; }
         }
     </style>
-<link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
 <body>
 <div class="dashboard">
@@ -120,16 +120,16 @@
     <p class="subtitle">Acesse todos os painéis administrativos em um só lugar</p>
 
     <div class="grid">
-        <!-- 👥 CLIENTES - com chave admin -->
-        <a href="/painel?api_key=admin123" class="card">
+        <!-- 👥 CLIENTES -->
+        <a href="/painel" class="card">
             <div class="icon">👥</div>
             <h3>Clientes</h3>
             <p>Visualize e gerencie todos os clientes</p>
             <span class="badge">Ativo</span>
         </a>
 
-        <!-- 📅 AGENDAMENTOS - com chave admin -->
-        <a href="/admin.html?api_key=admin123" class="card">
+        <!-- 📅 AGENDAMENTOS -->
+        <a href="/admin.html" class="card">
             <div class="icon">📅</div>
             <h3>Agendamentos</h3>
             <p>Gerencie agendamentos e treinamentos</p>
@@ -152,18 +152,18 @@
             <span class="badge publico">Público</span>
         </a>
 
-        <!-- 📈 DASHBOARD - público -->
-        <a href="/dashboard-novo.html" class="card" style="border-color: #28a745;">
-            <div class="icon">📈</div>
-            <h3>Dashboard</h3>
-            <p>Estatísticas e métricas</p>
-            <span class="badge novo">Novo</span>
+        <!-- 📤 UPLOAD CASV -->
+        <a href="/upload-casv-pdf" class="card">
+            <div class="icon">📤</div>
+            <h3>Upload CASV PDF</h3>
+            <p>Envie PDF de agendamento</p>
+            <span class="badge">Ativo</span>
         </a>
     </div>
 
     <div class="footer">
         <p>GetVisa Assessoria - Sistema de Gestão</p>
-        <span class="version">v2.0 - Atualizado em 28/08/2026</span>
+        <span class="version">v2.0 - Atualizado em 31/08/2026</span>
         <a href="/admin-login.html" class="logout-btn">🚪 Sair</a>
     </div>
 </div>
