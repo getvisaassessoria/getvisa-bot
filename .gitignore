@@ -1,3 +1,5 @@
 .env
 server.js.backup
 test-email.js
+*.tar.gz
+*.zip
