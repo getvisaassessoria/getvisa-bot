@@ -162,7 +162,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
 function gerarMensagemAgendamentos(agendamentos, nomeCliente) {
     const primeiroNome = nomeCliente ? nomeCliente.split(' ')[0] : 'Cliente';
     
-    let mensagem = `✅ *AGENDAMENTOS CONFIRMADOS - GETVISA* ✅\n\n`;
+    let mensagem = `✅ *AGENDAMENTOS CONFIRMADOS - GETVISA*\n\n`;
     mensagem += `Olá *${primeiroNome}*! Seus agendamentos foram realizados com sucesso!\n\n`;
     mensagem += `📋 *Protocolo DS-160:* ${agendamentos[0]?.protocolo_ds160 || 'N/A'}\n\n`;
     mensagem += `📅 *DATAS CONFIRMADAS:*\n`;
@@ -188,16 +188,18 @@ function gerarMensagemAgendamentos(agendamentos, nomeCliente) {
 // ============================================================
 // FUNÇÃO PRINCIPAL: EXTRAIR E SALVAR PDF
 // ============================================================
-// services/agendamentoService.js
-
-async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente) {
+async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options = {}) {
+    // 🔥 EXTRAI A OPÇÃO - SE NÃO FOR INFORMADA, DEFAULT É true (manter compatibilidade)
+    const { enviarWhatsApp = true } = options;
+    
+    console.log('📄 Processando PDF...');
+    console.log(`📱 Telefone do cliente: ${telefoneCliente}`);
+    console.log(`📢 Enviar WhatsApp: ${enviarWhatsApp ? 'SIM' : 'NÃO'}`);
+    
     try {
         if (typeof pdfParse !== 'function') {
             throw new Error('pdfParse não é uma função.');
         }
-
-        console.log('📄 Processando PDF...');
-        console.log(`📱 Telefone do cliente: ${telefoneCliente}`);
 
         const data = await pdfParse(pdfBuffer);
         const pdfText = data.text;
@@ -209,7 +211,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente) {
             return { success: false, message: 'Nenhum agendamento encontrado no PDF.' };
         }
 
-        // 🔥 BUSCAR OU CRIAR CLIENTE COM UPSERT
+        // BUSCAR OU CRIAR CLIENTE COM UPSERT
         const nomeDoCliente = agendamentosExtraidos[0]?.nomeCliente || 'Cliente';
         
         const { data: cliente, error: clienteError } = await supabase
@@ -235,8 +237,12 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente) {
         const clienteNome = cliente.nome;
         console.log(`✅ Cliente encontrado/criado: ${cliente.nome} (${cliente.telefone})`);
 
-        // 🔥 SALVAR AGENDAMENTOS USANDO O CLIENTE_ID
+        // SALVAR AGENDAMENTOS USANDO O CLIENTE_ID
         const agendamentosSalvos = [];
+        const dadosParaRetorno = {
+            casv: null,
+            entrevista: null
+        };
         
         for (const agendamentoData of agendamentosExtraidos) {
             const { nomeCliente, atividade, dataCompromisso, horaCompromisso, localCompromisso, protocolo_ds160 } = agendamentoData;
@@ -293,10 +299,25 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente) {
 
             agendamentosSalvos.push(salvo);
             console.log(`✅ Agendamento salvo: ${salvo.id}`);
+
+            // 🔥 ARMAZENA OS DADOS PARA RETORNO
+            if (atividadeTexto.includes('CASV')) {
+                dadosParaRetorno.casv = {
+                    data: dataCompromisso,
+                    hora: horaCompromisso,
+                    local: localTexto
+                };
+            } else if (atividadeTexto.includes('ENTREVISTA')) {
+                dadosParaRetorno.entrevista = {
+                    data: dataCompromisso,
+                    hora: horaCompromisso,
+                    local: localTexto
+                };
+            }
         }
 
-        // 🔥 ENVIAR NOTIFICAÇÃO WHATSAPP
-        if (agendamentosSalvos.length > 0) {
+        // 🔥 SÓ ENVIA WHATSAPP SE A FLAG PERMITIR
+        if (agendamentosSalvos.length > 0 && enviarWhatsApp) {
             try {
                 const mensagem = gerarMensagemAgendamentos(agendamentosSalvos, clienteNome);
                 const enviado = await enviarWhatsApp(telefoneCliente, mensagem);
@@ -308,9 +329,15 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente) {
             } catch (notifyError) {
                 console.error('❌ Erro ao enviar notificação:', notifyError);
             }
+        } else if (agendamentosSalvos.length > 0 && !enviarWhatsApp) {
+            console.log(`⏭️ Envio de WhatsApp DESABILITADO (flag enviarWhatsApp: false)`);
         }
 
-        return { success: true, agendamentosSalvos };
+        return { 
+            success: true, 
+            agendamentosSalvos,
+            dados: dadosParaRetorno
+        };
 
     } catch (error) {
         console.error('❌ Erro ao processar PDF:', error);
