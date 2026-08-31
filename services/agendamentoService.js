@@ -43,16 +43,6 @@ function mapAtividadeToText(atividade) {
     return atividade.trim();
 }
 
-
-// ============================================================
-// FUNÇÃO DE EXTRAÇÃO DO PDF (VERSÃO MELHORADA)
-// ============================================================
-// ============================================================
-// FUNÇÃO DE EXTRAÇÃO DO PDF - FORMATO OFICIAL DOS EUA
-// ============================================================
-// ============================================================
-// FUNÇÃO DE EXTRAÇÃO DO PDF - FORMATO OFICIAL DOS EUA (COM DEBUG)
-// ============================================================
 // ============================================================
 // FUNÇÃO DE EXTRAÇÃO DO PDF (VERSÃO ORIGINAL QUE FUNCIONAVA)
 // ============================================================
@@ -167,30 +157,51 @@ function extractAgendamentoDetailsFromText(pdfText) {
 }
 
 // ============================================================
-// FUNÇÃO PARA GERAR MENSAGEM DE NOTIFICAÇÃO
+// FUNÇÃO PARA GERAR MENSAGEM DE NOTIFICAÇÃO (VERSÃO MELHORADA)
 // ============================================================
 function gerarMensagemAgendamentos(agendamentos, nomeCliente) {
     const primeiroNome = nomeCliente ? nomeCliente.split(' ')[0] : 'Cliente';
     
+    // Separa CASV e ENTREVISTA
+    const casv = agendamentos.find(a => a.atividade && a.atividade.toUpperCase().includes('CASV'));
+    const entrevista = agendamentos.find(a => a.atividade && a.atividade.toUpperCase().includes('ENTREVISTA'));
+    
+    // Se não encontrou pela atividade, tenta pelo nome ou posição
+    const casvFinal = casv || agendamentos[0];
+    const entrevistaFinal = entrevista || agendamentos[1] || agendamentos[0];
+    
+    // Formata as datas
+    const casvData = casvFinal?.data_agendamento ? new Date(casvFinal.data_agendamento).toLocaleDateString('pt-BR') : 'A definir';
+    const casvHora = casvFinal?.hora_agendamento?.substring(0, 5) || 'A definir';
+    const casvLocal = casvFinal?.local_agendamento || 'A definir';
+    
+    const entrevistaData = entrevistaFinal?.data_agendamento ? new Date(entrevistaFinal.data_agendamento).toLocaleDateString('pt-BR') : 'A definir';
+    const entrevistaHora = entrevistaFinal?.hora_agendamento?.substring(0, 5) || 'A definir';
+    const entrevistaLocal = entrevistaFinal?.local_agendamento || 'A definir';
+    
+    const protocolo = casvFinal?.protocolo_ds160 || entrevistaFinal?.protocolo_ds160 || 'N/A';
+    
     let mensagem = `✅ *AGENDAMENTOS CONFIRMADOS - GETVISA*\n\n`;
     mensagem += `Olá *${primeiroNome}*! Seus agendamentos foram realizados com sucesso!\n\n`;
-    mensagem += `📋 *Protocolo DS-160:* ${agendamentos[0]?.protocolo_ds160 || 'N/A'}\n\n`;
-    mensagem += `📅 *DATAS CONFIRMADAS:*\n`;
+    mensagem += `📍 *CASV (Coleta Biométrica):*\n`;
+    mensagem += `📅 ${casvData}\n`;
+    mensagem += `⏰ ${casvHora}\n`;
+    mensagem += `📍 ${casvLocal}\n\n`;
+    mensagem += `📍 *ENTREVISTA NO CONSULADO:*\n`;
+    mensagem += `📅 ${entrevistaData}\n`;
+    mensagem += `⏰ ${entrevistaHora}\n`;
+    mensagem += `📍 ${entrevistaLocal}\n\n`;
+    mensagem += `⚠️ *IMPORTANTE:*\n`;
+    mensagem += `• Leve a *CONFIRMATION IMPRESSA*\n`;
+    mensagem += `• Leve seu *PASSAPORTE(S)*\n`;
+    mensagem += `• Chegue com 30 minutos de antecedência\n\n`;
+    mensagem += `📎 O PDF oficial foi enviado para seu e-mail.\n\n`;
+    mensagem += `📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)\n\n`;
+    mensagem += `🌟 *Boa sorte! Estamos com você!* ✈️`;
     
-    agendamentos.forEach((agendamento, index) => {
-        const data = new Date(agendamento.data_agendamento).toLocaleDateString('pt-BR');
-        const hora = agendamento.hora_agendamento?.substring(0, 5) || '00:00';
-        mensagem += `\n${index + 1}️⃣ *${agendamento.atividade}*\n`;
-        mensagem += `   📍 ${agendamento.local_agendamento || 'Consulado'}\n`;
-        mensagem += `   📅 ${data} às ${hora}\n`;
-    });
-    
-    mensagem += `\n📌 *IMPORTANTE:*\n`;
-    mensagem += `• Chegue com 30 minutos de antecedência\n`;
-    mensagem += `• Leve seu passaporte e comprovante de agendamento\n`;
-    mensagem += `• Mantenha seu celular carregado\n\n`;
-    mensagem += `📱 Dúvidas? Fale com a gente: https://wa.me/5521974601812\n\n`;
-    mensagem += `🌟 *Boa sorte! A GetVisa está com você!* ✈️`;
+    console.log('📊 Mensagem gerada:');
+    console.log(`   CASV: ${casvData} ${casvHora} - ${casvLocal}`);
+    console.log(`   ENTREVISTA: ${entrevistaData} ${entrevistaHora} - ${entrevistaLocal}`);
     
     return mensagem;
 }
@@ -199,7 +210,6 @@ function gerarMensagemAgendamentos(agendamentos, nomeCliente) {
 // FUNÇÃO PRINCIPAL: EXTRAIR E SALVAR PDF
 // ============================================================
 async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options = {}) {
-    // 🔥 EXTRAI A OPÇÃO - SE NÃO FOR INFORMADA, DEFAULT É true (manter compatibilidade)
     const { enviarWhatsApp = true } = options;
     
     console.log('📄 Processando PDF...');
@@ -310,23 +320,15 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             agendamentosSalvos.push(salvo);
             console.log(`✅ Agendamento salvo: ${salvo.id}`);
 
-            // 🔥 ARMAZENA OS DADOS PARA RETORNO
+            // ARMAZENA OS DADOS PARA RETORNO
             if (atividadeTexto.includes('CASV')) {
-                dadosParaRetorno.casv = {
-                    data: dataCompromisso,
-                    hora: horaCompromisso,
-                    local: localTexto
-                };
+                dadosParaRetorno.casv = salvo;
             } else if (atividadeTexto.includes('ENTREVISTA')) {
-                dadosParaRetorno.entrevista = {
-                    data: dataCompromisso,
-                    hora: horaCompromisso,
-                    local: localTexto
-                };
+                dadosParaRetorno.entrevista = salvo;
             }
         }
 
-        // 🔥 SÓ ENVIA WHATSAPP SE A FLAG PERMITIR
+        // SÓ ENVIA WHATSAPP SE A FLAG PERMITIR
         if (agendamentosSalvos.length > 0 && enviarWhatsApp) {
             try {
                 const mensagem = gerarMensagemAgendamentos(agendamentosSalvos, clienteNome);
@@ -343,6 +345,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             console.log(`⏭️ Envio de WhatsApp DESABILITADO (flag enviarWhatsApp: false)`);
         }
 
+        // RETORNA OS DADOS PARA A ROTA
         return { 
             success: true, 
             agendamentosSalvos,
