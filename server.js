@@ -596,7 +596,7 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
         const resultado = await agendamentoService.extractAndSavePdfAgendamentos(
             req.file.buffer,
             telefone,
-            { enviarWhatsApp: false } // 🔥 IMPEDE O SERVIÇO DE ENVIAR MENSAGEM
+            { enviarWhatsApp: false }  // 🔥 DESABILITA O ENVIO DUPLICADO
         );
 
         console.log('📊 Resultado da extração:', JSON.stringify(resultado, null, 2));
