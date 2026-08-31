@@ -389,7 +389,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         return { 
             success: true, 
             agendamentosSalvos,
-            dados: dadosRetorno  // <-- AQUI: USAR dadosRetorno
+            dados: dadosExtraidos  // <-- AQUI: USAR dadosRetorno
         };
     } catch (error) {
         console.error('❌ Erro:', error);
