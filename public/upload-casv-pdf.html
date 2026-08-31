@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload PDF - GetVisa</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, sans-serif;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 { color: #003366; text-align: center; margin-bottom: 10px; }
+        p.sub { text-align: center; color: #666; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 5px; color: #333; }
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: #003366;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .btn:hover { background: #004488; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        #status { margin-top: 20px; padding: 15px; border-radius: 8px; display: none; }
+        .success { background: #e8f5e9; color: #2e7d32; display: block; }
+        .error { background: #ffebee; color: #c62828; display: block; }
+        .loading { background: #fff3e0; color: #e65100; display: block; }
+        .back { display: block; text-align: center; margin-top: 20px; color: #003366; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📤 Upload PDF</h1>
+    <p class="sub">Envie o PDF de agendamento do cliente</p>
+
+    <form id="uploadForm">
+        <div class="form-group">
+            <label>📱 Telefone do Cliente</label>
+            <input type="text" id="telefone" placeholder="21985234917" value="21985234917">
+        </div>
+
+        <div class="form-group">
+            <label>📄 PDF do Agendamento</label>
+            <input type="file" id="pdfFile" accept=".pdf">
+        </div>
+
+        <button type="submit" class="btn" id="submitBtn">📤 Enviar PDF</button>
+    </form>
+
+    <div id="status"></div>
+    <a href="/dashboard" class="back">← Voltar ao Dashboard</a>
+</div>
+
+<script>
+document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const telefone = document.getElementById('telefone').value.trim();
+    const fileInput = document.getElementById('pdfFile');
+    const status = document.getElementById('status');
+    const btn = document.getElementById('submitBtn');
+
+    if (!telefone) {
+        status.className = 'error';
+        status.textContent = '❌ Informe o telefone do cliente';
+        status.style.display = 'block';
+        return;
+    }
+
+    if (!fileInput.files || fileInput.files.length === 0) {
+        status.className = 'error';
+        status.textContent = '❌ Selecione um arquivo PDF';
+        status.style.display = 'block';
+        return;
+    }
+
+    const file = fileInput.files[0];
+    if (file.type !== 'application/pdf') {
+        status.className = 'error';
+        status.textContent = '❌ O arquivo deve ser um PDF';
+        status.style.display = 'block';
+        return;
+    }
+
+    // Preparar form data
+    const formData = new FormData();
+    formData.append('pdfFile', file);
+    formData.append('telefone', telefone);
+
+    // Desabilitar botão
+    btn.disabled = true;
+    btn.textContent = '⏳ Enviando...';
+    
+    status.className = 'loading';
+    status.textContent = '⏳ Enviando PDF... Aguarde';
+    status.style.display = 'block';
+
+    try {
+        const response = await fetch('/api/agendamentos/upload-pdf', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            status.className = 'success';
+            status.innerHTML = `
+                ✅ PDF enviado com sucesso!<br>
+                📅 CASV: ${result.data?.casv?.data || 'Extraído'}<br>
+                🎤 Entrevista: ${result.data?.entrevista?.data || 'Extraído'}<br>
+                📧 E-mail e WhatsApp enviados para o cliente!
+            `;
+            status.style.display = 'block';
+            document.getElementById('pdfFile').value = '';
+        } else {
+            status.className = 'error';
+            status.textContent = '❌ Erro: ' + (result.message || 'Falha no upload');
+            status.style.display = 'block';
+        }
+    } catch (error) {
+        status.className = 'error';
+        status.textContent = '❌ Erro ao enviar: ' + error.message;
+        status.style.display = 'block';
+    }
+
+    btn.disabled = false;
+    btn.textContent = '📤 Enviar PDF';
+});
+</script>
+</body>
+</html>
