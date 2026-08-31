@@ -55,7 +55,24 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================================================
-// 3.5 ROTA DE LOGIN ADMIN (PÚBLICA)
+// 3.5 CONFIGURAÇÃO DO MULTER (DEVE VIR ANTES DE QUALQUER ROTA QUE USE UPLOAD)
+// ============================================================
+const uploadMemory = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(new Error('Apenas arquivos PDF são permitidos'));
+        }
+    }
+});
+
+console.log('✅ Multer configurado com memoryStorage');
+
+// ============================================================
+// 3.6 ROTA DE LOGIN ADMIN (PÚBLICA)
 // ============================================================
 app.post('/api/admin/login', (req, res) => {
     const { apiKey } = req.body;
@@ -180,134 +197,6 @@ function safeRequire(modulePath, fallback) {
         return fallback || null;
     }
 }
-
-// ============================================================
-// 15. FUNÇÃO PRINCIPAL DE PROCESSAMENTO DE MENSAGENS (BOT)
-// ============================================================
-
-async function processarMensagem(cleanPhone, incomingMessageContent) {
-    console.log('🔍 processarMensagem INICIADA para', cleanPhone);
-    console.log('🔍 incomingMessageContent (raw):', incomingMessageContent);
-
-    let messageText = String(incomingMessageContent || '').trim();
-    console.log('🔍 messageText (após String):', messageText);
-
-    try {
-        // 🔥 PRIMEIRO: Buscar cliente no Supabase
-        let state = userState.get(cleanPhone);
-        let clienteDB = null;
-
-        try {
-            const { data, error } = await supabase
-                .from('clientes')
-                .select('*')
-                .eq('telefone', cleanPhone)
-                .maybeSingle();
-
-            if (!error && data) {
-                clienteDB = data;
-                console.log('✅ Cliente encontrado no Supabase:', clienteDB.nome);
-            } else {
-                console.log('⚠️ Cliente não encontrado no Supabase ou erro:', error?.message);
-            }
-        } catch (err) {
-            console.error('❌ Erro ao buscar cliente no Supabase:', err);
-        }
-
-        // Se não tem estado local OU o estado local está incompleto, restaurar do banco
-        if (!state || !state.nome) {
-            if (clienteDB && clienteDB.onboarding_completo === true) {
-                console.log('🔄 Restaurando estado do Supabase para', cleanPhone);
-                state = {
-                    nivel: 'principal',
-                    onboardingStep: ONBOARDING_STEPS.COMPLETO,
-                    onboardingCompleto: true,
-                    nome: clienteDB.nome || 'Cliente',
-                    email: clienteDB.email || '',
-                    service: null,
-                    lastActivity: Date.now()
-                };
-                userState.set(cleanPhone, state);
-                console.log('✅ Estado restaurado com sucesso');
-            } else if (clienteDB && clienteDB.onboarding_completo === false) {
-                console.log('🔄 Cliente existe mas onboarding incompleto');
-                state = {
-                    nivel: 'onboarding',
-                    onboardingStep: ONBOARDING_STEPS.SAUDACAO,
-                    onboardingCompleto: false,
-                    nome: null,
-                    email: null,
-                    service: null,
-                    lastActivity: Date.now()
-                };
-                userState.set(cleanPhone, state);
-            } else {
-                console.log('🔄 Criando novo estado para:', cleanPhone);
-                state = {
-                    nivel: 'onboarding',
-                    onboardingStep: ONBOARDING_STEPS.SAUDACAO,
-                    onboardingCompleto: false,
-                    nome: null,
-                    email: null,
-                    service: null,
-                    lastActivity: Date.now()
-                };
-                userState.set(cleanPhone, state);
-            }
-        } else {
-            state.lastActivity = Date.now();
-            userState.set(cleanPhone, state);
-        }
-
-        console.log('🔍 state atual:', state);
-        console.log('🔍 onboardingCompleto:', state.onboardingCompleto);
-
-        if (state.onboardingCompleto === false) {
-            console.log('🔄 INICIANDO ONBOARDING');
-            await processarOnboarding(cleanPhone, messageText, state);
-            return;
-        }
-
-        if (messageText.toLowerCase() === '0' || messageText.toLowerCase() === 'menu') {
-            state.nivel = 'principal';
-            state.service = null;
-            userState.set(cleanPhone, state);
-            const menu = await getMenuPrincipal();
-            await sendReply(cleanPhone, menu);
-            return;
-        }
-
-        try {
-            if (state.nivel === 'submenu' && state.service) {
-                await processarOpcaoNoSubmenu(cleanPhone, messageText, state);
-            } else {
-                await processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state);
-            }
-        } catch (err) {
-            console.error('❌ Erro ao processar opção:', err);
-            try {
-                const menu = await getMenuPrincipal();
-                await sendReply(cleanPhone, menu);
-            } catch (e) {
-                console.error('❌ Erro no fallback do menu:', e);
-                await sendReply(cleanPhone, 'Digite 0 para o menu principal.');
-            }
-        }
-
-    } catch (error) {
-        console.error('❌ ERRO NO processarMensagem (catch principal):', error);
-        console.error('❌ Stack:', error.stack);
-
-        try {
-            await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro. Digite 0 para tentar novamente.');
-        } catch (e) {
-            console.error('❌ Erro ao enviar mensagem de erro (fallback):', e);
-        }
-    }
-}
-
-// 🔥 EXPORTAR A FUNÇÃO PARA OUTROS ARQUIVOS
-module.exports = { processarMensagem };
 
 // ============================================================
 // 7. ROTAS DA API
@@ -628,8 +517,6 @@ try {
     }
 });
 
-
-
 // Carregar outras rotas DS-160 (se houver)
 try {
     const ds160Routes = require('./routes/ds160Routes');
@@ -639,82 +526,50 @@ try {
     console.log('⚠️ Erro ao carregar ds160Routes adicionais:', error.message);
 }
 
-
-
-// 7.2 ROTA DE AGENDAMENTOS (PROTEGIDA)
+// ============================================================
+// 7.2 ROTA DE AGENDAMENTOS (REFATORADA - SEM DUPLICIDADE)
+// ============================================================
 console.log('🔧 Carregando rotas de Agendamentos...');
 
-// Proteger rotas de agendamento
-app.use('/api/agendamentos', auth.verificarApiKey);
-app.use('/api/admin/agendamentos', auth.verificarApiKey);
-
-try {
-    const agendamentoRoutes = require('./routes/agendamentoRoutes');
-    app.use('/api/agendamentos', agendamentoRoutes);
-    app.use('/api/admin/agendamentos', agendamentoRoutes);
-    console.log('✅ Rotas /api/agendamentos montadas (PROTEGIDAS).');
-} catch (error) {
-    console.log('⚠️ Erro ao carregar agendamentoRoutes:', error.message);
-    app.get('/api/agendamentos', auth.verificarApiKey, (req, res) => {
-        res.json({ success: true, message: 'Agendamentos API (fallback)' });
-    });
-}
-
-// 7.3 ROTA WEBHOOK (PÚBLICA)
-console.log('🔧 Carregando rotas Webhook...');
-try {
-    const webhookRoutes = require('./routes/webhookRoutesNew');
-    app.use('/api/webhook', webhookRoutes);
-    console.log('✅ webhookRoutesNew importado com sucesso.');
-   //  app.use('/api/webhook', webhookRoutesNew);
-    console.log('✅ Rota /api/webhook montada.');
-} catch (error) {
-    console.log('⚠️ Erro ao carregar webhookRoutesNew:', error.message);
-    app.post('/api/webhook', (req, res) => {
-        console.log('📨 Webhook fallback:', req.body);
-        res.status(200).send('OK');
-    });
-}
-
-// CONFIGURAÇÃO DO MULTER (DEVE VIR ANTES DA ROTA)
-// ============================================================
-const uploadMemory = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-        if (file.mimetype === 'application/pdf') {
-            cb(null, true);
-        } else {
-            cb(new Error('Apenas arquivos PDF são permitidos'));
-        }
-    }
-});
-
-// ============================================================
-// 8. ROTA DE UPLOAD DE PDF (SEM AUTENTICAÇÃO)
-// ============================================================
-
+// 🔥 ROTA DE UPLOAD DE PDF (NÃO PROTEGIDA - DEVE VIR ANTES DO MIDDLEWARE)
 app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (req, res) => {
     console.log('🔥 ROTA /api/agendamentos/upload-pdf CHAMADA!');
-    console.log('📥 req.file:', req.file);
+    console.log('📥 req.file:', req.file ? 'Arquivo recebido' : 'Nenhum arquivo');
     console.log('📥 req.body:', req.body);
     
     try {
+        // 1. VALIDAÇÃO DO ARQUIVO
         if (!req.file) {
+            console.warn('⚠️ Nenhum arquivo enviado');
             return res.status(400).json({ 
                 success: false, 
                 message: 'Nenhum arquivo enviado. Use o campo "pdfFile".' 
             });
         }
 
+        // Validação extra do tipo de arquivo
+        if (req.file.mimetype !== 'application/pdf') {
+            console.warn(`⚠️ Tipo de arquivo inválido: ${req.file.mimetype}`);
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Apenas arquivos PDF são permitidos' 
+            });
+        }
+
         console.log(`📄 Recebendo PDF: ${req.file.originalname}, tamanho: ${req.file.size} bytes`);
 
+        // 2. VALIDAÇÃO DO TELEFONE
         const telefone = req.body.telefone || '21985234917';
+        if (!telefone || telefone.length < 10) {
+            console.warn(`⚠️ Telefone inválido: ${telefone}`);
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Telefone inválido ou não informado' 
+            });
+        }
         console.log(`📱 Telefone informado: ${telefone}`);
 
-        // ============================================================
-        // 1. IMPORTAR SERVIÇO DE EXTRAÇÃO
-        // ============================================================
+        // 3. IMPORTAR SERVIÇO DE EXTRAÇÃO
         let agendamentoService;
         try {
             agendamentoService = require('./services/agendamentoService');
@@ -736,9 +591,7 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             });
         }
 
-        // ============================================================
-        // 2. EXTRAIR DADOS DO PDF
-        // ============================================================
+        // 4. EXTRAIR DADOS DO PDF
         const resultado = await agendamentoService.extractAndSavePdfAgendamentos(
             req.file.buffer,
             telefone
@@ -748,36 +601,39 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             return res.status(400).json(resultado);
         }
 
-        // ============================================================
-        // 3. BUSCAR DADOS DO CLIENTE
-        // ============================================================
+        // 5. BUSCAR DADOS DO CLIENTE
         const { data: cliente, error: clienteError } = await supabase
             .from('clientes')
             .select('nome, email, telefone')
             .eq('telefone', telefone)
             .maybeSingle();
 
-        if (clienteError || !cliente) {
-            console.error('❌ Cliente não encontrado:', clienteError);
+        if (clienteError) {
+            console.error('❌ Erro ao buscar cliente:', clienteError);
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Erro ao buscar dados do cliente' 
+            });
+        }
+
+        if (!cliente) {
+            console.warn(`⚠️ Cliente não encontrado para telefone: ${telefone}`);
             return res.status(404).json({ 
                 success: false, 
                 message: 'Cliente não encontrado' 
             });
         }
 
-        // ============================================================
-        // 4. EXTRAIR DADOS CASV E ENTREVISTA DO RESULTADO
-        // ============================================================
-        // Assumindo que o serviço retorna os dados extraídos
+        console.log(`✅ Cliente encontrado: ${cliente.nome} (${cliente.email})`);
+
+        // 6. EXTRAIR DADOS CASV E ENTREVISTA
         const dadosExtraidos = resultado.dados || resultado.data || {};
         const casv = dadosExtraidos.casv || {};
         const entrevista = dadosExtraidos.entrevista || {};
 
-        // ============================================================
-        // 5. SALVAR NA TABELA etapas_processo
-        // ============================================================
+        // 7. SALVAR NA TABELA etapas_processo
         try {
-            const { data: etapaData, error: etapaError } = await supabase
+            const { error: upsertError } = await supabase
                 .from('etapas_processo')
                 .upsert({
                     cliente_telefone: telefone,
@@ -787,12 +643,10 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
                     dados_entrevista: entrevista,
                     data_atualizacao: new Date().toISOString(),
                     updated_at: new Date().toISOString()
-                }, { onConflict: 'cliente_telefone' })
-                .select()
-                .single();
+                }, { onConflict: 'cliente_telefone' });
 
-            if (etapaError) {
-                console.error('❌ Erro ao salvar etapa:', etapaError);
+            if (upsertError) {
+                console.error('❌ Erro ao salvar etapa:', upsertError);
             } else {
                 console.log('✅ Etapa agendado_casv salva com sucesso');
             }
@@ -800,54 +654,53 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             console.error('❌ Erro ao salvar etapa:', err);
         }
 
-        // ============================================================
-        // 6. ENVIAR E-MAIL COM PDF
-        // ============================================================
+        // 8. ENVIAR E-MAIL COM PDF
+        let emailEnviado = false;
         try {
-            const emailOptions = {
-                from: 'GetVisa <contato@getvisa.com.br>',
-                to: cliente.email,
-                subject: `📋 Confirmação de Agendamento - ${cliente.nome}`,
-                html: `
-                    <h2>✅ Olá ${cliente.nome}!</h2>
-                    <p>Seus agendamentos foram confirmados!</p>
-                    
-                    <h3>📍 CASV (Coleta Biométrica)</h3>
-                    <p><strong>Data:</strong> ${casv.data || 'A definir'}</p>
-                    <p><strong>Horário:</strong> ${casv.hora || 'A definir'}</p>
-                    <p><strong>Local:</strong> ${casv.local || 'A definir'}</p>
-                    
-                    <h3>📍 ENTREVISTA NO CONSULADO</h3>
-                    <p><strong>Data:</strong> ${entrevista.data || 'A definir'}</p>
-                    <p><strong>Horário:</strong> ${entrevista.hora || 'A definir'}</p>
-                    <p><strong>Local:</strong> ${entrevista.local || 'A definir'}</p>
-                    
-                    <hr>
-                    <p><strong>⚠️ IMPORTANTE:</strong></p>
-                    <ul>
-                        <li>Leve a <strong>CONFIRMATION IMPRESSA</strong></li>
-                        <li>Leve seu <strong>PASSAPORTE(S)</strong></li>
-                        <li>Chegue com 30 minutos de antecedência</li>
-                    </ul>
-                    
-                    <p>📎 Em anexo o PDF oficial do agendamento.</p>
-                    <p>🌟 Boa sorte! Estamos com você!</p>
-                `,
-                attachments: [{
-                    filename: `Agendamento_${cliente.nome.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
-                    content: req.file.buffer.toString('base64')
-                }]
-            };
+            if (!cliente.email) {
+                console.warn(`⚠️ Cliente sem email: ${telefone}`);
+            } else {
+                const emailOptions = {
+                    from: 'GetVisa <contato@getvisa.com.br>',
+                    to: cliente.email,
+                    subject: `📋 Confirmação de Agendamento - ${cliente.nome}`,
+                    html: `
+                        <h2>✅ Olá ${cliente.nome}!</h2>
+                        <p>Seus agendamentos foram confirmados!</p>
+                        <h3>📍 CASV (Coleta Biométrica)</h3>
+                        <p><strong>Data:</strong> ${casv.data || 'A definir'}</p>
+                        <p><strong>Horário:</strong> ${casv.hora || 'A definir'}</p>
+                        <p><strong>Local:</strong> ${casv.local || 'A definir'}</p>
+                        <h3>📍 ENTREVISTA NO CONSULADO</h3>
+                        <p><strong>Data:</strong> ${entrevista.data || 'A definir'}</p>
+                        <p><strong>Horário:</strong> ${entrevista.hora || 'A definir'}</p>
+                        <p><strong>Local:</strong> ${entrevista.local || 'A definir'}</p>
+                        <hr>
+                        <p><strong>⚠️ IMPORTANTE:</strong></p>
+                        <ul>
+                            <li>Leve a <strong>CONFIRMATION IMPRESSA</strong></li>
+                            <li>Leve seu <strong>PASSAPORTE(S)</strong></li>
+                            <li>Chegue com 30 minutos de antecedência</li>
+                        </ul>
+                        <p>📎 Em anexo o PDF oficial do agendamento.</p>
+                        <p>🌟 Boa sorte! Estamos com você!</p>
+                    `,
+                    attachments: [{
+                        filename: `Agendamento_${cliente.nome.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+                        content: req.file.buffer.toString('base64')
+                    }]
+                };
 
-            await resend.emails.send(emailOptions);
-            console.log(`📧 E-mail enviado para ${cliente.email} com PDF anexado`);
+                await resend.emails.send(emailOptions);
+                emailEnviado = true;
+                console.log(`📧 E-mail enviado para ${cliente.email} com PDF anexado`);
+            }
         } catch (emailError) {
             console.error('❌ Erro ao enviar e-mail:', emailError);
         }
 
-        // ============================================================
-        // 7. ENVIAR WHATSAPP COM DATAS EM DESTAQUE
-        // ============================================================
+        // 9. ENVIAR WHATSAPP
+        let whatsEnviado = false;
         try {
             const mensagem = `✅ *Olá ${cliente.nome}!*
 
@@ -875,36 +728,42 @@ Seus agendamentos foram confirmados! 📅
 🌟 *Boa sorte! Estamos com você!*`;
 
             await enviarWhatsApp(telefone, mensagem);
+            whatsEnviado = true;
             console.log(`📱 WhatsApp enviado para ${telefone}`);
         } catch (whatsError) {
             console.error('❌ Erro ao enviar WhatsApp:', whatsError);
         }
 
-        // ============================================================
-        // 8. ATUALIZAR STATUS NO SUPABASE
-        // ============================================================
+        // 10. ATUALIZAR STATUS
         try {
-            await supabase
+            const { error: updateError } = await supabase
                 .from('clientes')
                 .update({
                     status: 'agendado_casv',
                     updated_at: new Date().toISOString()
                 })
                 .eq('telefone', telefone);
-            console.log(`✅ Status atualizado para agendado_casv`);
+
+            if (updateError) {
+                console.error('❌ Erro ao atualizar status:', updateError);
+            } else {
+                console.log(`✅ Status atualizado para agendado_casv`);
+            }
         } catch (err) {
             console.error('❌ Erro ao atualizar status:', err);
         }
 
-        // ============================================================
-        // 9. RESPOSTA
-        // ============================================================
+        // 11. RESPOSTA
         res.json({
             success: true,
-            message: `PDF processado e enviado com sucesso! Agendamentos criados: ${resultado.agendamentosSalvos?.length || 0}`,
+            message: `PDF processado e enviado com sucesso!`,
             data: {
                 casv: casv,
-                entrevista: entrevista
+                entrevista: entrevista,
+                comunicacoes: {
+                    email: emailEnviado,
+                    whatsapp: whatsEnviado
+                }
             }
         });
 
@@ -914,14 +773,45 @@ Seus agendamentos foram confirmados! 📅
         res.status(500).json({ 
             success: false, 
             message: 'Erro ao processar PDF', 
-            error: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            error: error.message
         });
     }
 });
 
 console.log('✅ ROTA /api/agendamentos/upload-pdf REGISTRADA COM SUCESSO!');
 
+// Proteger as outras rotas de agendamento
+app.use('/api/agendamentos', auth.verificarApiKey);
+app.use('/api/admin/agendamentos', auth.verificarApiKey);
+
+try {
+    const agendamentoRoutes = require('./routes/agendamentoRoutes');
+    app.use('/api/agendamentos', agendamentoRoutes);
+    app.use('/api/admin/agendamentos', agendamentoRoutes);
+    console.log('✅ Rotas /api/agendamentos montadas (PROTEGIDAS).');
+} catch (error) {
+    console.log('⚠️ Erro ao carregar agendamentoRoutes:', error.message);
+    app.get('/api/agendamentos', auth.verificarApiKey, (req, res) => {
+        res.json({ success: true, message: 'Agendamentos API (fallback)' });
+    });
+}
+
+// ============================================================
+// 7.3 ROTA WEBHOOK (PÚBLICA)
+// ============================================================
+console.log('🔧 Carregando rotas Webhook...');
+try {
+    const webhookRoutes = require('./routes/webhookRoutesNew');
+    app.use('/api/webhook', webhookRoutes);
+    console.log('✅ webhookRoutesNew importado com sucesso.');
+    console.log('✅ Rota /api/webhook montada.');
+} catch (error) {
+    console.log('⚠️ Erro ao carregar webhookRoutesNew:', error.message);
+    app.post('/api/webhook', (req, res) => {
+        console.log('📨 Webhook fallback:', req.body);
+        res.status(200).send('OK');
+    });
+}
 
 // ============================================================
 // PÁGINA DE UPLOAD DE PDF - CASV + ENTREVISTA
@@ -1004,14 +894,11 @@ app.get('/api/status', (req, res) => {
             submit: '/api/submit-ds160',
             webhook: '/api/webhook/zapi',
             agendamentos: '/api/agendamentos',
-            upload_pdf: '/api/upload-pdf',
+            upload_pdf: '/api/agendamentos/upload-pdf',
             health: '/health'
         }
     });
 });
-
-
-
 
 // ============================================================
 // 11. INICIALIZAÇÃO
@@ -1025,6 +912,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🔗 Submit: http://localhost:${PORT}/api/submit-ds160`);
     console.log(`🔗 Webhook: http://localhost:${PORT}/api/webhook/zapi`);
     console.log(`🔗 Agendamentos: http://localhost:${PORT}/api/agendamentos`);
+    console.log(`🔗 Upload PDF: http://localhost:${PORT}/api/agendamentos/upload-pdf`);
     console.log(`🔗 Health: http://localhost:${PORT}/health`);
     console.log('='.repeat(50));
     console.log(`📱 Z-API: ${process.env.ZAPI_TOKEN ? '✅' : '❌'}`);
