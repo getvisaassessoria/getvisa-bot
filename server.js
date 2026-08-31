@@ -923,6 +923,13 @@ Seus agendamentos foram confirmados! 📅
 console.log('✅ ROTA /api/agendamentos/upload-pdf REGISTRADA COM SUCESSO!');
 
 // ============================================================
+// PÁGINA DE UPLOAD DE PDF
+// ============================================================
+app.get('/upload-pdf', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'upload-pdf.html'));
+});
+
+// ============================================================
 // 9. ROTA PRINCIPAL - DASHBOARD
 // ============================================================
 // app.get('/', (req, res) => {
