@@ -843,20 +843,38 @@ app.get('/dashboard', auth.verificarAdmin, (req, res) => {
 });
 
 // 7.3 ADMIN PANEL (PROTEGIDO)
+// ============================================================
+// ADMIN PANEL (PROTEGIDO) - VERSÃO FORÇADA
+// ============================================================
 app.get('/admin.html', auth.verificarAdmin, (req, res) => {
+    console.log('🔒 ROTA /admin.html ACESSADA - Autenticado:', req.admin?.authenticated || false);
+    
     const adminPath = path.join(__dirname, 'public', 'admin.html');
+    console.log(`📁 Caminho: ${adminPath}`);
+    console.log(`📁 Existe: ${fs.existsSync(adminPath)}`);
+    
     if (fs.existsSync(adminPath)) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
-        res.sendFile(adminPath);
+        return res.sendFile(adminPath);
     } else {
-        res.status(404).send(`
+        console.error('❌ admin.html não encontrado!');
+        return res.status(404).send(`
             <h1>🔐 Admin Panel</h1>
             <p>Arquivo admin.html não encontrado.</p>
+            <p>Caminho: ${adminPath}</p>
             <a href="/">⬅️ Voltar ao Dashboard</a>
         `);
     }
+});
+
+// ============================================================
+// AGENDAMENTOS (REDIRECIONA PARA admin.html)
+// ============================================================
+app.get('/agendamentos', auth.verificarAdmin, (req, res) => {
+    console.log('🔒 ROTA /agendamentos ACESSADA - Redirecionando para admin.html');
+    res.redirect('/admin.html');
 });
 
 // 7.4 PAINEL PRINCIPAL - /painel (sem .html)

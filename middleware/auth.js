@@ -49,10 +49,10 @@ function verificarApiKey(req, res, next) {
 // VERIFICAR ADMIN (para páginas HTML)
 // ============================================================
 function verificarAdmin(req, res, next) {
-    const apiKey = req.headers['x-api-key'] || req.query.api_key;
+    const apiKey = req.query.api_key || req.headers['x-api-key'];
     
-    console.log(`🔑 Admin - API Key recebida: ${apiKey || 'NENHUMA'}`);
-    console.log(`🔑 Admin - API Key esperada: ${ADMIN_API_KEY}`);
+    console.log(`🔑 Admin - URL: ${req.url}`);
+    console.log(`🔑 Admin - API Key: ${apiKey || 'NENHUMA'}`);
     
     if (!apiKey || apiKey !== ADMIN_API_KEY) {
         console.log(`⚠️ Redirecionando para login: ${req.url}`);
