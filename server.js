@@ -35,6 +35,8 @@ const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabase
 console.log(`✅ URL do Supabase: ${supabaseUrl || 'NÃO CONFIGURADO'}`);
 console.log(`✅ Cliente Supabase: ${supabase ? 'INICIALIZADO' : 'NÃO DISPONÍVEL'}`);
 
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'admin123';
+
 // ============================================================
 // 3. MIDDLEWARES
 // ============================================================
