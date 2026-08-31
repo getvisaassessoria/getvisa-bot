@@ -805,27 +805,38 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             console.error('❌ Erro ao enviar e-mail:', emailError);
         }
 
-        // 9. 🔥 ENVIAR WHATSAPP APENAS UMA VEZ
-        let whatsEnviado = false;
-        try {
-            // Formata as mensagens com as datas
-            const casvData = casv.data && casv.data !== 'A definir' ? `📅 *${casv.data}*` : '📅 *A definir*';
-            const casvHora = casv.hora && casv.hora !== 'A definir' ? `⏰ *${casv.hora}*` : '⏰ *A definir*';
-            const casvLocal = casv.local && casv.local !== 'A definir' ? `📍 *${casv.local}*` : '📍 *A definir*';
-            
-            const entrevistaData = entrevista.data && entrevista.data !== 'A definir' ? `📅 *${entrevista.data}*` : '📅 *A definir*';
-            const entrevistaHora = entrevista.hora && entrevista.hora !== 'A definir' ? `⏰ *${entrevista.hora}*` : '⏰ *A definir*';
-            const entrevistaLocal = entrevista.local && entrevista.local !== 'A definir' ? `📍 *${entrevista.local}*` : '📍 *A definir*';
+        // 9. 🔥 ENVIAR WHATSAPP COM LISTA DE MEMBROS
+let whatsEnviado = false;
+try {
+    // 🔥 PEGA A LISTA DE MEMBROS DO resultado.dados
+    const todosMembros = resultado.dados?.todosMembros || [];
+    
+    // Formata as mensagens com as datas
+    const casvData = casv.data && casv.data !== 'A definir' ? `📅 *${casv.data}*` : '📅 *A definir*';
+    const casvHora = casv.hora && casv.hora !== 'A definir' ? `⏰ *${casv.hora}*` : '⏰ *A definir*';
+    const casvLocal = casv.local && casv.local !== 'A definir' ? `📍 *${casv.local}*` : '📍 *A definir*';
+    
+    const entrevistaData = entrevista.data && entrevista.data !== 'A definir' ? `📅 *${entrevista.data}*` : '📅 *A definir*';
+    const entrevistaHora = entrevista.hora && entrevista.hora !== 'A definir' ? `⏰ *${entrevista.hora}*` : '⏰ *A definir*';
+    const entrevistaLocal = entrevista.local && entrevista.local !== 'A definir' ? `📍 *${entrevista.local}*` : '📍 *A definir*';
 
-            let mensagem = `✅ *AGENDAMENTOS CONFIRMADOS - GETVISA*
+    let mensagem = `✅ *AGENDAMENTOS CONFIRMADOS - GETVISA*
 
 Olá *${cliente.nome.split(' ')[0]}*! Seus agendamentos foram realizados com sucesso!`;
 
-            if (req.protocolo) {
-                mensagem += `\n\n📋 *Protocolo DS-160:* ${req.protocolo}`;
-            }
+    // 🔥 LISTA DE MEMBROS DA FAMÍLIA
+    if (todosMembros && todosMembros.length > 0) {
+        mensagem += `\n\n👨‍👩‍👧‍👦 *Membros da família:*\n`;
+        todosMembros.forEach((membro, index) => {
+            mensagem += `   ${index + 1}️⃣ ${membro}\n`;
+        });
+    }
 
-            mensagem += `
+    if (req.protocolo) {
+        mensagem += `\n📋 *Protocolo DS-160:* ${req.protocolo}`;
+    }
+
+    mensagem += `
 
 📍 *CASV (Coleta Biométrica):*
 ${casvData}
@@ -848,13 +859,13 @@ ${entrevistaLocal}
 
 🌟 *Boa sorte! Estamos com você!*`;
 
-            // 🔥 ÚNICO ENVIO DE WHATSAPP
-            await enviarWhatsApp(telefone, mensagem);
-            whatsEnviado = true;
-            console.log(`📱 WhatsApp enviado para ${telefone} (UMA ÚNICA VEZ)`);
-        } catch (whatsError) {
-            console.error('❌ Erro ao enviar WhatsApp:', whatsError);
-        }
+    // 🔥 ÚNICO ENVIO DE WHATSAPP
+    await enviarWhatsApp(telefone, mensagem);
+    whatsEnviado = true;
+    console.log(`📱 WhatsApp enviado para ${telefone} com ${todosMembros.length} membros`);
+} catch (whatsError) {
+    console.error('❌ Erro ao enviar WhatsApp:', whatsError);
+}
 
         // 10. ATUALIZAR STATUS
         try {
@@ -948,20 +959,18 @@ app.get('/upload-casv-pdf', (req, res) => {
     }
 });
 
+
 // ============================================================
-// 9. ROTA PRINCIPAL - DASHBOARD
+// 9. ROTA PRINCIPAL - DASHBOARD (PROTEGIDA COM AUTENTICAÇÃO)
 // ============================================================
-// app.get('/', (req, res) => {
-//  const dashboardPath = path.join(__dirname, 'public', 'index.html');
-   //  if (fs.existsSync(dashboardPath)) {
-      //   res.sendFile(dashboardPath);
-    // } else {
-       //  res.send(`
-          //   <h1>📊 Dashboard</h1>
-          //   <p>Arquivo não encontrado. Copie <code>index.html</code> para a pasta <code>public/</code></p>
-       //  `);
-  //   }
-// });
+app.get('/', auth.verificarAdmin, (req, res) => {
+    const dashboardPath = path.join(__dirname, 'public', 'index.html');
+    if (fs.existsSync(dashboardPath)) {
+        res.sendFile(dashboardPath);
+    } else {
+        res.redirect('/admin-login.html');
+    }
+});
 
 
 // 🔥 ROTA DIRETA PARA O FORMULÁRIO DS-160
