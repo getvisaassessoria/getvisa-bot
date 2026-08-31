@@ -38,47 +38,22 @@ console.log(`✅ Cliente Supabase: ${supabase ? 'INICIALIZADO' : 'NÃO DISPONÍV
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'admin123';
 
 // ============================================================
-// 3. MIDDLEWARES
+// 3. MIDDLEWARES BÁSICOS
 // ============================================================
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(auth.logAcesso);
-
-// Middleware para log de requisições
-app.use((req, res, next) => {
-    console.log(`📨 ${req.method} ${req.url}`);
-    next();
-});
-
-// Servir arquivos estáticos da pasta public
-app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================================================
-// 3.5 CONFIGURAÇÃO DO MULTER (DEVE VIR ANTES DE QUALQUER ROTA QUE USE UPLOAD)
-// ============================================================
-const uploadMemory = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-        if (file.mimetype === 'application/pdf') {
-            cb(null, true);
-        } else {
-            cb(new Error('Apenas arquivos PDF são permitidos'));
-        }
-    }
-});
-
-console.log('✅ Multer configurado com memoryStorage');
-
-// ============================================================
-// 3.6 ROTA DE LOGIN ADMIN (PÚBLICA)
+// 3.1 ROTA DE LOGIN ADMIN (PÚBLICA) - DEVE VIR ANTES DE QUALQUER PROTEÇÃO
 // ============================================================
 app.post('/api/admin/login', (req, res) => {
     const { apiKey } = req.body;
-    const validKey = process.env.ADMIN_API_KEY;
+    const validKey = 'admin123';
 
     console.log(`🔑 Tentativa de login admin - IP: ${req.ip}`);
+    console.log(`🔑 Chave recebida: "${apiKey}"`);
+    console.log(`🔑 Chave esperada: "${validKey}"`);
 
     if (!apiKey) {
         return res.status(400).json({ 
@@ -101,6 +76,42 @@ app.post('/api/admin/login', (req, res) => {
         });
     }
 });
+
+// ============================================================
+// 3.2 CONFIGURAÇÃO DO MULTER (DEVE VIR ANTES DE QUALQUER ROTA QUE USE UPLOAD)
+// ============================================================
+const uploadMemory = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(new Error('Apenas arquivos PDF são permitidos'));
+        }
+    }
+});
+
+console.log('✅ Multer configurado com memoryStorage');
+
+// ============================================================
+// 3.3 MIDDLEWARE DE LOG (DEPOIS DAS ROTAS PÚBLICAS)
+// ============================================================
+app.use(auth.logAcesso);
+
+// Middleware para log de requisições
+app.use((req, res, next) => {
+    console.log(`📨 ${req.method} ${req.url}`);
+    next();
+});
+
+// ============================================================
+// 3.4 SERVIR ARQUIVOS ESTÁTICOS (DEPOIS DAS ROTAS)
+// ============================================================
+app.use(express.static(path.join(__dirname, 'public')));
+
+
+
 
 // ============================================================
 // 4. ROTAS PROTEGIDAS (DEVEM VIR ANTES DO STATIC)
@@ -126,35 +137,78 @@ app.get('/painel.html', auth.verificarAdmin, (req, res) => {
     }
 });
 
-// Rota /painel (sem .html) - redireciona para painel.html
-// 🔥 PAINEL DE CLIENTES (corrigido)
+// ============================================================
+// ROTAS DO PAINEL DE CLIENTES (PROTEGIDAS)
+// ============================================================
 
-// 🔥 PAINEL DE CLIENTES
+// 🔥 PAINEL DE CLIENTES - Rota principal
 app.get('/painel', auth.verificarAdmin, (req, res) => {
     const painelPath = path.join(__dirname, 'public', 'painel-clientes.html');
+    
     if (fs.existsSync(painelPath)) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
         res.sendFile(painelPath);
     } else {
-        // Fallback para painel-novo.html
-        const fallback = path.join(__dirname, 'public', 'painel-novo.html');
-        if (fs.existsSync(fallback)) {
-            res.sendFile(fallback);
+        // Fallback 1: painel-novo.html
+        const fallback1 = path.join(__dirname, 'public', 'painel-novo.html');
+        if (fs.existsSync(fallback1)) {
+            res.sendFile(fallback1);
         } else {
-            res.send('<h1>📊 Painel de Clientes</h1><p>Arquivo não encontrado.</p>');
+            // Fallback 2: painel.html
+            const fallback2 = path.join(__dirname, 'public', 'painel.html');
+            if (fs.existsSync(fallback2)) {
+                res.sendFile(fallback2);
+            } else {
+                res.status(404).send(`
+                    <h1>📊 Painel de Clientes</h1>
+                    <p>Nenhum arquivo de painel encontrado.</p>
+                    <p>Arquivos esperados:</p>
+                    <ul>
+                        <li>painel-clientes.html</li>
+                        <li>painel-novo.html</li>
+                        <li>painel.html</li>
+                    </ul>
+                    <a href="/">⬅️ Voltar ao Dashboard</a>
+                `);
+            }
         }
     }
 });
 
+// 🔥 PAINEL DE CLIENTES - Rota com .html
 app.get('/painel.html', auth.verificarAdmin, (req, res) => {
     const painelPath = path.join(__dirname, 'public', 'painel-novo.html');
+    
     if (fs.existsSync(painelPath)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
         res.sendFile(painelPath);
     } else {
-        res.send('<h1>📊 Painel</h1><p>Arquivo painel-novo.html não encontrado.</p>');
+        // Fallback: painel-clientes.html
+        const fallback = path.join(__dirname, 'public', 'painel-clientes.html');
+        if (fs.existsSync(fallback)) {
+            res.sendFile(fallback);
+        } else {
+            res.status(404).send(`
+                <h1>📊 Painel</h1>
+                <p>Arquivo painel-novo.html não encontrado.</p>
+                <a href="/">⬅️ Voltar ao Dashboard</a>
+            `);
+        }
     }
+});
+
+// 🔥 REDIRECIONAMENTO: /painel-antigo -> /painel (para compatibilidade)
+app.get('/painel-antigo', auth.verificarAdmin, (req, res) => {
+    res.redirect('/painel');
+});
+
+// 🔥 REDIRECIONAMENTO: /dashboard-antigo -> /painel
+app.get('/dashboard-antigo', auth.verificarAdmin, (req, res) => {
+    res.redirect('/painel');
 });
 
 
