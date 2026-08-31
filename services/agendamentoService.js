@@ -209,6 +209,11 @@ function gerarMensagemAgendamentos(agendamentos, nomeCliente) {
 // ============================================================
 // FUNÇÃO PRINCIPAL: EXTRAIR E SALVAR PDF
 // ============================================================
+// services/agendamentoService.js
+
+// ============================================================
+// FUNÇÃO PRINCIPAL: EXTRAIR E SALVAR PDF (VERSÃO CORRIGIDA)
+// ============================================================
 async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options = {}) {
     const { enviarWhatsApp = true } = options;
     
@@ -231,9 +236,36 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             return { success: false, message: 'Nenhum agendamento encontrado no PDF.' };
         }
 
-        // BUSCAR OU CRIAR CLIENTE COM UPSERT
-        const nomeDoCliente = agendamentosExtraidos[0]?.nomeCliente || 'Cliente';
+        // 🔥 EXTRAI OS DADOS DIRETOS DA EXTRAÇÃO
+        const primeiroAgendamento = agendamentosExtraidos[0];
+        const nomeDoCliente = primeiroAgendamento?.nomeCliente || 'Cliente';
+        const protocolo = primeiroAgendamento?.protocolo_ds160 || null;
         
+        // 🔥 PEGA CASV E ENTREVISTA DIRETAMENTE DOS DADOS EXTRAÍDOS
+        const casvData = agendamentosExtraidos.find(a => a.atividade === 'CASV');
+        const entrevistaData = agendamentosExtraidos.find(a => a.atividade === 'ENTREVISTA');
+        
+        // 🔥 DADOS PARA RETORNO DIRETO (SEM DEPENDER DO BANCO)
+        const dadosExtraidos = {
+            casv: casvData ? {
+                data: casvData.dataCompromisso,
+                hora: casvData.horaCompromisso,
+                local: casvData.localCompromisso
+            } : null,
+            entrevista: entrevistaData ? {
+                data: entrevistaData.dataCompromisso,
+                hora: entrevistaData.horaCompromisso,
+                local: entrevistaData.localCompromisso
+            } : null,
+            protocolo: protocolo,
+            nome: nomeDoCliente
+        };
+        
+        console.log('📊 DADOS EXTRAÍDOS DIRETOS:');
+        console.log(`   CASV: ${dadosExtraidos.casv?.data || 'N/A'} ${dadosExtraidos.casv?.hora || 'N/A'}`);
+        console.log(`   ENTREVISTA: ${dadosExtraidos.entrevista?.data || 'N/A'} ${dadosExtraidos.entrevista?.hora || 'N/A'}`);
+
+        // BUSCAR OU CRIAR CLIENTE COM UPSERT
         const { data: cliente, error: clienteError } = await supabase
             .from('clientes')
             .upsert({
@@ -254,15 +286,10 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         }
 
         const clienteId = cliente.id;
-        const clienteNome = cliente.nome;
         console.log(`✅ Cliente encontrado/criado: ${cliente.nome} (${cliente.telefone})`);
 
-        // SALVAR AGENDAMENTOS USANDO O CLIENTE_ID
+        // SALVAR AGENDAMENTOS NO BANCO
         const agendamentosSalvos = [];
-        const dadosParaRetorno = {
-            casv: null,
-            entrevista: null
-        };
         
         for (const agendamentoData of agendamentosExtraidos) {
             const { nomeCliente, atividade, dataCompromisso, horaCompromisso, localCompromisso, protocolo_ds160 } = agendamentoData;
@@ -319,19 +346,13 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
 
             agendamentosSalvos.push(salvo);
             console.log(`✅ Agendamento salvo: ${salvo.id}`);
-
-            // ARMAZENA OS DADOS PARA RETORNO
-            if (atividadeTexto.includes('CASV')) {
-                dadosParaRetorno.casv = salvo;
-            } else if (atividadeTexto.includes('ENTREVISTA')) {
-                dadosParaRetorno.entrevista = salvo;
-            }
         }
 
-        // SÓ ENVIA WHATSAPP SE A FLAG PERMITIR
+        // 🔥 SÓ ENVIA WHATSAPP SE A FLAG PERMITIR (USANDO DADOS DIRETOS)
         if (agendamentosSalvos.length > 0 && enviarWhatsApp) {
             try {
-                const mensagem = gerarMensagemAgendamentos(agendamentosSalvos, clienteNome);
+                // 🔥 USA OS DADOS DIRETOS PARA GERAR A MENSAGEM
+                const mensagem = gerarMensagemDireta(dadosExtraidos, nomeDoCliente);
                 const enviado = await enviarWhatsApp(telefoneCliente, mensagem);
                 if (enviado) {
                     console.log(`📱 Notificação enviada para ${telefoneCliente}`);
@@ -345,17 +366,60 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             console.log(`⏭️ Envio de WhatsApp DESABILITADO (flag enviarWhatsApp: false)`);
         }
 
-        // RETORNA OS DADOS PARA A ROTA
+        // 🔥 RETORNA OS DADOS DIRETOS PARA A ROTA
         return { 
             success: true, 
             agendamentosSalvos,
-            dados: dadosParaRetorno
+            dados: dadosExtraidos  // 🔥 DADOS DIRETOS DA EXTRAÇÃO
         };
 
     } catch (error) {
         console.error('❌ Erro ao processar PDF:', error);
         return { success: false, message: 'Erro interno ao processar PDF.', error: error.message };
     }
+}
+
+// ============================================================
+// FUNÇÃO PARA GERAR MENSAGEM DIRETA (USANDO DADOS EXTRAÍDOS)
+// ============================================================
+function gerarMensagemDireta(dados, nomeCliente) {
+    const primeiroNome = nomeCliente ? nomeCliente.split(' ')[0] : 'Cliente';
+    
+    const casv = dados?.casv || {};
+    const entrevista = dados?.entrevista || {};
+    const protocolo = dados?.protocolo || 'N/A';
+    
+    const casvData = casv?.data || 'A definir';
+    const casvHora = casv?.hora || 'A definir';
+    const casvLocal = casv?.local || 'A definir';
+    
+    const entrevistaData = entrevista?.data || 'A definir';
+    const entrevistaHora = entrevista?.hora || 'A definir';
+    const entrevistaLocal = entrevista?.local || 'A definir';
+    
+    let mensagem = `✅ *AGENDAMENTOS CONFIRMADOS - GETVISA*\n\n`;
+    mensagem += `Olá *${primeiroNome}*! Seus agendamentos foram realizados com sucesso!\n\n`;
+    mensagem += `📍 *CASV (Coleta Biométrica):*\n`;
+    mensagem += `📅 ${casvData}\n`;
+    mensagem += `⏰ ${casvHora}\n`;
+    mensagem += `📍 ${casvLocal}\n\n`;
+    mensagem += `📍 *ENTREVISTA NO CONSULADO:*\n`;
+    mensagem += `📅 ${entrevistaData}\n`;
+    mensagem += `⏰ ${entrevistaHora}\n`;
+    mensagem += `📍 ${entrevistaLocal}\n\n`;
+    mensagem += `⚠️ *IMPORTANTE:*\n`;
+    mensagem += `• Leve a *CONFIRMATION IMPRESSA*\n`;
+    mensagem += `• Leve seu *PASSAPORTE(S)*\n`;
+    mensagem += `• Chegue com 30 minutos de antecedência\n\n`;
+    mensagem += `📎 O PDF oficial foi enviado para seu e-mail.\n\n`;
+    mensagem += `📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)\n\n`;
+    mensagem += `🌟 *Boa sorte! Estamos com você!* ✈️`;
+    
+    console.log('📊 Mensagem DIRETA gerada:');
+    console.log(`   CASV: ${casvData} ${casvHora} - ${casvLocal}`);
+    console.log(`   ENTREVISTA: ${entrevistaData} ${entrevistaHora} - ${entrevistaLocal}`);
+    
+    return mensagem;
 }
 
 // ============================================================
