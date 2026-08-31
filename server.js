@@ -922,11 +922,21 @@ Seus agendamentos foram confirmados! 📅
 
 console.log('✅ ROTA /api/agendamentos/upload-pdf REGISTRADA COM SUCESSO!');
 
+
 // ============================================================
-// PÁGINA DE UPLOAD DE PDF
+// PÁGINA DE UPLOAD DE PDF - CASV + ENTREVISTA
 // ============================================================
-app.get('/upload-pdf', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'upload-pdf.html'));
+app.get('/upload-casv-pdf', (req, res) => {
+    const uploadPath = path.join(__dirname, 'public', 'upload-casv-pdf.html');
+    if (fs.existsSync(uploadPath)) {
+        res.sendFile(uploadPath);
+    } else {
+        res.status(404).send(`
+            <h1>📤 Página não encontrada</h1>
+            <p>Arquivo upload-casv-pdf.html não encontrado.</p>
+            <a href="/dashboard">Voltar ao Dashboard</a>
+        `);
+    }
 });
 
 // ============================================================
