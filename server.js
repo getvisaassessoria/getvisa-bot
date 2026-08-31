@@ -544,6 +544,12 @@ console.log('🔧 Carregando rotas de Agendamentos...');
 console.log('🔧 Carregando rotas de Agendamentos...');
 
 // 🔥 ROTA DE UPLOAD DE PDF (NÃO PROTEGIDA - DEVE VIR ANTES DO MIDDLEWARE)
+// ============================================================
+// 7.2 ROTA DE AGENDAMENTOS (REFATORADA - SEM DUPLICIDADE DE MENSAGENS)
+// ============================================================
+console.log('🔧 Carregando rotas de Agendamentos...');
+
+// 🔥 ROTA DE UPLOAD DE PDF (NÃO PROTEGIDA - DEVE VIR ANTES DO MIDDLEWARE)
 app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (req, res) => {
     console.log('🔥 ROTA /api/agendamentos/upload-pdf CHAMADA!');
     console.log('📥 req.file:', req.file ? 'Arquivo recebido' : 'Nenhum arquivo');
@@ -603,11 +609,12 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             });
         }
 
-        // 4. EXTRAIR DADOS DO PDF
-        console.log('🔄 Extraindo dados do PDF...');
+        // 4. EXTRAIR DADOS DO PDF - COM FLAG PARA NÃO ENVIAR WHATSAPP
+        console.log('🔄 Extraindo dados do PDF (sem enviar WhatsApp)...');
         const resultado = await agendamentoService.extractAndSavePdfAgendamentos(
             req.file.buffer,
-            telefone
+            telefone,
+            { enviarWhatsApp: false } // 🔥 FLAG PARA NÃO ENVIAR MENSAGEM DUPLICADA
         );
 
         console.log('📊 Resultado da extração:', JSON.stringify(resultado, null, 2));
@@ -642,7 +649,7 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
 
         console.log(`✅ Cliente encontrado: ${cliente.nome} (${cliente.email})`);
 
-        // 6. EXTRAIR DADOS CASV E ENTREVISTA - COM FALLBACKS
+        // 6. EXTRAIR DADOS CASV E ENTREVISTA
         const dadosExtraidos = resultado.dados || resultado.data || {};
         
         let casv = dadosExtraidos.casv || {};
@@ -793,7 +800,7 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             console.error('❌ Erro ao enviar e-mail:', emailError);
         }
 
-        // 9. ENVIAR WHATSAPP APENAS UMA VEZ (COM DATAS EXTRAÍDAS)
+        // 9. 🔥 ENVIAR WHATSAPP APENAS UMA VEZ (AQUI, NA ROTA)
         let whatsEnviado = false;
         try {
             // Formata as mensagens com as datas de forma mais legível
@@ -830,7 +837,7 @@ ${entrevistaLocal}
 
 🌟 *Boa sorte! Estamos com você!*`;
 
-            // 🔥 ENVIA APENAS UMA VEZ - REMOVENDO DUPLICIDADE
+            // 🔥 ENVIA APENAS UMA VEZ - AQUI É O ÚNICO LUGAR QUE ENVIA WHATSAPP
             await enviarWhatsApp(telefone, mensagem);
             whatsEnviado = true;
             console.log(`📱 WhatsApp enviado para ${telefone} com datas (UMA ÚNICA VEZ)`);
