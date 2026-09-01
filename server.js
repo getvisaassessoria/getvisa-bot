@@ -1,3 +1,6 @@
+// server.js - VERSÃO DEFINITIVA E SEGURA (COM ROTAS DUPLICADAS REMOVIDAS)
+console.log('--- 🚀 SERVER.JS INICIADO (VERSÃO DEFINITIVA) ---');
+
 // ============================================================
 // 1. DEPENDÊNCIAS E CONFIGURAÇÕES INICIAIS
 // ============================================================
@@ -12,33 +15,10 @@ const fs = require('fs');
 const cron = require('node-cron');
 const multer = require('multer');
 const auth = require('./middleware/auth');
-const session = require('express-session');      // ← ADICIONAR
-const cookieParser = require('cookie-parser');   // ← ADICIONAR
 
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY || '');
 const PORT = process.env.PORT || 10000;
-
-
-// ============================================================
-// 1.5 CONFIGURAÇÃO DE SESSÃO (ADICIONAR AQUI)
-// ============================================================
-app.use(cookieParser());  // ← ADICIONAR
-
-app.use(session({         // ← ADICIONAR
-    secret: process.env.SESSION_SECRET || 'getvisa-super-secret-key-2026',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: false,
-        httpOnly: true,
-        maxAge: 8 * 60 * 60 * 1000, // 8 horas
-        sameSite: 'lax'
-    },
-    name: 'getvisa_session'
-}));
-
-console.log('✅ Sessão configurada');
 
 // ============================================================
 // 2. CONFIGURAÇÃO DO SUPABASE
@@ -58,29 +38,6 @@ console.log(`✅ Cliente Supabase: ${supabase ? 'INICIALIZADO' : 'NÃO DISPONÍV
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'admin123';
 
 // ============================================================
-// 2.5 CONFIGURAÇÃO DE SESSÃO (NOVO)
-// ============================================================
-app.use(cookieParser());
-
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'getvisa-super-secret-key-2026',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: false, // Em produção com HTTPS, mude para true
-        httpOnly: true,
-        maxAge: 8 * 60 * 60 * 1000, // 8 horas
-        sameSite: 'lax'
-    },
-    name: 'getvisa_session'
-}));
-
-// Middleware para renovar sessão (usando o do auth)
-app.use(auth.renovarSessao);
-
-console.log('✅ Sessão configurada com sucesso');
-
-// ============================================================
 // 3. MIDDLEWARES BÁSICOS
 // ============================================================
 app.use(cors());
@@ -88,27 +45,8 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ============================================================
-// 4. CONFIGURAÇÃO DO MULTER (DEVE VIR ANTES DE QUALQUER ROTA QUE USE UPLOAD)
+// 3.1 ROTA DE LOGIN ADMIN (PÚBLICA) - DEVE VIR ANTES DE QUALQUER PROTEÇÃO
 // ============================================================
-const uploadMemory = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-        if (file.mimetype === 'application/pdf') {
-            cb(null, true);
-        } else {
-            cb(new Error('Apenas arquivos PDF são permitidos'));
-        }
-    }
-});
-
-console.log('✅ Multer configurado com memoryStorage');
-
-// ============================================================
-// 5. ROTAS PÚBLICAS (NÃO PROTEGIDAS) - DEVEM VIR PRIMEIRO
-// ============================================================
-
-// 5.1 ROTA DE LOGIN ADMIN (PÚBLICA) - COM SESSÃO
 app.post('/api/admin/login', (req, res) => {
     const { apiKey } = req.body;
     const validKey = 'admin123';
@@ -126,44 +64,9 @@ app.post('/api/admin/login', (req, res) => {
 
     if (apiKey === validKey) {
         console.log('✅ Login admin autorizado.');
-        
-        // 🔥 CRIA SESSÃO - ESSA É A PARTE QUE FALTAVA!
-        req.session.admin = {
-            authenticated: true,
-            loginAt: new Date().toISOString(),
-            ip: req.ip,
-            userAgent: req.headers['user-agent']
-        };
-        
-        // CRIA COOKIE COMO BACKUP (para caso a sessão falhe)
-        res.cookie('admin_session', JSON.stringify({
-            authenticated: true,
-            loginAt: new Date().toISOString()
-        }), {
-            httpOnly: true,
-            maxAge: 8 * 60 * 60 * 1000,
-            sameSite: 'lax'
-        });
-        
-        // SALVA A SESSÃO EXPLICITAMENTE
-        req.session.save((err) => {
-            if (err) {
-                console.error('❌ Erro ao salvar sessão:', err);
-                return res.status(500).json({
-                    success: false,
-                    message: 'Erro ao criar sessão'
-                });
-            }
-            
-            console.log('✅ Sessão criada com sucesso');
-            console.log(`   Session ID: ${req.session.id}`);
-            console.log(`   Admin: ${JSON.stringify(req.session.admin)}`);
-            
-            return res.json({ 
-                success: true, 
-                message: 'Login autorizado',
-                redirect: '/dashboard'  // ← Importante!
-            });
+        return res.json({ 
+            success: true, 
+            message: 'Login autorizado' 
         });
     } else {
         console.warn('❌ Tentativa de login com chave inválida.');
@@ -173,53 +76,516 @@ app.post('/api/admin/login', (req, res) => {
         });
     }
 });
-    // 5.1.1 ROTA DE LOGOUT
-    app.post('/api/admin/logout', (req, res) => {
-        req.session.destroy((err) => {
-            if (err) {
-                console.error('Erro ao destruir sessão:', err);
-            }
-            res.clearCookie('admin_session');
-            res.clearCookie('getvisa_session');
-            res.json({
-                success: true,
-                message: 'Logout realizado'
-            });
-        });
-    });
 
-    // 5.1.2 ROTA PARA VERIFICAR SESSÃO
-app.get('/api/admin/check-session', (req, res) => {
-    const isAuthenticated = req.session?.admin?.authenticated === true;
-    
-    if (isAuthenticated) {
-        return res.json({
-            authenticated: true,
-            admin: {
-                loginAt: req.session.admin.loginAt,
-                ip: req.session.admin.ip
-            }
-        });
+// ============================================================
+// 3.2 CONFIGURAÇÃO DO MULTER (DEVE VIR ANTES DE QUALQUER ROTA QUE USE UPLOAD)
+// ============================================================
+const uploadMemory = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(new Error('Apenas arquivos PDF são permitidos'));
+        }
     }
-    
-    // Verifica cookie como fallback
-    if (req.cookies?.admin_session) {
-        try {
-            const sessionData = JSON.parse(req.cookies.admin_session);
-            if (sessionData.authenticated === true) {
-                req.session.admin = sessionData;
-                return res.json({
-                    authenticated: true,
-                    admin: sessionData
-                });
-            }
-        } catch (e) {}
-    }
-    
-    res.json({ authenticated: false });
 });
 
-// 5.2 ROTA DE UPLOAD DE PDF (PÚBLICA - NÃO TEM AUTH)
+console.log('✅ Multer configurado com memoryStorage');
+
+// ============================================================
+// 3.3 MIDDLEWARE DE LOG (DEPOIS DAS ROTAS PÚBLICAS)
+// ============================================================
+app.use(auth.logAcesso);
+
+// Middleware para log de requisições
+app.use((req, res, next) => {
+    console.log(`📨 ${req.method} ${req.url}`);
+    next();
+});
+
+// ============================================================
+// 3.4 SERVIR ARQUIVOS ESTÁTICOS (DEPOIS DAS ROTAS)
+// ============================================================
+app.use(express.static(path.join(__dirname, 'public')));
+
+
+
+
+// ============================================================
+// 4. ROTAS PROTEGIDAS (DEVEM VIR ANTES DO STATIC)
+// ============================================================
+
+// 4.1 Admin protegido
+app.get('/admin.html', auth.verificarAdmin, (req, res) => {
+    const adminPath = path.join(__dirname, 'public', 'admin.html');
+    if (fs.existsSync(adminPath)) {
+        res.sendFile(adminPath);
+    } else {
+        res.send('<h1>🔐 Admin Panel</h1><p>Arquivo admin.html não encontrado.</p>');
+    }
+});
+
+// 4.2 Painel protegido (versão corrigida)
+app.get('/painel.html', auth.verificarAdmin, (req, res) => {
+    const painelPath = path.join(__dirname, 'public', 'painel.html');
+    if (fs.existsSync(painelPath)) {
+        res.sendFile(painelPath);
+    } else {
+        res.send('<h1>📊 Painel</h1><p>Arquivo painel.html não encontrado.</p>');
+    }
+});
+
+// ============================================================
+// ROTAS DO PAINEL DE CLIENTES (PROTEGIDAS)
+// ============================================================
+
+// 🔥 PAINEL DE CLIENTES - Rota principal
+app.get('/painel', auth.verificarAdmin, (req, res) => {
+    const painelPath = path.join(__dirname, 'public', 'painel-clientes.html');
+    
+    if (fs.existsSync(painelPath)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.sendFile(painelPath);
+    } else {
+        // Fallback 1: painel-novo.html
+        const fallback1 = path.join(__dirname, 'public', 'painel-novo.html');
+        if (fs.existsSync(fallback1)) {
+            res.sendFile(fallback1);
+        } else {
+            // Fallback 2: painel.html
+            const fallback2 = path.join(__dirname, 'public', 'painel.html');
+            if (fs.existsSync(fallback2)) {
+                res.sendFile(fallback2);
+            } else {
+                res.status(404).send(`
+                    <h1>📊 Painel de Clientes</h1>
+                    <p>Nenhum arquivo de painel encontrado.</p>
+                    <p>Arquivos esperados:</p>
+                    <ul>
+                        <li>painel-clientes.html</li>
+                        <li>painel-novo.html</li>
+                        <li>painel.html</li>
+                    </ul>
+                    <a href="/">⬅️ Voltar ao Dashboard</a>
+                `);
+            }
+        }
+    }
+});
+
+// 🔥 PAINEL DE CLIENTES - Rota com .html
+app.get('/painel.html', auth.verificarAdmin, (req, res) => {
+    const painelPath = path.join(__dirname, 'public', 'painel-novo.html');
+    
+    if (fs.existsSync(painelPath)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.sendFile(painelPath);
+    } else {
+        // Fallback: painel-clientes.html
+        const fallback = path.join(__dirname, 'public', 'painel-clientes.html');
+        if (fs.existsSync(fallback)) {
+            res.sendFile(fallback);
+        } else {
+            res.status(404).send(`
+                <h1>📊 Painel</h1>
+                <p>Arquivo painel-novo.html não encontrado.</p>
+                <a href="/">⬅️ Voltar ao Dashboard</a>
+            `);
+        }
+    }
+});
+
+// 🔥 REDIRECIONAMENTO: /painel-antigo -> /painel (para compatibilidade)
+app.get('/painel-antigo', auth.verificarAdmin, (req, res) => {
+    res.redirect('/painel');
+});
+
+// 🔥 REDIRECIONAMENTO: /dashboard-antigo -> /painel
+app.get('/dashboard-antigo', auth.verificarAdmin, (req, res) => {
+    res.redirect('/painel');
+});
+
+
+
+// ============================================================
+// 5. SERVIR ARQUIVOS ESTÁTICOS (DEPOIS DAS ROTAS PROTEGIDAS)
+// ============================================================
+const publicPath = path.join(__dirname, 'public');
+if (fs.existsSync(publicPath)) {
+    app.use(express.static(publicPath));
+    console.log('✅ Pasta public configurada:', publicPath);
+} else {
+    console.warn('⚠️ Pasta public não encontrada. Criando...');
+    fs.mkdirSync(publicPath, { recursive: true });
+    app.use(express.static(publicPath));
+}
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ============================================================
+// 6. FUNÇÃO PARA IMPORTAR MÓDULOS COM SEGURANÇA
+// ============================================================
+function safeRequire(modulePath, fallback) {
+    try {
+        const fullPath = path.join(__dirname, modulePath);
+        if (fs.existsSync(fullPath)) {
+            const module = require(fullPath);
+            if (module && typeof module === 'function') {
+                return module;
+            }
+            if (module && typeof module === 'object' && module.router) {
+                return module.router;
+            }
+            return module;
+        }
+        console.warn(`⚠️ Módulo não encontrado: ${modulePath}`);
+        return fallback || null;
+    } catch (error) {
+        console.error(`❌ Erro ao importar ${modulePath}:`, error.message);
+        return fallback || null;
+    }
+}
+
+// ============================================================
+// 7. ROTAS DA API
+// ============================================================
+
+// ============================================================
+// 7.1 ROTA DS-160 (COM PDF E NOTIFICAÇÃO PARA EQUIPE)
+// ============================================================
+
+// 🔥 FUNÇÃO AUXILIAR PARA EXTRAIR CAMPOS DO FORMULÁRIO
+function extractFormFields(data) {
+    const full_name = data.full_name || data.nome || data['text-84'] || data.fullName || data.name || '';
+    const email = data.email || data['email-1'] || data.emailAddress || '';
+    const telefone = data.telefone_whatsapp || data.telefone || data['text-77'] || data['phone-1'] || data.phone || '';
+    const consulado = data.consulado_cidade || data.consulado || data['text-88'] || data.consulate || '';
+    
+    let nomeEncontrado = full_name;
+    if (!nomeEncontrado) {
+        for (const [key, value] of Object.entries(data)) {
+            if (typeof value === 'string' && value.length > 3 && value.length < 100) {
+                const words = value.trim().split(/\s+/);
+                if (words.length >= 2 && words.every(w => w.length > 1)) {
+                    nomeEncontrado = value;
+                    break;
+                }
+            }
+        }
+    }
+    
+    return { full_name: nomeEncontrado, email, telefone, consulado };
+}
+
+console.log('🔧 Carregando rotas DS-160...');
+
+// 🔥 ROTA PRINCIPAL - SUBMIT DS-160 (COM PDF E NOTIFICAÇÃO)
+app.post('/api/submit-ds160', async (req, res) => {
+    console.log('🔔 Rota /api/submit-ds160 chamada!');
+    console.log('📝 Dados recebidos:', JSON.stringify(req.body, null, 2));
+
+    try {
+        const formData = req.body;
+        const { full_name, email, telefone, consulado } = extractFormFields(formData);
+
+        console.log(`📋 Nome: "${full_name}"`);
+        console.log(`📧 Email: "${email}"`);
+        console.log(`📱 Telefone: "${telefone}"`);
+        console.log(`🏛️ Consulado: "${consulado}"`);
+
+        // VALIDAÇÃO
+        let nomeValido = full_name || formData.nome_completo || formData.fullName || '';
+        let emailValido = email || formData['email-1'] || '';
+        let telefoneValido = telefone || formData['text-77'] || '';
+
+        if (!nomeValido || !emailValido || !telefoneValido) {
+            console.error('❌ Dados obrigatórios faltando');
+            return res.status(400).json({
+                success: false,
+                message: 'Nome, email e telefone são obrigatórios.'
+            });
+        }
+
+        const cleanPhone = limparTelefone(telefoneValido);
+        if (!cleanPhone) {
+            return res.status(400).json({ success: false, message: 'Número de telefone inválido.' });
+        }
+
+        // 1. SALVAR CLIENTE NO SUPABASE
+        const { data: clienteData, error: clienteError } = await supabase
+            .from('clientes')
+            .upsert({
+                telefone: cleanPhone,
+                nome: nomeValido,
+                email: emailValido,
+                consulado: consulado || '',
+                data_contato: new Date().toISOString(),
+                status: 'formulario_enviado',
+                onboarding_completo: true,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'telefone' })
+            .select('id, telefone')
+            .single();
+
+        if (clienteError) {
+            console.error('❌ Erro ao salvar cliente:', clienteError);
+            return res.status(500).json({ success: false, message: 'Erro ao salvar cliente', error: clienteError.message });
+        }
+
+        console.log('✅ Cliente salvo no Supabase:', clienteData);
+
+        // 🔥 CORREÇÃO: Se a ocupação veio como "Dona de Casa" mas é Aposentado
+            if (formData['radio-occupation'] === 'Dona de Casa' && !formData['employer_name']) {
+                formData['radio-occupation'] = 'Aposentado';
+                console.log('✅ Ocupação corrigida de "Dona de Casa" para "Aposentado"');
+            }
+        
+        // 2. SALVAR FORMULÁRIO
+        const { data: formExistente } = await supabase
+            .from('form_ds160')
+            .select('id, id_cliente')
+            .eq('id_cliente', clienteData.id)
+            .maybeSingle();
+
+        if (formExistente) {
+            await supabase
+                .from('form_ds160')
+                .update({
+                    dados_formulario: formData,
+                    status: 'rascunho',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', formExistente.id);
+            console.log('✅ Formulário atualizado no Supabase');
+        } else {
+            await supabase
+                .from('form_ds160')
+                .insert({
+                    id_cliente: clienteData.id,
+                    dados_formulario: formData,
+                    status: 'rascunho',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                });
+            console.log('✅ Formulário salvo no Supabase');
+        }
+
+        // 3. ENVIAR CONFIRMAÇÃO PARA O CLIENTE
+        try {
+            const primeiroNome = nomeValido.split(' ')[0];
+            const mensagemWhats = `🎉 *Olá ${primeiroNome}!*\n\n` +
+                `Recebemos seu formulário DS-160 com sucesso! ✅\n\n` +
+                `📋 *Dados recebidos:*\n` +
+                `👤 Nome: ${nomeValido}\n` +
+                `📧 Email: ${emailValido}\n` +
+                `📱 Telefone: ${cleanPhone}\n` +
+                `🏛️ Consulado: ${consulado || 'Não informado'}\n\n` +
+                `⏳ *Próximos passos:*\n` +
+                `1️⃣ Nossa equipe fará a análise dos dados\n` +
+                `2️⃣ Você receberá a confirmação por e-mail\n` +
+                `3️⃣ Iniciaremos o agendamento da entrevista\n\n` +
+                `📱 Dúvidas? Fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+                `🌟 *GetVisa Assessoria - Seu visto americano com segurança!* 🇺🇸`;
+
+            await enviarWhatsApp(cleanPhone, mensagemWhats);
+            console.log('📱 Notificação WhatsApp enviada para:', cleanPhone);
+        } catch (whatsError) {
+            console.error('❌ Erro ao enviar notificação WhatsApp:', whatsError);
+        }
+
+// ============================================================
+// 📧 ENVIAR E-MAIL PARA A EQUIPE COM PDF
+// ============================================================
+let pdfBuffer = null; // 🔥 DECLARADO FORA DO TRY
+
+try {
+    console.log('📧 Tentando enviar e-mail com PDF...');
+    const emailEquipe = process.env.EMAIL_DESTINO_EQUIPE || 'contato@getvisa.com.br';
+    
+    // 🔥 GERAR O PDF COM OS DADOS DO FORMULÁRIO
+    try {
+        console.log('📄 Gerando PDF...');
+        const { data: formDataSaved, error: formError } = await supabase
+            .from('form_ds160')
+            .select('*')
+            .eq('id_cliente', clienteData.id)
+            .maybeSingle();
+
+        if (formError) {
+            console.error('❌ Erro ao buscar dados do formulário:', formError);
+        } else if (formDataSaved) {
+            const dadosParaPDF = formDataSaved.dados_formulario || formDataSaved;
+            pdfBuffer = await gerarPDF_DS160(dadosParaPDF); // 🔥 SEM let
+            console.log('📄 PDF gerado com sucesso, tamanho:', pdfBuffer.length, 'bytes');
+        }
+    } catch (pdfError) {
+        console.error('❌ Erro ao gerar PDF:', pdfError);
+    }
+    
+    // Preparar o e-mail
+    const emailOptions = {
+        from: 'GetVisa <contato@getvisa.com.br>',
+        to: emailEquipe,
+        subject: `🆕 Novo formulário DS-160 - ${nomeValido}`,
+        html: `
+            <h2>📋 Novo formulário DS-160 recebido!</h2>
+            <p><strong>👤 Nome:</strong> ${nomeValido}</p>
+            <p><strong>📱 Telefone:</strong> ${cleanPhone}</p>
+            <p><strong>📧 E-mail:</strong> ${emailValido}</p>
+            <p><strong>🏛️ Consulado:</strong> ${consulado || 'Não informado'}</p>
+            <p><strong>📅 Data:</strong> ${new Date().toLocaleString('pt-BR')}</p>
+            <hr>
+            <p>📌 <strong>PDF em anexo</strong> com todos os dados do formulário.</p>
+            <p>📱 Entre em contato com o cliente para dar início ao processo.</p>
+            <p>🗂️ Acesse o painel: https://app.getvisa.com.br/painel</p>
+        `
+    };
+
+    if (pdfBuffer) {
+        emailOptions.attachments = [{
+            filename: `DS160_${nomeValido.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`,
+            content: pdfBuffer.toString('base64')
+        }];
+        console.log('📎 PDF anexado ao e-mail');
+    } else {
+        console.log('⚠️ Nenhum PDF para anexar');
+    }
+
+    const emailResult = await resend.emails.send(emailOptions);
+    console.log('📧 E-mail enviado com sucesso:', emailResult);
+} catch (emailError) {
+    console.error('❌ Erro detalhado ao enviar e-mail:', emailError);
+    console.error('❌ Mensagem de erro:', emailError.message);
+}
+
+// ============================================================
+// 📧 ENVIAR E-MAIL PARA O CLIENTE COM PDF
+// ============================================================
+try {
+    console.log('📧 Tentando enviar e-mail para o cliente...');
+    const clienteEmail = emailValido;
+    
+    if (!clienteEmail || clienteEmail.trim() === '') {
+        console.log('⚠️ Cliente sem e-mail, pulando envio.');
+    } else {
+        // Reutilizar o PDF já gerado (pdfBuffer)
+        let pdfCliente = pdfBuffer;
+        
+        // Se o PDF não foi gerado, tenta gerar novamente
+        if (!pdfCliente) {
+            try {
+                const { data: formDataSaved, error: formError } = await supabase
+                    .from('form_ds160')
+                    .select('*')
+                    .eq('id_cliente', clienteData.id)
+                    .maybeSingle();
+
+                if (formError) {
+                    console.error('❌ Erro ao buscar dados do formulário:', formError);
+                } else if (formDataSaved) {
+                    const dadosParaPDF = formDataSaved.dados_formulario || formDataSaved;
+                    pdfCliente = await gerarPDF_DS160(dadosParaPDF);
+                    console.log('📄 PDF gerado para o cliente, tamanho:', pdfCliente.length, 'bytes');
+                }
+            } catch (pdfError) {
+                console.error('❌ Erro ao gerar PDF para o cliente:', pdfError);
+            }
+        }
+
+        const primeiroNome = nomeValido.split(' ')[0];
+        const emailOptionsCliente = {
+            from: 'GetVisa <contato@getvisa.com.br>',
+            to: clienteEmail,
+            subject: `📋 Seu formulário DS-160 - ${nomeValido}`,
+            html: `
+                <h2>✅ Olá ${primeiroNome}!</h2>
+                <p>Recebemos seu formulário DS-160 com sucesso!</p>
+                <p><strong>📅 Data de envio:</strong> ${new Date().toLocaleString('pt-BR')}</p>
+                <hr>
+                <p><strong>📌 Próximos passos:</strong></p>
+                <ol>
+                    <li><strong>Revise o PDF em anexo</strong> – confira se todos os dados estão corretos.</li>
+                    <li><strong>Aguardar contato da nossa equipe</strong> – em até 24h entraremos em contato.</li>
+                    <li><strong>Iniciaremos o agendamento</strong> da entrevista no Consulado.</li>
+                </ol>
+                <hr>
+                <p>🔗 <strong>Acesse nosso site:</strong> <a href="https://getvisa.com.br">getvisa.com.br</a></p>
+                <p>📱 <strong>Fale conosco:</strong> <a href="https://wa.me/5521974601812">WhatsApp</a></p>
+                <p style="color: #666; font-size: 12px;">Este e-mail foi enviado automaticamente. Por favor, não responda.</p>
+            `
+        };
+
+        if (pdfCliente) {
+            emailOptionsCliente.attachments = [{
+                filename: `DS160_${nomeValido.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`,
+                content: pdfCliente.toString('base64')
+            }];
+            console.log('📎 PDF anexado ao e-mail do cliente');
+        }
+
+        const emailClienteResult = await resend.emails.send(emailOptionsCliente);
+        console.log('📧 E-mail enviado para o cliente com sucesso:', emailClienteResult);
+    }
+} catch (emailClienteError) {
+    console.error('❌ Erro ao enviar e-mail para o cliente:', emailClienteError);
+}
+
+        // 4. AVISAR A EQUIPE (SEM PDF - PARA TESTE)
+        try {
+            await enviarWhatsApp(process.env.ADMIN_PHONE, 
+                `📋 *NOVO FORMULÁRIO DS-160 RECEBIDO!*\n\n` +
+                `👤 Nome: ${nomeValido}\n` +
+                `📱 Telefone: ${cleanPhone}\n` +
+                `📧 Email: ${emailValido}\n` +
+                `🏛️ Consulado: ${consulado || 'Não informado'}\n\n` +
+                `📱 Entre em contato com o cliente para dar início ao processo.`
+            );
+            console.log('📱 Aviso enviado para a equipe');
+        } catch (err) {
+            console.error('❌ Erro ao avisar equipe:', err);
+        }
+
+        res.json({
+            success: true,
+            message: 'Formulário recebido com sucesso!',
+            data: {
+                nome: nomeValido,
+                email: emailValido,
+                telefone: cleanPhone
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao processar formulário:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao processar formulário',
+            error: error.message
+        });
+    }
+});
+
+// Carregar outras rotas DS-160 (se houver)
+try {
+    const ds160Routes = require('./routes/ds160Routes');
+    app.use('/api', ds160Routes);
+    console.log('✅ Rotas DS-160 adicionais montadas em /api');
+} catch (error) {
+    console.log('⚠️ Erro ao carregar ds160Routes adicionais:', error.message);
+}
+
+// ============================================================
+// 7.2 ROTA DE AGENDAMENTOS (REFATORADA - CORRIGIDA)
+// ============================================================
+console.log('🔧 Carregando rotas de Agendamentos...');
+
+// 🔥 ROTA DE UPLOAD DE PDF (NÃO PROTEGIDA - DEVE VIR ANTES DE QUALQUER MIDDLEWARE)
 // ⚠️ IMPORTANTE: Esta rota NÃO pode ter auth.verificarApiKey
 app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (req, res) => {
     console.log('🔥 ROTA /api/agendamentos/upload-pdf CHAMADA!');
@@ -284,7 +650,7 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
         const resultado = await agendamentoService.extractAndSavePdfAgendamentos(
             req.file.buffer,
             telefone,
-            { enviarWhatsApp: false }
+            { enviarWhatsApp: false }  // 🔥 DESABILITA O ENVIO DUPLICADO
         );
 
         console.log('📊 Resultado da extração:', JSON.stringify(resultado, null, 2));
@@ -324,6 +690,94 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
         
         let casv = dadosExtraidos.casv || {};
         let entrevista = dadosExtraidos.entrevista || {};
+
+        // 🔥 TENTAR EXTRAIR DATAS DO RESULTADO DIRETAMENTE
+        console.log('🔍 Verificando dados extraídos...');
+        
+        // Se o serviço retornou os dados em formato diferente
+        if (resultado.agendamentos && Array.isArray(resultado.agendamentos)) {
+            for (const ag of resultado.agendamentos) {
+                if (ag.tipo && ag.tipo.toLowerCase().includes('casv')) {
+                    casv = { 
+                        data: ag.data || ag.data_agendamento || ag.date,
+                        hora: ag.hora || ag.horario || ag.time,
+                        local: ag.local || ag.local_agendamento || ag.location
+                    };
+                    console.log('✅ CASV encontrado nos agendamentos:', casv);
+                } else if (ag.tipo && ag.tipo.toLowerCase().includes('entrevista')) {
+                    entrevista = { 
+                        data: ag.data || ag.data_agendamento || ag.date,
+                        hora: ag.hora || ag.horario || ag.time,
+                        local: ag.local || ag.local_agendamento || ag.location
+                    };
+                    console.log('✅ Entrevista encontrada nos agendamentos:', entrevista);
+                }
+            }
+        }
+
+        // Se ainda não tem dados, tenta extrair do texto do PDF
+        if ((!casv.data || casv.data === 'A definir') || (!entrevista.data || entrevista.data === 'A definir')) {
+            console.log('🔍 Tentando extrair dados do texto do PDF...');
+            try {
+                const pdfText = req.file.buffer.toString('utf8');
+                console.log('📄 Texto do PDF (primeiros 500 caracteres):', pdfText.substring(0, 500));
+                
+                // Procura por padrões de data
+                const dataPattern = /(\d{1,2}\/\d{1,2}\/\d{4})/g;
+                const datasEncontradas = pdfText.match(dataPattern) || [];
+                console.log('📅 Datas encontradas no texto:', datasEncontradas);
+                
+                if (datasEncontradas.length >= 2) {
+                    if (!casv.data || casv.data === 'A definir') casv.data = datasEncontradas[0];
+                    if (!entrevista.data || entrevista.data === 'A definir') entrevista.data = datasEncontradas[1];
+                    console.log(`✅ CASV: ${casv.data}, ENTREVISTA: ${entrevista.data}`);
+                } else if (datasEncontradas.length === 1) {
+                    if (!casv.data || casv.data === 'A definir') casv.data = datasEncontradas[0];
+                    console.log(`✅ CASV: ${casv.data}`);
+                }
+
+                // Procura por horários
+                const horaPattern = /(\d{1,2}:\d{2})/g;
+                const horasEncontradas = pdfText.match(horaPattern) || [];
+                console.log('⏰ Horários encontrados no texto:', horasEncontradas);
+                
+                if (horasEncontradas.length >= 2) {
+                    if (!casv.hora || casv.hora === 'A definir') casv.hora = horasEncontradas[0];
+                    if (!entrevista.hora || entrevista.hora === 'A definir') entrevista.hora = horasEncontradas[1];
+                    console.log(`✅ CASV: ${casv.hora}, ENTREVISTA: ${entrevista.hora}`);
+                } else if (horasEncontradas.length === 1) {
+                    if (!casv.hora || casv.hora === 'A definir') casv.hora = horasEncontradas[0];
+                    console.log(`✅ CASV: ${casv.hora}`);
+                }
+
+                // Procura por local (Consulado Americano - Rio de Janeiro)
+                const localPattern = /Consulado\s+Americano\s*[-–]\s*([^\n]+)/gi;
+                let localMatch = localPattern.exec(pdfText);
+                if (localMatch) {
+                    const local = localMatch[1].trim();
+                    if (!casv.local || casv.local === 'A definir') {
+                        casv.local = `Consulado Americano - ${local}`;
+                    }
+                    if (!entrevista.local || entrevista.local === 'A definir') {
+                        entrevista.local = `Consulado Americano - ${local}`;
+                    }
+                    console.log(`📍 Local encontrado: ${local}`);
+                }
+
+                // Procura por Protocolo DS-160
+                const protocolPattern = /(?:DS-160|DS160|Protocolo)[:\s]+([A-Z0-9]+)/gi;
+                const protocolMatch = protocolPattern.exec(pdfText);
+                if (protocolMatch) {
+                    const protocolo = protocolMatch[1].trim();
+                    console.log(`📋 Protocolo DS-160: ${protocolo}`);
+                    // Armazena para usar na mensagem
+                    req.protocolo = protocolo;
+                }
+
+            } catch (textError) {
+                console.error('❌ Erro ao extrair texto do PDF:', textError);
+            }
+        }
 
         // Log final dos dados extraídos
         console.log('📊 DADOS EXTRAÍDOS FINAIS:');
@@ -405,35 +859,38 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             console.error('❌ Erro ao enviar e-mail:', emailError);
         }
 
-        // 9. ENVIAR WHATSAPP COM LISTA DE MEMBROS
-        let whatsEnviado = false;
-        try {
-            const todosMembros = resultado.dados?.todosMembros || [];
-            
-            const casvData = casv.data && casv.data !== 'A definir' ? `📅 *${casv.data}*` : '📅 *A definir*';
-            const casvHora = casv.hora && casv.hora !== 'A definir' ? `⏰ *${casv.hora}*` : '⏰ *A definir*';
-            const casvLocal = casv.local && casv.local !== 'A definir' ? `📍 *${casv.local}*` : '📍 *A definir*';
-            
-            const entrevistaData = entrevista.data && entrevista.data !== 'A definir' ? `📅 *${entrevista.data}*` : '📅 *A definir*';
-            const entrevistaHora = entrevista.hora && entrevista.hora !== 'A definir' ? `⏰ *${entrevista.hora}*` : '⏰ *A definir*';
-            const entrevistaLocal = entrevista.local && entrevista.local !== 'A definir' ? `📍 *${entrevista.local}*` : '📍 *A definir*';
+        // 9. 🔥 ENVIAR WHATSAPP COM LISTA DE MEMBROS
+let whatsEnviado = false;
+try {
+    // 🔥 PEGA A LISTA DE MEMBROS DO resultado.dados
+    const todosMembros = resultado.dados?.todosMembros || [];
+    
+    // Formata as mensagens com as datas
+    const casvData = casv.data && casv.data !== 'A definir' ? `📅 *${casv.data}*` : '📅 *A definir*';
+    const casvHora = casv.hora && casv.hora !== 'A definir' ? `⏰ *${casv.hora}*` : '⏰ *A definir*';
+    const casvLocal = casv.local && casv.local !== 'A definir' ? `📍 *${casv.local}*` : '📍 *A definir*';
+    
+    const entrevistaData = entrevista.data && entrevista.data !== 'A definir' ? `📅 *${entrevista.data}*` : '📅 *A definir*';
+    const entrevistaHora = entrevista.hora && entrevista.hora !== 'A definir' ? `⏰ *${entrevista.hora}*` : '⏰ *A definir*';
+    const entrevistaLocal = entrevista.local && entrevista.local !== 'A definir' ? `📍 *${entrevista.local}*` : '📍 *A definir*';
 
-            let mensagem = `✅ *AGENDAMENTOS CONFIRMADOS - GETVISA*
+    let mensagem = `✅ *AGENDAMENTOS CONFIRMADOS - GETVISA*
 
 Olá *${cliente.nome.split(' ')[0]}*! Seus agendamentos foram realizados com sucesso!`;
 
-            if (todosMembros && todosMembros.length > 0) {
-                mensagem += `\n\n👨‍👩‍👧‍👦 *Membros da família:*\n`;
-                todosMembros.forEach((membro, index) => {
-                    mensagem += `   ${index + 1}️⃣ ${membro}\n`;
-                });
-            }
+    // 🔥 LISTA DE MEMBROS DA FAMÍLIA
+    if (todosMembros && todosMembros.length > 0) {
+        mensagem += `\n\n👨‍👩‍👧‍👦 *Membros da família:*\n`;
+        todosMembros.forEach((membro, index) => {
+            mensagem += `   ${index + 1}️⃣ ${membro}\n`;
+        });
+    }
 
-            if (req.protocolo) {
-                mensagem += `\n📋 *Protocolo DS-160:* ${req.protocolo}`;
-            }
+    if (req.protocolo) {
+        mensagem += `\n📋 *Protocolo DS-160:* ${req.protocolo}`;
+    }
 
-            mensagem += `
+    mensagem += `
 
 📍 *CASV (Coleta Biométrica):*
 ${casvData}
@@ -456,12 +913,13 @@ ${entrevistaLocal}
 
 🌟 *Boa sorte! Estamos com você!*`;
 
-            await enviarWhatsApp(telefone, mensagem);
-            whatsEnviado = true;
-            console.log(`📱 WhatsApp enviado para ${telefone} com ${todosMembros.length} membros`);
-        } catch (whatsError) {
-            console.error('❌ Erro ao enviar WhatsApp:', whatsError);
-        }
+    // 🔥 ÚNICO ENVIO DE WHATSAPP
+    await enviarWhatsApp(telefone, mensagem);
+    whatsEnviado = true;
+    console.log(`📱 WhatsApp enviado para ${telefone} com ${todosMembros.length} membros`);
+} catch (whatsError) {
+    console.error('❌ Erro ao enviar WhatsApp:', whatsError);
+}
 
         // 10. ATUALIZAR STATUS
         try {
@@ -508,41 +966,236 @@ ${entrevistaLocal}
     }
 });
 
-// 5.3 ROTA DO WEBHOOK (PÚBLICA)
-app.post('/api/webhook/zapi', async (req, res) => {
-    console.log('📨 Webhook Z-API recebido!');
-    
-    // Responde imediatamente para a Z-API
-    res.status(200).send('OK');
+console.log('✅ ROTA /api/agendamentos/upload-pdf REGISTRADA COM SUCESSO!');
 
-    // Processa a mensagem em background
-    (async () => {
-        try {
-            const body = req.body;
-            const telefone = body.phone || body.from || '';
-            const mensagem = body.text?.message || body.message || body.text || '';
-            
-            console.log(`📱 Telefone: ${telefone}`);
-            console.log(`💬 Mensagem: ${mensagem}`);
-            
-            if (!telefone || !mensagem) {
-                console.log('⚠️ Dados incompletos, ignorando.');
-                return;
-            }
+// ⚠️ NÃO COLOCAR auth.verificarApiKey ANTES DA ROTA DE UPLOAD
+app.use('/api/admin/agendamentos', auth.verificarApiKey);
 
-            const telefoneLimpo = limparTelefone(telefone);
-            console.log(`📱 Telefone limpo: ${telefoneLimpo}`);
+try {
+    const agendamentoRoutes = require('./routes/agendamentoRoutes');
+    app.use('/api/admin/agendamentos', agendamentoRoutes);
+    console.log('✅ Rotas /api/admin/agendamentos montadas (PROTEGIDAS).');
+} catch (error) {
+    console.log('⚠️ Erro ao carregar agendamentoRoutes:', error.message);
+}
 
-            // Processa diretamente
-            await processarMensagem(telefoneLimpo, mensagem);
+// ============================================================
+// 7.3 ROTA WEBHOOK (PÚBLICA)
+// ============================================================
+console.log('🔧 Carregando rotas Webhook...');
+try {
+    const webhookRoutes = require('./routes/webhookRoutesNew');
+    app.use('/api/webhook', webhookRoutes);
+    console.log('✅ webhookRoutesNew importado com sucesso.');
+    console.log('✅ Rota /api/webhook montada.');
+} catch (error) {
+    console.log('⚠️ Erro ao carregar webhookRoutesNew:', error.message);
+    app.post('/api/webhook', (req, res) => {
+        console.log('📨 Webhook fallback:', req.body);
+        res.status(200).send('OK');
+    });
+}
 
-        } catch (erro) {
-            console.error('❌ Erro no webhook:', erro);
+// ============================================================
+// 9. ROTA PARA VISTO NEGADO - SALVAR NO SUPABASE
+// ============================================================
+app.post('/api/visto-negado', async (req, res) => {
+    try {
+        const dados = req.body;
+        console.log('📋 Nova avaliação de visto negado:', dados);
+
+        const { nome, email, telefone, quando_negado, motivo_negativa, 
+                mudanca_profissional, fortaleceu_vinculos, falha_ds160, 
+                problemas_imigracao, observacoes, score, classificacao_tipo,
+                classificacao_titulo, classificacao_mensagem } = dados;
+
+        // 1. Salvar no Supabase
+        const { data: avaliacao, error } = await supabase
+            .from('avaliacoes_visto_negado')
+            .insert({
+                nome,
+                email,
+                telefone,
+                quando_negado,
+                motivo_negativa,
+                mudanca_profissional,
+                fortaleceu_vinculos,
+                falha_ds160,
+                problemas_imigracao,
+                observacoes,
+                score,
+                classificacao_tipo,
+                classificacao_titulo,
+                classificacao_mensagem,
+                created_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ Erro ao salvar avaliação:', error);
+            return res.status(500).json({ 
+                success: false, 
+                error: error.message 
+            });
         }
-    })();
+
+        console.log('✅ Avaliação salva com sucesso!');
+
+        // 2. Atualizar ou criar cliente
+        const telefoneLimpo = telefone ? telefone.replace(/\D/g, '') : null;
+        if (telefoneLimpo && telefoneLimpo.length >= 10) {
+            try {
+                const { data: clienteExistente } = await supabase
+                    .from('clientes')
+                    .select('telefone')
+                    .eq('telefone', telefoneLimpo)
+                    .maybeSingle();
+
+                if (clienteExistente) {
+                    await supabase
+                        .from('clientes')
+                        .update({
+                            nome: nome || clienteExistente.nome,
+                            email: email || clienteExistente.email,
+                            status: 'visto_negado',
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('telefone', telefoneLimpo);
+                } else {
+                    await supabase
+                        .from('clientes')
+                        .insert({
+                            telefone: telefoneLimpo,
+                            nome: nome || 'Cliente',
+                            email: email || '',
+                            status: 'visto_negado',
+                            data_contato: new Date().toISOString(),
+                            onboarding_completo: true,
+                            created_at: new Date().toISOString()
+                        });
+                }
+                console.log('✅ Cliente atualizado/criado:', telefoneLimpo);
+            } catch (err) {
+                console.error('❌ Erro ao gerenciar cliente:', err);
+            }
+        }
+
+        // 3. Enviar notificação para o admin
+        try {
+            const mensagemAdmin = `🔔 *NOVA AVALIAÇÃO DE VISTO NEGADO!*\n\n` +
+                `👤 Nome: ${nome || 'Não informado'}\n` +
+                `📱 Telefone: ${telefone || 'Não informado'}\n` +
+                `📧 Email: ${email || 'Não informado'}\n` +
+                `📊 Score: ${score || 0}/100\n` +
+                `🏷️ Classificação: ${classificacao_tipo || 'N/A'}\n` +
+                `📝 Título: ${classificacao_titulo || 'N/A'}\n\n` +
+                `🔗 Acesse o painel para mais detalhes.`;
+
+            await enviarWhatsApp(process.env.ADMIN_PHONE, mensagemAdmin);
+            console.log('📨 Notificação enviada para o admin');
+        } catch (err) {
+            console.error('❌ Erro ao enviar notificação:', err);
+        }
+
+        // 4. Enviar mensagem automática para o cliente
+        try {
+            if (telefoneLimpo) {
+                const primeiroNome = nome ? nome.split(' ')[0] : 'Cliente';
+                let mensagemCliente = '';
+
+                if (classificacao_tipo === 'urgent') {
+                    mensagemCliente = `⚠️ *Olá ${primeiroNome}!* ⚠️\n\n` +
+                        `Recebemos sua avaliação de visto negado.\n\n` +
+                        `Seu caso apresenta pontos críticos que precisam de atenção urgente.\n\n` +
+                        `📌 Nossa equipe já foi notificada e entrará em contato em até 24h.\n\n` +
+                        `📱 Enquanto isso, fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)`;
+                } else if (classificacao_tipo === 'moderate') {
+                    mensagemCliente = `💡 *Olá ${primeiroNome}!* 💡\n\n` +
+                        `Recebemos sua avaliação de visto negado.\n\n` +
+                        `Seu perfil tem potencial, mas precisa de alguns ajustes para aumentar as chances.\n\n` +
+                        `📌 Nossa equipe fará uma análise detalhada e entrará em contato em breve.\n\n` +
+                        `📱 Fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)`;
+                } else {
+                    mensagemCliente = `✅ *Olá ${primeiroNome}!* ✅\n\n` +
+                        `Recebemos sua avaliação de visto negado.\n\n` +
+                        `Seu perfil demonstra um forte potencial para reverter o visto negado!\n\n` +
+                        `📌 Nossa equipe fará uma análise completa e entrará em contato.\n\n` +
+                        `📱 Continue acompanhando: [Fale com nosso especialista](https://wa.me/5521974601812)`;
+                }
+
+                await enviarWhatsApp(telefoneLimpo, mensagemCliente);
+                console.log('📱 Mensagem enviada para o cliente:', telefoneLimpo);
+            }
+        } catch (err) {
+            console.error('❌ Erro ao enviar mensagem para cliente:', err);
+        }
+
+        res.json({
+            success: true,
+            message: 'Avaliação recebida com sucesso!',
+            data: avaliacao
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao processar avaliação:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
 });
 
-// 5.4 ROTA DO FORMULÁRIO DS-160 (PÚBLICA)
+// ============================================================
+// ROTA PARA PÁGINA DE VISTO NEGADO
+// ============================================================
+// ============================================================
+// ROTA PARA PÁGINA DE VISTO NEGADO
+// ============================================================
+app.get('/visto-negado', (req, res) => {
+    const pathVistoNegado = path.join(__dirname, 'public', 'visto-negado.html');
+    if (fs.existsSync(pathVistoNegado)) {
+        res.sendFile(pathVistoNegado);
+    } else {
+        res.status(404).send(`
+            <h1>Página não encontrada</h1>
+            <p>Arquivo visto-negado.html não encontrado.</p>
+            <a href="/dashboard">Voltar ao Dashboard</a>
+        `);
+    }
+});
+
+// ============================================================
+// PÁGINA DE UPLOAD DE PDF - CASV + ENTREVISTA
+// ============================================================
+app.get('/upload-casv-pdf', (req, res) => {
+    const uploadPath = path.join(__dirname, 'public', 'upload-casv-pdf.html');
+    if (fs.existsSync(uploadPath)) {
+        res.sendFile(uploadPath);
+    } else {
+        res.status(404).send(`
+            <h1>📤 Página não encontrada</h1>
+            <p>Arquivo upload-casv-pdf.html não encontrado.</p>
+            <a href="/dashboard">Voltar ao Dashboard</a>
+        `);
+    }
+});
+
+
+// ============================================================
+// 9. ROTA PRINCIPAL - DASHBOARD (PROTEGIDA COM AUTENTICAÇÃO)
+// ============================================================
+app.get('/', auth.verificarAdmin, (req, res) => {
+    const dashboardPath = path.join(__dirname, 'public', 'index.html');
+    if (fs.existsSync(dashboardPath)) {
+        res.sendFile(dashboardPath);
+    } else {
+        res.redirect('/admin-login.html');
+    }
+});
+
+
+// 🔥 ROTA DIRETA PARA O FORMULÁRIO DS-160
 app.get('/formulario-ds160', (req, res) => {
     const formPath = path.join(__dirname, 'public', 'formulario-ds160.html');
     
@@ -559,489 +1212,8 @@ app.get('/formulario-ds160', (req, res) => {
     }
 });
 
-// 5.5 ROTA DO SIMULADOR (PÚBLICA)
-app.get('/simulador-visto-americano', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'simulador-visto-americano.html'));
-});
-app.get('/simulador-visto-americano/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'simulador-visto-americano.html'));
-});
 
-// 5.6 ROTA DE SUBMISSÃO DS-160 (PÚBLICA)
-app.post('/api/submit-ds160', async (req, res) => {
-    console.log('🔔 Rota /api/submit-ds160 chamada!');
-    console.log('📝 Dados recebidos:', JSON.stringify(req.body, null, 2));
-
-    try {
-        const formData = req.body;
-        const { full_name, email, telefone, consulado } = extractFormFields(formData);
-
-        console.log(`📋 Nome: "${full_name}"`);
-        console.log(`📧 Email: "${email}"`);
-        console.log(`📱 Telefone: "${telefone}"`);
-        console.log(`🏛️ Consulado: "${consulado}"`);
-
-        // VALIDAÇÃO
-        let nomeValido = full_name || formData.nome_completo || formData.fullName || '';
-        let emailValido = email || formData['email-1'] || '';
-        let telefoneValido = telefone || formData['text-77'] || '';
-
-        if (!nomeValido || !emailValido || !telefoneValido) {
-            console.error('❌ Dados obrigatórios faltando');
-            return res.status(400).json({
-                success: false,
-                message: 'Nome, email e telefone são obrigatórios.'
-            });
-        }
-
-        const cleanPhone = limparTelefone(telefoneValido);
-        if (!cleanPhone) {
-            return res.status(400).json({ success: false, message: 'Número de telefone inválido.' });
-        }
-
-        // 1. SALVAR CLIENTE NO SUPABASE
-        const { data: clienteData, error: clienteError } = await supabase
-            .from('clientes')
-            .upsert({
-                telefone: cleanPhone,
-                nome: nomeValido,
-                email: emailValido,
-                consulado: consulado || '',
-                data_contato: new Date().toISOString(),
-                status: 'formulario_enviado',
-                onboarding_completo: true,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'telefone' })
-            .select('id, telefone')
-            .single();
-
-        if (clienteError) {
-            console.error('❌ Erro ao salvar cliente:', clienteError);
-            return res.status(500).json({ success: false, message: 'Erro ao salvar cliente', error: clienteError.message });
-        }
-
-        console.log('✅ Cliente salvo no Supabase:', clienteData);
-
-        // Correção de ocupação
-        if (formData['radio-occupation'] === 'Dona de Casa' && !formData['employer_name']) {
-            formData['radio-occupation'] = 'Aposentado';
-            console.log('✅ Ocupação corrigida de "Dona de Casa" para "Aposentado"');
-        }
-
-        // 2. SALVAR FORMULÁRIO
-        const { data: formExistente } = await supabase
-            .from('form_ds160')
-            .select('id, id_cliente')
-            .eq('id_cliente', clienteData.id)
-            .maybeSingle();
-
-        if (formExistente) {
-            await supabase
-                .from('form_ds160')
-                .update({
-                    dados_formulario: formData,
-                    status: 'rascunho',
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', formExistente.id);
-            console.log('✅ Formulário atualizado no Supabase');
-        } else {
-            await supabase
-                .from('form_ds160')
-                .insert({
-                    id_cliente: clienteData.id,
-                    dados_formulario: formData,
-                    status: 'rascunho',
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                });
-            console.log('✅ Formulário salvo no Supabase');
-        }
-
-        // 3. ENVIAR CONFIRMAÇÃO PARA O CLIENTE
-        try {
-            const primeiroNome = nomeValido.split(' ')[0];
-            const mensagemWhats = `🎉 *Olá ${primeiroNome}!*\n\n` +
-                `Recebemos seu formulário DS-160 com sucesso! ✅\n\n` +
-                `📋 *Dados recebidos:*\n` +
-                `👤 Nome: ${nomeValido}\n` +
-                `📧 Email: ${emailValido}\n` +
-                `📱 Telefone: ${cleanPhone}\n` +
-                `🏛️ Consulado: ${consulado || 'Não informado'}\n\n` +
-                `⏳ *Próximos passos:*\n` +
-                `1️⃣ Nossa equipe fará a análise dos dados\n` +
-                `2️⃣ Você receberá a confirmação por e-mail\n` +
-                `3️⃣ Iniciaremos o agendamento da entrevista\n\n` +
-                `📱 Dúvidas? Fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
-                `🌟 *GetVisa Assessoria - Seu visto americano com segurança!* 🇺🇸`;
-
-            await enviarWhatsApp(cleanPhone, mensagemWhats);
-            console.log('📱 Notificação WhatsApp enviada para:', cleanPhone);
-        } catch (whatsError) {
-            console.error('❌ Erro ao enviar notificação WhatsApp:', whatsError);
-        }
-
-        // 4. GERAR PDF E ENVIAR E-MAILS
-        let pdfBuffer = null;
-        try {
-            console.log('📄 Gerando PDF...');
-            const { data: formDataSaved, error: formError } = await supabase
-                .from('form_ds160')
-                .select('*')
-                .eq('id_cliente', clienteData.id)
-                .maybeSingle();
-
-            if (formError) {
-                console.error('❌ Erro ao buscar dados do formulário:', formError);
-            } else if (formDataSaved) {
-                const dadosParaPDF = formDataSaved.dados_formulario || formDataSaved;
-                pdfBuffer = await gerarPDF_DS160(dadosParaPDF);
-                console.log('📄 PDF gerado com sucesso, tamanho:', pdfBuffer.length, 'bytes');
-            }
-        } catch (pdfError) {
-            console.error('❌ Erro ao gerar PDF:', pdfError);
-        }
-
-        // 5. ENVIAR E-MAIL PARA A EQUIPE
-        try {
-            console.log('📧 Tentando enviar e-mail para a equipe...');
-            const emailEquipe = process.env.EMAIL_DESTINO_EQUIPE || 'contato@getvisa.com.br';
-            
-            const emailOptions = {
-                from: 'GetVisa <contato@getvisa.com.br>',
-                to: emailEquipe,
-                subject: `🆕 Novo formulário DS-160 - ${nomeValido}`,
-                html: `
-                    <h2>📋 Novo formulário DS-160 recebido!</h2>
-                    <p><strong>👤 Nome:</strong> ${nomeValido}</p>
-                    <p><strong>📱 Telefone:</strong> ${cleanPhone}</p>
-                    <p><strong>📧 E-mail:</strong> ${emailValido}</p>
-                    <p><strong>🏛️ Consulado:</strong> ${consulado || 'Não informado'}</p>
-                    <p><strong>📅 Data:</strong> ${new Date().toLocaleString('pt-BR')}</p>
-                    <hr>
-                    <p>📌 <strong>PDF em anexo</strong> com todos os dados do formulário.</p>
-                    <p>📱 Entre em contato com o cliente para dar início ao processo.</p>
-                    <p>🗂️ Acesse o painel: https://app.getvisa.com.br/painel</p>
-                `
-            };
-
-            if (pdfBuffer) {
-                emailOptions.attachments = [{
-                    filename: `DS160_${nomeValido.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`,
-                    content: pdfBuffer.toString('base64')
-                }];
-                console.log('📎 PDF anexado ao e-mail da equipe');
-            }
-
-            await resend.emails.send(emailOptions);
-            console.log('📧 E-mail enviado para a equipe com sucesso');
-        } catch (emailError) {
-            console.error('❌ Erro ao enviar e-mail para a equipe:', emailError);
-        }
-
-        // 6. ENVIAR E-MAIL PARA O CLIENTE
-        try {
-            console.log('📧 Tentando enviar e-mail para o cliente...');
-            if (!emailValido || emailValido.trim() === '') {
-                console.log('⚠️ Cliente sem e-mail, pulando envio.');
-            } else {
-                const primeiroNome = nomeValido.split(' ')[0];
-                const emailOptionsCliente = {
-                    from: 'GetVisa <contato@getvisa.com.br>',
-                    to: emailValido,
-                    subject: `📋 Seu formulário DS-160 - ${nomeValido}`,
-                    html: `
-                        <h2>✅ Olá ${primeiroNome}!</h2>
-                        <p>Recebemos seu formulário DS-160 com sucesso!</p>
-                        <p><strong>📅 Data de envio:</strong> ${new Date().toLocaleString('pt-BR')}</p>
-                        <hr>
-                        <p><strong>📌 Próximos passos:</strong></p>
-                        <ol>
-                            <li><strong>Revise o PDF em anexo</strong> – confira se todos os dados estão corretos.</li>
-                            <li><strong>Aguardar contato da nossa equipe</strong> – em até 24h entraremos em contato.</li>
-                            <li><strong>Iniciaremos o agendamento</strong> da entrevista no Consulado.</li>
-                        </ol>
-                        <hr>
-                        <p>🔗 <strong>Acesse nosso site:</strong> <a href="https://getvisa.com.br">getvisa.com.br</a></p>
-                        <p>📱 <strong>Fale conosco:</strong> <a href="https://wa.me/5521974601812">WhatsApp</a></p>
-                        <p style="color: #666; font-size: 12px;">Este e-mail foi enviado automaticamente. Por favor, não responda.</p>
-                    `
-                };
-
-                if (pdfBuffer) {
-                    emailOptionsCliente.attachments = [{
-                        filename: `DS160_${nomeValido.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`,
-                        content: pdfBuffer.toString('base64')
-                    }];
-                    console.log('📎 PDF anexado ao e-mail do cliente');
-                }
-
-                await resend.emails.send(emailOptionsCliente);
-                console.log('📧 E-mail enviado para o cliente com sucesso');
-            }
-        } catch (emailClienteError) {
-            console.error('❌ Erro ao enviar e-mail para o cliente:', emailClienteError);
-        }
-
-        // 7. AVISAR A EQUIPE POR WHATSAPP
-        try {
-            await enviarWhatsApp(process.env.ADMIN_PHONE, 
-                `📋 *NOVO FORMULÁRIO DS-160 RECEBIDO!*\n\n` +
-                `👤 Nome: ${nomeValido}\n` +
-                `📱 Telefone: ${cleanPhone}\n` +
-                `📧 Email: ${emailValido}\n` +
-                `🏛️ Consulado: ${consulado || 'Não informado'}\n\n` +
-                `📱 Entre em contato com o cliente para dar início ao processo.`
-            );
-            console.log('📱 Aviso enviado para a equipe');
-        } catch (err) {
-            console.error('❌ Erro ao avisar equipe:', err);
-        }
-
-        res.json({
-            success: true,
-            message: 'Formulário recebido com sucesso!',
-            data: {
-                nome: nomeValido,
-                email: emailValido,
-                telefone: cleanPhone
-            }
-        });
-
-    } catch (error) {
-        console.error('❌ Erro ao processar formulário:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Erro ao processar formulário',
-            error: error.message
-        });
-    }
-});
-
-// 5.7 ROTA DE SUBMISSÃO DO SIMULADOR (PÚBLICA)
-app.post('/api/submit-simulador', async (req, res) => {
-    try {
-        const dados = req.body;
-        console.log('📊 Nova avaliação recebida:', dados);
-
-        const { nome, telefone, email, situacao_profissional, renda, historico_viagens, proposito_viagem, score, classificacao } = dados;
-
-        // 1. Salvar no Supabase
-        const { data: avaliacao, error } = await supabase
-            .from('avaliacoes')
-            .insert({
-                nome,
-                telefone,
-                email,
-                situacao_profissional,
-                renda,
-                historico_viagens,
-                proposito_viagem,
-                score,
-                classificacao,
-                created_at: new Date().toISOString()
-            })
-            .select()
-            .single();
-
-        if (error) {
-            console.error('❌ Erro ao salvar avaliação:', error);
-            return res.status(500).json({ error: error.message });
-        }
-
-        // 2. Atualizar cliente
-        const cleanPhone = limparTelefone(telefone);
-        if (cleanPhone) {
-            await supabase
-                .from('clientes')
-                .upsert({
-                    telefone: cleanPhone,
-                    nome: nome || 'Cliente',
-                    email: email || '',
-                    status: 'avaliado',
-                    classificacao: classificacao,
-                    score: score,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'telefone' });
-        }
-
-        // 3. Enviar mensagem automática
-        const mensagens = {
-            'Perfil Forte': `🌟 *Ótimo perfil, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\n✅ Você está muito bem preparado! Já pode iniciar o processo do visto.\n\n📋 Vou te enviar o link do formulário DS-160 para começar agora mesmo.\n\n🔗 [Clique aqui para preencher o formulário](https://app.getvisa.com.br/formulario-ds160)\n\nVamos em frente! 🚀`,
-            'Perfil Moderado': `📊 *Perfil moderado, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nSeu perfil é bom, mas uma análise com especialista pode aumentar suas chances.\n\n🧑‍💼 Quer agendar uma consultoria gratuita agora?\n\nResponda *SIM* e já te encaminho.`,
-            'Perfil Regular': `📉 *Perfil regular, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nAlguns pontos precisam ser ajustados para melhorar suas chances.\n\n🧑‍💼 Recomendo agendar uma consultoria com um especialista.\n\nResponda *SIM* para falar com um especialista.`,
-            'Requer Atenção': `⚠️ *Perfil requer atenção, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nÉ importante revisar seu perfil antes de iniciar o processo.\n\n🧑‍💼 Vou encaminhar seu caso para um especialista. Ele entrará em contato em breve.\n\n📱 Enquanto isso, fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)`
-        };
-
-        const msg = mensagens[classificacao] || `Olá ${nome.split(' ')[0]}! Sua avaliação foi *${classificacao}* com *${score}* pontos. Entre em contato para mais informações.`;
-        
-        if (cleanPhone) {
-            await enviarWhatsApp(cleanPhone, msg);
-            console.log('📱 Mensagem automática enviada para', cleanPhone);
-        }
-
-        // 4. Notificar especialista
-        const notificacao = `🔔 *Nova avaliação recebida!*\n\n` +
-            `👤 Nome: ${nome}\n` +
-            `📱 Telefone: ${telefone}\n` +
-            `📧 Email: ${email || 'Não informado'}\n` +
-            `📊 Classificação: ${classificacao}\n` +
-            `🎯 Score: ${score}/100\n` +
-            `📈 Situação: ${situacao_profissional}\n` +
-            `💵 Renda: ${renda}\n` +
-            `✈️ Histórico: ${historico_viagens}\n` +
-            `🎯 Propósito: ${proposito_viagem}\n\n` +
-            `Acesse o painel para ver mais detalhes.`;
-
-        await enviarWhatsApp(process.env.ADMIN_PHONE, notificacao);
-        console.log('📨 Notificação enviada para o especialista.');
-
-        res.json({ success: true, message: 'Avaliação recebida com sucesso!' });
-
-    } catch (error) {
-        console.error('❌ Erro ao processar avaliação:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// 5.8 HEALTH CHECKS (PÚBLICOS)
-app.get('/health', (req, res) => {
-    res.json({ status: 'OK', timestamp: new Date().toISOString(), supabase: !!supabase });
-});
-app.get('/ping', (req, res) => res.send('pong'));
-
-app.get('/api/status', (req, res) => {
-    res.json({
-        status: 'online',
-        port: PORT,
-        timestamp: new Date().toISOString(),
-        supabase: !!supabase,
-        routes: {
-            home: '/',
-            formulario: '/formulario-ds160',
-            submit: '/api/submit-ds160',
-            webhook: '/api/webhook/zapi',
-            agendamentos: '/api/agendamentos',
-            upload_pdf: '/api/agendamentos/upload-pdf',
-            health: '/health'
-        }
-    });
-});
-
-// ============================================================
-// 6. MIDDLEWARES DE LOG (APÓS ROTAS PÚBLICAS)
-// ============================================================
-app.use(auth.logAcesso);
-
-app.use((req, res, next) => {
-    console.log(`📨 ${req.method} ${req.url}`);
-    next();
-});
-
-// ============================================================
-// 7. ROTAS PROTEGIDAS (COM auth.verificarAdmin)
-// ============================================================
-
-// 7.1 ROTA PRINCIPAL - DASHBOARD (PROTEGIDA)
-app.get('/', auth.verificarAdmin, (req, res) => {
-    const dashboardPath = path.join(__dirname, 'public', 'index.html');
-    if (fs.existsSync(dashboardPath)) {
-        res.sendFile(dashboardPath);
-    } else {
-        res.redirect('/admin-login.html');
-    }
-});
-
-// 7.2 DASHBOARD CENTRAL (PROTEGIDO)
-app.get('/dashboard', auth.verificarAdmin, (req, res) => {
-    const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
-    if (fs.existsSync(dashboardPath)) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        res.sendFile(dashboardPath);
-    } else {
-        res.redirect('/painel');
-    }
-});
-
-// 7.3 ADMIN PANEL (PROTEGIDO)
-// ============================================================
-// ADMIN PANEL (PROTEGIDO) - VERSÃO FORÇADA
-// ============================================================
-app.get('/admin.html', auth.verificarAdmin, (req, res) => {
-    console.log('🔒 ROTA /admin.html ACESSADA - Autenticado:', req.admin?.authenticated || false);
-    
-    const adminPath = path.join(__dirname, 'public', 'admin.html');
-    console.log(`📁 Caminho: ${adminPath}`);
-    console.log(`📁 Existe: ${fs.existsSync(adminPath)}`);
-    
-    if (fs.existsSync(adminPath)) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        return res.sendFile(adminPath);
-    } else {
-        console.error('❌ admin.html não encontrado!');
-        return res.status(404).send(`
-            <h1>🔐 Admin Panel</h1>
-            <p>Arquivo admin.html não encontrado.</p>
-            <p>Caminho: ${adminPath}</p>
-            <a href="/">⬅️ Voltar ao Dashboard</a>
-        `);
-    }
-});
-
-// ============================================================
-// AGENDAMENTOS (REDIRECIONA PARA admin.html)
-// ============================================================
-app.get('/agendamentos', auth.verificarAdmin, (req, res) => {
-    console.log('🔒 ROTA /agendamentos ACESSADA - Redirecionando para admin.html');
-    res.redirect('/admin.html');
-});
-
-// 7.4 PAINEL PRINCIPAL - /painel (sem .html)
-app.get('/painel', auth.verificarAdmin, (req, res) => {
-    const painelPath = path.join(__dirname, 'public', 'painel-clientes.html');
-    
-    if (fs.existsSync(painelPath)) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.sendFile(painelPath);
-    } else {
-        // Fallback único
-        const fallback = path.join(__dirname, 'public', 'painel-novo.html');
-        if (fs.existsSync(fallback)) {
-            res.sendFile(fallback);
-        } else {
-            res.status(404).send(`
-                <h1>📊 Painel de Clientes</h1>
-                <p>Arquivo não encontrado.</p>
-                <p>Arquivos esperados:</p>
-                <ul>
-                    <li>painel-clientes.html</li>
-                    <li>painel-novo.html</li>
-                </ul>
-                <a href="/">⬅️ Voltar ao Dashboard</a>
-            `);
-        }
-    }
-});
-
-// 7.5 REDIRECIONAMENTO - /painel.html -> /painel
-app.get('/painel.html', auth.verificarAdmin, (req, res) => {
-    res.redirect('/painel');
-});
-
-// 7.6 REDIRECIONAMENTOS (PROTEGIDOS)
-app.get('/painel-antigo', auth.verificarAdmin, (req, res) => {
-    res.redirect('/painel');
-});
-
-app.get('/dashboard-antigo', auth.verificarAdmin, (req, res) => {
-    res.redirect('/painel');
-});
-
-// 7.7 PAINEL DE AGENDAMENTOS (PROTEGIDO)
+// 🔥 PAINEL DE AGENDAMENTOS (rota separada)
 app.get('/agendamentos', auth.verificarAdmin, (req, res) => {
     const adminPath = path.join(__dirname, 'public', 'admin.html');
     if (fs.existsSync(adminPath)) {
@@ -1051,25 +1223,9 @@ app.get('/agendamentos', auth.verificarAdmin, (req, res) => {
     }
 });
 
-// 7.8 UPLOAD DE PDF (PROTEGIDO - PÁGINA)
-app.get('/upload-casv-pdf', auth.verificarAdmin, (req, res) => {
-    const uploadPath = path.join(__dirname, 'public', 'upload-casv-pdf.html');
-    if (fs.existsSync(uploadPath)) {
-        res.sendFile(uploadPath);
-    } else {
-        res.status(404).send(`
-            <h1>📤 Página não encontrada</h1>
-            <p>Arquivo upload-casv-pdf.html não encontrado.</p>
-            <a href="/dashboard">Voltar ao Dashboard</a>
-        `);
-    }
-});
-
 // ============================================================
-// 8. ROTAS DE API (PROTEGIDAS COM auth.verificarApiKey)
+// LISTAR AGENDAMENTOS (API) - PÚBLICA COM AUTENTICAÇÃO
 // ============================================================
-
-// 8.1 LISTAR AGENDAMENTOS
 app.get('/api/agendamentos', auth.verificarApiKey, async (req, res) => {
     console.log('📨 GET /api/agendamentos chamada!');
     
@@ -1104,7 +1260,9 @@ app.get('/api/agendamentos', auth.verificarApiKey, async (req, res) => {
     }
 });
 
-// 8.2 LISTAR LEMBRETES
+// ============================================================
+// LISTAR LEMBRETES (API) - PÚBLICA COM AUTENTICAÇÃO
+// ============================================================
 app.get('/api/lembretes', auth.verificarApiKey, async (req, res) => {
     console.log('📨 GET /api/lembretes chamada!');
     
@@ -1139,1039 +1297,76 @@ app.get('/api/lembretes', auth.verificarApiKey, async (req, res) => {
     }
 });
 
-// 8.3 DADOS DO DASHBOARD
-app.get('/api/dashboard-data', auth.verificarApiKey, async (req, res) => {
-    try {
-        const { data: clientes, error: clientesError } = await supabase
-            .from('clientes')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-        if (clientesError) {
-            console.error('❌ Erro ao buscar clientes:', clientesError);
-            return res.status(500).json({ error: clientesError.message });
-        }
-
-        const { data: etapas, error: etapasError } = await supabase
-            .from('etapas_processo')
-            .select('cliente_id, etapa_atual, data_atualizacao');
-
-        if (etapasError) {
-            console.error('❌ Erro ao buscar etapas:', etapasError);
-            return res.status(500).json({ error: etapasError.message });
-        }
-
-        const etapasMap = {};
-        if (etapas) {
-            etapas.forEach(etapa => {
-                etapasMap[etapa.cliente_id] = {
-                    etapa_atual: etapa.etapa_atual,
-                    data_atualizacao: etapa.data_atualizacao
-                };
-            });
-        }
-
-        const clientesComEtapas = clientes.map(cliente => ({
-            ...cliente,
-            etapa_atual: etapasMap[cliente.telefone]?.etapa_atual || 'Não definida',
-            data_atualizacao: etapasMap[cliente.telefone]?.data_atualizacao || cliente.created_at
-        }));
-
-        const hoje = new Date().toISOString().split('T')[0];
-        const novosHoje = clientes.filter(c => c.created_at?.startsWith(hoje)).length;
-        const onboardingCompletos = clientes.filter(c => c.onboarding_completo === true).length;
-
-        res.json({
-            totalClientes: clientes.length,
-            novosHoje: novosHoje,
-            onboardingCompletos: onboardingCompletos,
-            clientes: clientesComEtapas
-        });
-
-    } catch (error) {
-        console.error('❌ Erro no dashboard:', error);
-        res.status(500).json({ error: error.message });
-    }
+// ============================================================
+// 10. HEALTH CHECKS (PÚBLICOS)
+// ============================================================
+app.get('/health', (req, res) => {
+    res.json({ status: 'OK', timestamp: new Date().toISOString(), supabase: !!supabase });
 });
 
-// 8.4 LISTAR CLIENTES ATIVOS
-app.get('/api/clientes/ativos', auth.verificarApiKey, async (req, res) => {
-    try {
-        const { data, error } = await supabase
-            .from('clientes_ativos')
-            .select('telefone, nome')
-            .order('criado_em', { ascending: false });
+app.get('/ping', (req, res) => res.send('pong'));
 
-        if (error) {
-            console.error('Erro ao buscar ativos:', error);
-            return res.status(500).json({ success: false, message: error.message });
+app.get('/api/status', (req, res) => {
+    res.json({
+        status: 'online',
+        port: PORT,
+        timestamp: new Date().toISOString(),
+        supabase: !!supabase,
+        routes: {
+            home: '/',
+            formulario: '/formulario-ds160',
+            submit: '/api/submit-ds160',
+            webhook: '/api/webhook/zapi',
+            agendamentos: '/api/agendamentos',
+            upload_pdf: '/api/agendamentos/upload-pdf',
+            health: '/health'
         }
-
-        res.json({
-            success: true,
-            ativos: data || []
-        });
-
-    } catch (error) {
-        console.error('Erro ao buscar ativos:', error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// 8.5 LISTAR CLIENTES FINALIZADOS
-app.get('/api/clientes/finalizados', auth.verificarApiKey, async (req, res) => {
-    try {
-        console.log('📌 [GET] /api/clientes/finalizados');
-
-        const { data, error } = await supabase
-            .from('clientes_finalizados')
-            .select('*')
-            .order('data_finalizacao', { ascending: false });
-
-        if (error) {
-            console.error('❌ Erro no Supabase:', error);
-            return res.status(500).json({
-                success: false,
-                error: error.message
-            });
-        }
-
-        console.log(`✅ ${data?.length || 0} clientes finalizados encontrados`);
-
-        res.json({
-            success: true,
-            finalizados: data || []
-        });
-
-    } catch (error) {
-        console.error('❌ Erro ao buscar finalizados:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// 8.6 BUSCAR CLIENTE POR TELEFONE
-app.get('/api/clientes/buscar/:telefone', auth.verificarApiKey, async (req, res) => {
-    try {
-        const telefone = req.params.telefone;
-        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
-
-        console.log(`🔍 Buscando cliente: ${telefoneLimpo}`);
-
-        const { data, error } = await supabase
-            .from('clientes')
-            .select('*')
-            .eq('telefone', telefoneLimpo)
-            .maybeSingle();
-
-        if (error) {
-            console.error('❌ Erro:', error);
-            return res.status(500).json({
-                success: false,
-                error: error.message
-            });
-        }
-
-        if (!data) {
-            return res.status(404).json({
-                success: false,
-                error: 'Cliente não encontrado'
-            });
-        }
-
-        res.json({
-            success: true,
-            cliente: data
-        });
-
-    } catch (error) {
-        console.error('❌ Erro:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// 8.7 ESTATÍSTICAS DE ETAPAS
-app.get('/api/etapas/estatisticas', auth.verificarApiKey, async (req, res) => {
-    try {
-        const { data, error } = await supabase.from('etapas_processo').select('etapa_atual');
-        if (error) throw error;
-
-        const estatisticas = {};
-        const total = data.length;
-        data.forEach(function(item) {
-            if (!estatisticas[item.etapa_atual]) estatisticas[item.etapa_atual] = 0;
-            estatisticas[item.etapa_atual]++;
-        });
-
-        const resultado = Object.keys(estatisticas).map(function(etapa) {
-            return {
-                etapa: etapa,
-                label: ETAPAS[etapa] && ETAPAS[etapa].label || etapa,
-                quantidade: estatisticas[etapa],
-                porcentagem: total > 0 ? ((estatisticas[etapa] / total) * 100).toFixed(2) : 0
-            };
-        });
-
-        res.json({
-            total_clientes_ativos: total,
-            distribuicao: resultado,
-            ultima_atualizacao: new Date().toISOString()
-        });
-    } catch (error) {
-        console.error('Erro ao buscar estatísticas:', error);
-        res.status(500).json({ erro: 'Erro ao buscar estatisticas' });
-    }
+    });
 });
 
 // ============================================================
-// 9. ROTAS ADMINISTRATIVAS (COM ADMIN_API_KEY)
+// 9. CONSTANTES DO BOT
 // ============================================================
 
-// 9.1 REGENERAR PDF
-app.post('/api/admin/regenerar-pdf', async function(req, res) {
-    try {
-        const adminKey = req.headers['x-admin-key'];
-        if (adminKey !== ADMIN_API_KEY) {
-            return res.status(401).json({ error: 'Não autorizado' });
-        }
+const ONBOARDING_STEPS = {
+    SAUDACAO: 'saudacao',
+    AGUARDANDO_NOME: 'aguardando_nome',
+    AGUARDANDO_EMAIL: 'aguardando_email',
+    CONFIRMACAO: 'confirmacao',
+    COMPLETO: 'completo'
+};
 
-        const { telefone, email, enviar_whatsapp } = req.body;
-
-        if (!telefone) {
-            return res.status(400).json({ error: 'Telefone é obrigatório' });
-        }
-
-        console.log(`📌 Regenerando PDF para telefone: ${telefone}`);
-
-        const telefoneLimpo = limparTelefone(telefone);
-
-        const { data: cliente, error } = await supabase
-            .from('clientes_ativos')
-            .select('*')
-            .eq('telefone', telefoneLimpo)
-            .maybeSingle();
-
-        if (error) {
-            console.error('❌ Erro ao buscar cliente:', error);
-            return res.status(500).json({ error: error.message });
-        }
-
-        if (!cliente) {
-            return res.status(404).json({ error: 'Cliente não encontrado em clientes_ativos' });
-        }
-
-        const { data: formulario, error: formError } = await supabase
-            .from('formularios_ds160')
-            .select('*')
-            .eq('telefone', telefoneLimpo)
-            .maybeSingle();
-
-        if (formError) {
-            console.error('❌ Erro ao buscar formulário:', formError);
-        }
-
-        if (!formulario) {
-            return res.status(404).json({
-                error: 'Dados do formulário não encontrados.'
-            });
-        }
-
-        const pdfBuffer = await gerarPDF_DS160(formulario);
-        console.log(`📄 PDF regenerado para ${cliente.nome}, tamanho: ${pdfBuffer.length} bytes`);
-
-        if (email) {
-            await resend.emails.send({
-                from: 'GetVisa <contato@getvisa.com.br>',
-                to: [email],
-                subject: 'PDF Regenerado - DS-160 ' + cliente.nome,
-                html: '<strong>Olá!</strong><br><p>Segue o PDF regenerado com os dados completos do formulário DS-160.</p>',
-                attachments: [{
-                    filename: 'DS160_' + cliente.nome.replace(/[^a-z0-9]/gi, '_') + '.pdf',
-                    content: pdfBuffer.toString('base64')
-                }]
-            });
-            console.log('📧 PDF enviado por e-mail para:', email);
-        }
-
-        if (enviar_whatsapp) {
-            try {
-                const nomeCliente = cliente.nome.split(' ')[0];
-                await enviarPDFWhatsApp(telefoneLimpo, pdfBuffer, nomeCliente);
-                console.log('📱 PDF enviado por WhatsApp para:', telefoneLimpo);
-            } catch (err) {
-                console.error('❌ Erro ao enviar PDF por WhatsApp:', err);
-            }
-        }
-
-        const pastaPDFs = path.join(__dirname, 'pdfs_regenerados');
-
-        if (!fs.existsSync(pastaPDFs)) {
-            fs.mkdirSync(pastaPDFs, { recursive: true });
-        }
-
-        const nomeArquivo = `DS160_${cliente.nome.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.pdf`;
-        const caminhoArquivo = path.join(pastaPDFs, nomeArquivo);
-        fs.writeFileSync(caminhoArquivo, pdfBuffer);
-
-        console.log(`💾 PDF salvo em: ${caminhoArquivo}`);
-
-        res.json({
-            success: true,
-            message: 'PDF regenerado com sucesso!',
-            cliente: {
-                nome: cliente.nome,
-                telefone: cliente.telefone
-            },
-            pdf_gerado: true,
-            email_enviado: !!email,
-            whatsapp_enviado: !!enviar_whatsapp,
-            arquivo_salvo: caminhoArquivo
-        });
-
-    } catch (error) {
-        console.error('❌ Erro ao regenerar PDF:', error);
-        res.status(500).json({
-            error: 'Erro ao regenerar PDF',
-            detalhe: error.message
-        });
+const BOAS_VINDAS_MESSAGES = {
+    primeira_saudacao: [
+        '👋 Olá! Seja muito bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸\n\nSomos especialistas em vistos americanos e estamos aqui para realizar seu sonho de viajar para os EUA! ✈️',
+        '🌟 Bem-vindo(a) à **GetVisa**! Sua jornada para o visto americano começa aqui! 🇺🇸\n\nNossa equipe de especialistas vai te acompanhar em cada etapa do processo.',
+        '🎉 Olá! É um prazer ter você aqui na **GetVisa**! ✈️\n\nEstamos prontos para ajudar você a conquistar seu visto americano com segurança e tranquilidade.'
+    ],
+    solicitar_nome: [
+        'Para começarmos seu atendimento de forma personalizada, preciso saber:\n\n📝 **Qual é o seu nome completo?**\n\nEx: Maria Silva',
+        'Vamos iniciar seu processo! Primeiro, me diga:\n\n📝 **Qual é é o seu nome completo?**\n\nEx: João Santos',
+        'Que tal nos conhecermos melhor? Me diga seu nome completo para eu te chamar corretamente!\n\n📝 **Qual é o seu nome?**\n\nEx: Ana Oliveira'
+    ],
+    nome_invalido: [
+        '🤔 Hmm, parece que não entendi bem seu nome. Poderia digitar novamente?\n\nEx: Maria Silva',
+        '😅 Desculpe, não consegui identificar seu nome. Tente novamente no formato:\n\nEx: João Santos',
+        '📝 Para um atendimento personalizado, preciso do seu nome completo.\n\nEx: Ana Oliveira'
+    ],
+    confirmacao_nome: {
+        parte1: [
+            '😊 Prazer, ',
+            '🌟 Muito prazer, ',
+            '✨ Tudo bem? ',
+            '🎯 Ótimo, '
+        ],
+        parte2: [
+            '! Agora me diga:\n\n📧 **Qual é o seu e-mail?**\n\nEx: maria@email.com',
+            '! Para enviarmos as informações do seu processo, preciso do seu e-mail:\n\n📧 **Qual é o seu e-mail?**\n\nEx: joao@email.com',
+            '! Vamos continuar! Me informe seu e-mail para contato:\n\n📧 **Qual é o seu e-mail?**\n\nEx: ana@email.com'
+        ]
     }
-});
+};
 
-// 9.2 BUSCAR FORMULÁRIO
-app.get('/api/admin/buscar-formulario/:telefone', async function(req, res) {
-    try {
-        const adminKey = req.headers['x-admin-key'];
-        if (adminKey !== ADMIN_API_KEY) {
-            return res.status(401).json({ error: 'Não autorizado' });
-        }
-
-        const telefone = req.params.telefone;
-        const telefoneLimpo = limparTelefone(telefone);
-
-        const tabelas = ['formularios_ds160', 'clientes_ativos', 'clientes'];
-        let dados = null;
-        let encontradoEm = null;
-
-        for (const tabela of tabelas) {
-            try {
-                const { data, error } = await supabase
-                    .from(tabela)
-                    .select('*')
-                    .eq('telefone', telefoneLimpo)
-                    .maybeSingle();
-
-                if (!error && data) {
-                    dados = data;
-                    encontradoEm = tabela;
-                    break;
-                }
-            } catch (e) {
-                console.log(`Tabela ${tabela} não encontrada ou erro:`, e.message);
-            }
-        }
-
-        if (!dados) {
-            return res.status(404).json({
-                error: 'Dados do formulário não encontrados em nenhuma tabela'
-            });
-        }
-
-        res.json({
-            success: true,
-            encontrado_em: encontradoEm,
-            dados: dados
-        });
-
-    } catch (error) {
-        console.error('❌ Erro ao buscar formulário:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// 9.3 ATUALIZAR STATUS DO CLIENTE
-app.post('/api/admin/atualizar-status', async (req, res) => {
-    try {
-        const adminKey = req.headers['x-admin-key'];
-        if (adminKey !== ADMIN_API_KEY) {
-            return res.status(401).json({ error: 'Não autorizado' });
-        }
-
-        const { telefone, status, observacao } = req.body;
-
-        if (!telefone || !status) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Telefone e status são obrigatórios' 
-            });
-        }
-
-        const { data: cliente, error: buscaError } = await supabase
-            .from('clientes')
-            .select('*')
-            .eq('telefone', telefone)
-            .maybeSingle();
-
-        if (buscaError || !cliente) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Cliente não encontrado' 
-            });
-        }
-
-        const resultado = await atualizarStatusCliente(telefone, status, { 
-            updated_at: new Date().toISOString()
-        });
-
-        if (resultado.success) {
-            res.json({
-                success: true,
-                message: `Status atualizado para "${status}"`,
-                cliente: resultado.data
-            });
-        } else {
-            res.status(500).json({
-                success: false,
-                message: 'Erro ao atualizar status',
-                error: resultado.error
-            });
-        }
-
-    } catch (error) {
-        console.error('❌ Erro ao atualizar status:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: error.message 
-        });
-    }
-});
-
-// 9.4 ATUALIZAR TREINAMENTO
-app.post('/api/admin/atualizar-treinamento', async (req, res) => {
-    try {
-        const adminKey = req.headers['x-admin-key'];
-        if (adminKey !== ADMIN_API_KEY) {
-            return res.status(401).json({ error: 'Não autorizado' });
-        }
-
-        const { 
-            telefone, 
-            treinamento_data, 
-            treinamento_hora, 
-            treinamento_local, 
-            treinamento_modalidade, 
-            treinamento_link 
-        } = req.body;
-
-        if (!telefone) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Telefone é obrigatório' 
-            });
-        }
-
-        const { data: cliente } = await supabase
-            .from('clientes')
-            .select('nome')
-            .eq('telefone', telefone)
-            .maybeSingle();
-
-        const treinamento = {
-            data: treinamento_data,
-            hora: treinamento_hora,
-            local: treinamento_local,
-            modalidade: treinamento_modalidade || 'presencial',
-            link: treinamento_link || null
-        };
-
-        const resultado = await salvarTreinamento(telefone, treinamento);
-
-        if (!resultado.success) {
-            return res.status(500).json({ 
-                success: false, 
-                error: resultado.error 
-            });
-        }
-
-        const nome = cliente?.nome || 'Cliente';
-        await enviarNotificacaoEtapa(telefone, 'treinamento_agendado', { nome });
-
-        res.json({
-            success: true,
-            message: 'Treinamento atualizado com sucesso!',
-            data: resultado.data
-        });
-
-    } catch (error) {
-        console.error('❌ Erro ao atualizar treinamento:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
-    }
-});
-
-// 9.5 FINALIZAR CLIENTE
-app.post('/api/clientes/finalizar', async function(req, res) {
-    try {
-        const adminKey = req.headers['x-admin-key'];
-        if (adminKey !== ADMIN_API_KEY) {
-            return res.status(401).json({ error: 'Não autorizado' });
-        }
-
-        const telefone = req.body.telefone;
-        const resultado = req.body.resultado || 'aprovado';
-        const observacoes = req.body.observacoes || '';
-        const servico = req.body.servico || 'Visto Americano';
-        const email = req.body.email || '';
-
-        if (!telefone) {
-            return res.status(400).json({ erro: 'Telefone é obrigatório' });
-        }
-
-        console.log(`📌 Finalizando cliente ${telefone}: ${resultado}`);
-
-        const { data: cliente, error } = await supabase
-            .from('clientes_ativos')
-            .select('*')
-            .eq('telefone', telefone)
-            .maybeSingle();
-
-        if (error) {
-            return res.status(500).json({ erro: error.message });
-        }
-
-        if (!cliente) {
-            return res.status(404).json({ erro: 'Cliente não encontrado em clientes_ativos' });
-        }
-
-        const { data: insertData, error: insertError } = await supabase
-            .from('clientes_finalizados')
-            .insert({
-                telefone: cliente.telefone,
-                nome: cliente.nome,
-                email: email || null,
-                servico: servico,
-                data_inicio: cliente.criado_em || new Date().toISOString(),
-                data_finalizacao: new Date().toISOString(),
-                observacoes: observacoes || `Processo finalizado com ${resultado}`,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            })
-            .select()
-            .single();
-
-        if (insertError) {
-            const { data: updateData, error: updateError } = await supabase
-                .from('clientes_finalizados')
-                .update({
-                    servico: servico,
-                    data_finalizacao: new Date().toISOString(),
-                    observacoes: observacoes || `Processo finalizado com ${resultado}`,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('telefone', telefone)
-                .select()
-                .single();
-
-            if (updateError) {
-                return res.status(500).json({ erro: updateError.message });
-            }
-            finalizado = updateData;
-        } else {
-            finalizado = insertData;
-        }
-
-        await supabase
-            .from('clientes_ativos')
-            .delete()
-            .eq('telefone', telefone);
-
-        await supabase
-            .from('clientes')
-            .delete()
-            .eq('telefone', telefone);
-
-        await supabase
-            .from('contatos_amigos')
-            .delete()
-            .eq('telefone', telefone);
-
-        console.log(`✅ Cliente ${telefone} finalizado e movido para clientes_finalizados`);
-
-        try {
-            const nomeCliente = cliente.nome && !cliente.nome.startsWith('Cliente_')
-                ? cliente.nome.split(' ')[0]
-                : 'Cliente';
-
-            let mensagem = '';
-            if (resultado === 'recusado') {
-                mensagem = `😔 Olá ${nomeCliente}!\n\n` +
-                          `Sabemos que essa notícia dói, ainda mais depois de tanta dedicação na preparação.\n\n` +
-                          `É importante entender: a decisão final do visto acontece no momento da entrevista, e depende muito da avaliação pessoal do oficial consular naquele instante — algo que vai além da documentação e da preparação, por mais completa que tenha sido.\n\n` +
-                          `🔍 Vamos analisar com você os detalhes da entrevista para entender o que pesou na decisão e ajustar a estratégia para a próxima tentativa.\n\n` +
-                          `📱 Fale com a gente agora para uma análise gratuita:\n` +
-                          `[Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
-                          `💪 Isso não muda o seu objetivo. Vamos trabalhar juntos para reverter esse cenário!`;
-            } else {
-                mensagem = `🎉 PARABÉNS, ${nomeCliente}! 🎉\n\n` +
-                          `Seu passaporte com o visto foi retornado!\n\n` +
-                          `✅ Seu processo foi concluído com sucesso!\n\n` +
-                          `🌟 Agradecemos por confiar na GetVisa Assessoria!\n\n` +
-                          `✈️ Boa viagem! Vá realizar seus sonhos!`;
-            }
-
-            await enviarWhatsApp(telefone, mensagem);
-            console.log(`✅ Mensagem de finalização enviada para ${telefone}`);
-        } catch (err) {
-            console.error(`❌ Erro ao enviar mensagem de finalização:`, err);
-        }
-
-        res.json({
-            success: true,
-            message: `Cliente finalizado com ${resultado}`,
-            cliente: finalizado
-        });
-
-    } catch (error) {
-        console.error('❌ Erro ao finalizar cliente:', error);
-        res.status(500).json({
-            erro: 'Erro ao finalizar cliente',
-            detalhe: error.message
-        });
-    }
-});
-
-// 9.6 REABRIR CLIENTE
-app.post('/api/clientes/reabrir', async function(req, res) {
-    try {
-        const adminKey = req.headers['x-admin-key'];
-        if (adminKey !== ADMIN_API_KEY) {
-            return res.status(401).json({ error: 'Não autorizado' });
-        }
-
-        const telefone = req.body.telefone;
-        console.log(`📌 [POST] /api/clientes/reabrir`);
-        console.log(`📌 Telefone: ${telefone}`);
-
-        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
-        console.log(`🔄 Reabrindo: ${telefoneLimpo}`);
-
-        let { data: cliente, error } = await supabase
-            .from('clientes_finalizados')
-            .select('*')
-            .eq('telefone', telefoneLimpo)
-            .maybeSingle();
-
-        if (!cliente) {
-            const telefoneFormatado = formatarTelefone(telefoneLimpo);
-            console.log(`🔍 Tentando formato: ${telefoneFormatado}`);
-
-            const { data: dataFormatado } = await supabase
-                .from('clientes_finalizados')
-                .select('*')
-                .eq('telefone', telefoneFormatado)
-                .maybeSingle();
-            cliente = dataFormatado;
-        }
-
-        if (error) {
-            console.error('❌ Erro:', error);
-            return res.status(500).json({
-                success: false,
-                error: error.message
-            });
-        }
-
-        if (!cliente) {
-            console.log(`❌ Cliente não encontrado em finalizados`);
-            return res.status(404).json({
-                success: false,
-                error: 'Cliente não encontrado em finalizados'
-            });
-        }
-
-        console.log(`✅ Cliente encontrado: ${cliente.nome}`);
-
-        const { data: existente } = await supabase
-            .from('clientes_ativos')
-            .select('telefone')
-            .eq('telefone', cliente.telefone)
-            .maybeSingle();
-
-        if (existente) {
-            console.log(`⚠️ Cliente já existe em ativos, removendo...`);
-            await supabase
-                .from('clientes_ativos')
-                .delete()
-                .eq('telefone', cliente.telefone);
-        }
-
-        const { data: insertData, error: insertError } = await supabase
-            .from('clientes_ativos')
-            .insert({
-                telefone: cliente.telefone,
-                nome: cliente.nome,
-                email: cliente.email || null,
-                criado_em: cliente.data_inicio || new Date().toISOString(),
-                atualizado_em: new Date().toISOString(),
-                status: 'reaberto'
-            })
-            .select()
-            .single();
-
-        if (insertError) {
-            console.error('❌ Erro ao inserir em ativos:', insertError);
-            return res.status(500).json({
-                success: false,
-                error: insertError.message
-            });
-        }
-
-        console.log(`✅ Cliente inserido em clientes_ativos`);
-
-        await supabase
-            .from('clientes_finalizados')
-            .delete()
-            .eq('telefone', cliente.telefone);
-
-        console.log(`🗑️ Cliente removido de clientes_finalizados`);
-
-        try {
-            await criarEtapaInicial(telefoneLimpo);
-            console.log(`✅ Etapa inicial criada`);
-        } catch (err) {
-            console.error('❌ Erro ao criar etapa:', err);
-        }
-
-        try {
-            const nomeCliente = cliente.nome && !cliente.nome.startsWith('Cliente_')
-                ? cliente.nome.split(' ')[0]
-                : 'Cliente';
-
-            const mensagem = `🔄 Olá ${nomeCliente}!\n\n` +
-                           `Seu processo foi REABERTO pela nossa equipe.\n\n` +
-                           `📋 Status: Em andamento\n` +
-                           `📍 Etapa atual: Formulário recebido\n\n` +
-                           `Em breve nossa equipe entrará em contato com os próximos passos.\n\n` +
-                           `📱 Dúvidas? Fale conosco pelo WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812)`;
-
-            await enviarWhatsApp(cliente.telefone, mensagem);
-            console.log(`✅ Mensagem de reabertura enviada`);
-        } catch (err) {
-            console.error('❌ Erro ao enviar mensagem:', err);
-        }
-
-        console.log(`✅ Processo reaberto com sucesso!`);
-
-        res.json({
-            success: true,
-            message: 'Processo reaberto com sucesso',
-            cliente: insertData
-        });
-
-    } catch (error) {
-        console.error('❌ Erro ao reabrir processo:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// 9.7 NOTIFICAR CLIENTE
-app.post('/api/admin/notificar-cliente', async function(req, res) {
-    try {
-        const adminKey = req.headers['x-admin-key'];
-        if (adminKey !== ADMIN_API_KEY) {
-            return res.status(401).json({ error: 'Não autorizado' });
-        }
-
-        const { telefone, mensagem } = req.body;
-
-        if (!telefone) {
-            return res.status(400).json({ error: 'Telefone é obrigatório' });
-        }
-
-        console.log(`📨 Enviando notificação para: ${telefone}`);
-
-        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
-
-        let cliente = null;
-        const { data: clienteAtivo } = await supabase
-            .from('clientes_ativos')
-            .select('*')
-            .eq('telefone', telefone)
-            .maybeSingle();
-
-        if (clienteAtivo) {
-            cliente = clienteAtivo;
-        } else {
-            const { data: clienteLimpo } = await supabase
-                .from('clientes_ativos')
-                .select('*')
-                .eq('telefone', telefoneLimpo)
-                .maybeSingle();
-            cliente = clienteLimpo;
-        }
-
-        if (!cliente) {
-            return res.status(404).json({
-                error: 'Cliente não encontrado em clientes_ativos',
-                telefone_buscado: telefone,
-                telefone_limpo: telefoneLimpo
-            });
-        }
-
-        const nomeCliente = cliente.nome && !cliente.nome.startsWith('Cliente_')
-            ? cliente.nome.split(' ')[0]
-            : 'Cliente';
-
-        const texto = mensagem || `🎉 Olá ${nomeCliente}!\n\n` +
-                     `Seu processo foi iniciado com sucesso na GetVisa Assessoria!\n\n` +
-                     `📋 Status: Em andamento\n` +
-                     `📍 Etapa atual: Formulário recebido\n\n` +
-                     `Em breve nossa equipe entrará em contato com os próximos passos.\n\n` +
-                     `📱 Dúvidas? Fale conosco pelo WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
-                     `🌟 Estamos aqui para ajudar você a realizar seu sonho de viajar!`;
-
-        const enviado = await enviarWhatsApp(telefone, texto);
-
-        res.json({
-            success: true,
-            telefone: telefone,
-            cliente: {
-                nome: cliente.nome,
-                criado_em: cliente.criado_em
-            },
-            notificacao_enviada: enviado,
-            mensagem: texto
-        });
-
-    } catch (error) {
-        console.error('❌ Erro ao notificar cliente:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// 9.8 VERIFICAR CLIENTE
-app.get('/api/admin/verificar-cliente/:telefone', async function(req, res) {
-    try {
-        const adminKey = req.headers['x-admin-key'];
-        if (adminKey !== ADMIN_API_KEY) {
-            return res.status(401).json({ error: 'Não autorizado' });
-        }
-
-        const telefone = req.params.telefone;
-        console.log(`🔍 Verificando cliente: ${telefone}`);
-
-        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
-
-        const tables = ['clientes', 'clientes_ativos', 'clientes_finalizados', 'contatos_amigos'];
-        const results = {};
-
-        for (const table of tables) {
-            const { data, error } = await supabase
-                .from(table)
-                .select('*')
-                .eq('telefone', telefone)
-                .maybeSingle();
-
-            if (!error && data) {
-                results[table] = data;
-            }
-
-            if (!results[table]) {
-                const { data: dataLimpo } = await supabase
-                    .from(table)
-                    .select('*')
-                    .eq('telefone', telefoneLimpo)
-                    .maybeSingle();
-
-                if (dataLimpo) {
-                    results[table] = dataLimpo;
-                }
-            }
-        }
-
-        let etapa = null;
-        if (results['clientes_ativos']) {
-            const { data } = await supabase
-                .from('etapas_processo')
-                .select('*')
-                .eq('cliente_telefone', telefone)
-                .maybeSingle();
-
-            if (!data) {
-                const { data: dataLimpo } = await supabase
-                    .from('etapas_processo')
-                    .select('*')
-                    .eq('cliente_telefone', telefoneLimpo)
-                    .maybeSingle();
-                etapa = dataLimpo;
-            } else {
-                etapa = data;
-            }
-        }
-
-        res.json({
-            success: true,
-            telefone_buscado: telefone,
-            telefone_limpo: telefoneLimpo,
-            encontrado_em: Object.keys(results).filter(k => results[k]),
-            dados: results,
-            etapa: etapa
-        });
-
-    } catch (error) {
-        console.error('❌ Erro ao verificar cliente:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// 9.9 TESTE Z-API
-app.get('/api/test/zapi', async function(req, res) {
-    try {
-        const adminKey = req.headers['x-admin-key'];
-        if (adminKey !== ADMIN_API_KEY) {
-            return res.status(401).json({ error: 'Não autorizado' });
-        }
-
-        const testPhone = process.env.ADMIN_PHONE || '5521974601812';
-        const testMessage = '🧪 Teste de conexão Z-API - ' + new Date().toLocaleString('pt-BR');
-
-        console.log(`📨 Testando Z-API para: ${testPhone}`);
-        const result = await enviarWhatsApp(testPhone, testMessage);
-
-        res.json({
-            success: result,
-            message: result ? '✅ Mensagem enviada com sucesso!' : '❌ Falha ao enviar mensagem',
-            phone: testPhone,
-            timestamp: new Date().toISOString()
-        });
-    } catch (error) {
-        console.error('❌ Erro no teste Z-API:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// 9.10 AGENDAR TREINAMENTO
-app.post('/api/agendar-treinamento', async (req, res) => {
-    try {
-        const adminKey = req.headers['x-admin-key'];
-        if (adminKey !== ADMIN_API_KEY) {
-            return res.status(401).json({ error: 'Não autorizado' });
-        }
-
-        const { cliente_id, entrevista_id, tipo, data, horario } = req.body;
-
-        if (!cliente_id || !data || !horario) {
-            return res.status(400).json({ success: false, message: 'Dados incompletos' });
-        }
-
-        const { data: cliente, error: clienteError } = await supabase
-            .from('clientes')
-            .select('id')
-            .eq('id', cliente_id)
-            .single();
-
-        if (clienteError || !cliente) {
-            return res.status(404).json({ success: false, message: 'Cliente não encontrado' });
-        }
-
-        const novoAgendamento = {
-            cliente_id: cliente_id,
-            atividade: 'Treinamento',
-            data_agendamento: data,
-            hora_agendamento: horario,
-            local_agendamento: tipo,
-            observacoes: `Treinamento para entrevista. Tipo: ${tipo}. Entrevista ID: ${entrevista_id || 'N/A'}`,
-            concluido: false
-        };
-
-        const { data: agendamento, error } = await supabase
-            .from('agendamentos')
-            .insert([novoAgendamento])
-            .select()
-            .single();
-
-        if (error) {
-            console.error('❌ Erro ao criar treinamento:', error);
-            return res.status(500).json({ success: false, message: error.message });
-        }
-
-        try {
-            const lembretesService = require('./services/lembretes.service');
-            await lembretesService.generateRemindersForCompromisso(agendamento);
-        } catch (e) {
-            console.log('⚠️ Erro ao gerar lembretes para treinamento:', e.message);
-        }
-
-        try {
-            const { data: clienteCompleto } = await supabase
-                .from('clientes')
-                .select('nome, telefone')
-                .eq('id', cliente_id)
-                .single();
-
-            if (clienteCompleto?.telefone) {
-                const mensagem = 
-                    `✅ *TREINAMENTO AGENDADO - GETVISA*\n\n` +
-                    `Olá *${clienteCompleto.nome}*!\n\n` +
-                    `Seu treinamento para a entrevista foi agendado com sucesso!\n\n` +
-                    `📅 Data: ${new Date(data).toLocaleDateString('pt-BR')}\n` +
-                    `⏰ Hora: ${horario}\n` +
-                    `📍 Tipo: ${tipo}\n\n` +
-                    `📌 Em breve nossa equipe entrará em contato para confirmar.\n\n` +
-                    `🌟 Equipe GetVisa`;
-                
-                await enviarWhatsApp(clienteCompleto.telefone, mensagem);
-            }
-        } catch (e) {
-            console.log('⚠️ Erro ao enviar confirmação do treinamento:', e.message);
-        }
-
-        res.json({ success: true, message: 'Treinamento agendado com sucesso!', data: agendamento });
-
-    } catch (error) {
-        console.error('❌ Erro ao agendar treinamento:', error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// ============================================================
-// 10. ARQUIVOS ESTÁTICOS (DEVE SER O ÚLTIMO ANTES DAS ROTAS DE FALLBACK)
-// ============================================================
-const publicPath = path.join(__dirname, 'public');
-if (fs.existsSync(publicPath)) {
-    app.use(express.static(publicPath));
-    console.log('✅ Pasta public configurada:', publicPath);
-} else {
-    console.warn('⚠️ Pasta public não encontrada. Criando...');
-    fs.mkdirSync(publicPath, { recursive: true });
-    app.use(express.static(publicPath));
-}
-
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// ============================================================
-// 11. CONSTANTES E MAPEAMENTOS (DEFINIDOS UMA ÚNICA VEZ)
-// ============================================================
-
-// MAPEAMENTO DE ETAPAS
 const ETAPAS = {
     formulario_enviado: {
         id: 'formulario_enviado',
@@ -2241,25 +1436,6 @@ const ETAPAS = {
     }
 };
 
-// ETAPA LABELS
-const ETAPA_LABELS = {
-    'formulario_enviado': '📋 Formulário Enviado',
-    'analise_correcoes': '🔍 Análise e Correções',
-    'abertura_processo': '📌 Processo Aberto',
-    'boleto_emitido': '💰 Boleto Emitido',
-    'boleto_pago': '✅ Boleto Pago',
-    'agendado_casv': '📅 CASV Agendado',
-    'treinamento_agendado': '🎯 Treinamento Agendado',
-    'treinamento_realizado': '✅ Treinamento Realizado',
-    'agendado_entrevista': '🎤 Entrevista Agendada',
-    'entrevista_realizada': '🎤 Entrevista Realizada',
-    'visto_aprovado': '🎉 Visto Aprovado',
-    'passaporte_retornado': '📦 Passaporte Retornado',
-    'visto_recusado': '😔 Visto Recusado',
-    'finalizado': '🏁 Processo Finalizado'
-};
-
-// RADIO MAPPING
 const RADIO_MAPPING = {
     'one': 'Sim',
     'two': 'Nao',
@@ -2304,44 +1480,7 @@ const DATE_FIELDS = [
     'text-45', 'military_date_from', 'military_date_to', 'antecedentes_data'
 ];
 
-const ONBOARDING_STEPS = {
-    SAUDACAO: 'saudacao',
-    AGUARDANDO_NOME: 'aguardando_nome',
-    AGUARDANDO_EMAIL: 'aguardando_email',
-    CONFIRMACAO: 'confirmacao',
-    COMPLETO: 'completo'
-};
-
-const BOAS_VINDAS_MESSAGES = {
-    primeira_saudacao: [
-        '👋 Olá! Seja muito bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸\n\nSomos especialistas em vistos americanos e estamos aqui para realizar seu sonho de viajar para os EUA! ✈️',
-        '🌟 Bem-vindo(a) à **GetVisa**! Sua jornada para o visto americano começa aqui! 🇺🇸\n\nNossa equipe de especialistas vai te acompanhar em cada etapa do processo.',
-        '🎉 Olá! É um prazer ter você aqui na **GetVisa**! ✈️\n\nEstamos prontos para ajudar você a conquistar seu visto americano com segurança e tranquilidade.'
-    ],
-    solicitar_nome: [
-        'Para começarmos seu atendimento de forma personalizada, preciso saber:\n\n📝 **Qual é o seu nome completo?**\n\nEx: Maria Silva',
-        'Vamos iniciar seu processo! Primeiro, me diga:\n\n📝 **Qual é é o seu nome completo?**\n\nEx: João Santos',
-        'Que tal nos conhecermos melhor? Me diga seu nome completo para eu te chamar corretamente!\n\n📝 **Qual é o seu nome?**\n\nEx: Ana Oliveira'
-    ],
-    nome_invalido: [
-        '🤔 Hmm, parece que não entendi bem seu nome. Poderia digitar novamente?\n\nEx: Maria Silva',
-        '😅 Desculpe, não consegui identificar seu nome. Tente novamente no formato:\n\nEx: João Santos',
-        '📝 Para um atendimento personalizado, preciso do seu nome completo.\n\nEx: Ana Oliveira'
-    ],
-    confirmacao_nome: {
-        parte1: [
-            '😊 Prazer, ',
-            '🌟 Muito prazer, ',
-            '✨ Tudo bem? ',
-            '🎯 Ótimo, '
-        ],
-        parte2: [
-            '! Agora me diga:\n\n📧 **Qual é o seu e-mail?**\n\nEx: maria@email.com',
-            '! Para enviarmos as informações do seu processo, preciso do seu e-mail:\n\n📧 **Qual é o seu e-mail?**\n\nEx: joao@email.com',
-            '! Vamos continuar! Me informe seu e-mail para contato:\n\n📧 **Qual é o seu e-mail?**\n\nEx: ana@email.com'
-        ]
-    }
-};
+const SPAM_DOMAINS = ['tempmail', 'mailinator', '10minutemail', 'guerrillamail', 'throwaway', 'fake', 'spam'];
 
 const FEATURES = {
     SISTEMA_ETAPAS: {
@@ -2351,10 +1490,8 @@ const FEATURES = {
     }
 };
 
-const SPAM_DOMAINS = ['tempmail', 'mailinator', '10minutemail', 'guerrillamail', 'throwaway', 'fake', 'spam'];
-
 // ============================================================
-// 12. ESTADO DO USUÁRIO
+// 10. ESTADO DO USUÁRIO (PARA O BOT)
 // ============================================================
 const userState = new Map();
 
@@ -2368,7 +1505,7 @@ setInterval(() => {
 }, 60 * 1000);
 
 // ============================================================
-// 13. FUNÇÕES AUXILIARES
+// 11. FUNÇÕES AUXILIARES GERAIS
 // ============================================================
 
 function limparTelefone(telefone) {
@@ -2388,6 +1525,10 @@ function formatarTelefone(telefone) {
         return '(' + numeros.substring(0, 2) + ') ' + numeros.substring(2, 6) + '-' + numeros.substring(6, 10);
     }
     return telefone;
+}
+
+function getFormData(data, campoNovo, campoAntigo, padrao) {
+    return data[campoNovo] || data[campoAntigo] || padrao;
 }
 
 function getRandomMessage(messageArray) {
@@ -2519,167 +1660,8 @@ function isSpamData(dados) {
     return false;
 }
 
-function obterNomeExibicao(nome) {
-    const nomeLimpo = String(nome || '').trim();
-    if (!nomeLimpo || nomeLimpo.toLowerCase() === 'cliente') {
-        return 'Cliente';
-    }
-    return nomeLimpo.split(' ')[0];
-}
-
-function obterNomeEtapa(etapa) {
-    const nomes = {
-        boas_vindas: 'Boas-vindas',
-        formulario_enviado: 'Formulário Enviado',
-        analise_correcoes: 'Análise e Correções',
-        abertura_processo: 'Abertura do Processo',
-        boleto_emitido: 'Boleto Emitido',
-        boleto_pago: 'Boleto Pago',
-        agendamento_realizado: 'Agendamento Realizado',
-        treinamento_realizado: 'Treinamento Concluído',
-        entrevista_realizada: 'Entrevista Realizada',
-        visto_aprovado: 'Visto Aprovado',
-        passaporte_retornado: 'Passaporte Retornado',
-        visto_recusado: 'Visto Recusado',
-        desconhecida: 'Desconhecida'
-    };
-    return nomes[etapa] || 'Etapa Desconhecida';
-}
-
-function extractFormFields(data) {
-    const full_name = data.full_name || data.nome || data['text-84'] || data.fullName || data.name || '';
-    const email = data.email || data['email-1'] || data.emailAddress || '';
-    const telefone = data.telefone_whatsapp || data.telefone || data['text-77'] || data['phone-1'] || data.phone || '';
-    const consulado = data.consulado_cidade || data.consulado || data['text-88'] || data.consulate || '';
-    
-    let nomeEncontrado = full_name;
-    if (!nomeEncontrado) {
-        for (const [key, value] of Object.entries(data)) {
-            if (typeof value === 'string' && value.length > 3 && value.length < 100) {
-                const words = value.trim().split(/\s+/);
-                if (words.length >= 2 && words.every(w => w.length > 1)) {
-                    nomeEncontrado = value;
-                    break;
-                }
-            }
-        }
-    }
-    
-    return { full_name: nomeEncontrado, email, telefone, consulado };
-}
-
 // ============================================================
-// 14. FUNÇÕES DE WHATSAPP
-// ============================================================
-
-async function enviarWhatsApp(telefone, mensagem) {
-    try {
-        const instance = process.env.ZAPI_INSTANCE;
-        const token = process.env.ZAPI_TOKEN;
-        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
-
-        if (!instance || !token) {
-            console.error('❌ Z-API não configurada. Faltam ZAPI_INSTANCE ou ZAPI_TOKEN.');
-            console.log('📨 Mensagem que seria enviada:', mensagem);
-            return false;
-        }
-
-        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
-        const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
-
-        console.log(`📨 enviarWhatsApp INICIADA para ${telefoneFormatado}`);
-
-        const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-text`;
-
-        const headers = {
-            'Content-Type': 'application/json'
-        };
-
-        if (clientToken) {
-            headers['Client-Token'] = clientToken;
-            console.log('🔐 Client-Token adicionado ao header');
-        }
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({
-                phone: telefoneFormatado,
-                message: mensagem
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`❌ Erro Z-API (${response.status}):`, errorText);
-            return false;
-        }
-
-        const data = await response.json();
-        console.log('✅ Mensagem enviada com sucesso:', data);
-        return true;
-
-    } catch (error) {
-        console.error('❌ Erro ao enviar WhatsApp:', error);
-        return false;
-    }
-}
-
-async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
-    try {
-        const instance = process.env.ZAPI_INSTANCE;
-        const token = process.env.ZAPI_TOKEN;
-        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
-
-        if (!instance || !token) {
-            console.error('❌ Z-API não configurada para envio de PDF.');
-            return false;
-        }
-
-        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
-        const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
-
-        const base64PDF = pdfBuffer.toString('base64');
-
-        const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-document`;
-
-        const headers = {
-            'Content-Type': 'application/json'
-        };
-
-        if (clientToken) {
-            headers['Client-Token'] = clientToken;
-            console.log('🔐 Client-Token adicionado ao header do PDF');
-        }
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({
-                phone: telefoneFormatado,
-                document: base64PDF,
-                fileName: `DS160_${nomeCliente || 'cliente'}.pdf`,
-                mimeType: 'application/pdf'
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`❌ Erro Z-API PDF (${response.status}):`, errorText);
-            return false;
-        }
-
-        console.log('✅ PDF enviado por WhatsApp com sucesso');
-        return true;
-
-    } catch (error) {
-        console.error('❌ Erro ao enviar PDF por WhatsApp:', error);
-        return false;
-    }
-}
-
-// ============================================================
-// 15. FUNÇÕES DE STATUS E ETAPAS
+// FUNÇÕES DE STATUS DO CLIENTE
 // ============================================================
 
 async function atualizarStatusCliente(telefone, novoStatus, dadosAdicionais = {}) {
@@ -2704,6 +1686,7 @@ async function atualizarStatusCliente(telefone, novoStatus, dadosAdicionais = {}
 
         console.log(`✅ Status atualizado para "${novoStatus}" para ${telefone}`);
         
+        // Enviar notificação WhatsApp sobre a mudança de status
         await enviarNotificacaoStatus(telefone, novoStatus, data.nome);
         
         return { success: true, data };
@@ -2716,19 +1699,33 @@ async function atualizarStatusCliente(telefone, novoStatus, dadosAdicionais = {}
 async function enviarNotificacaoStatus(telefone, status, nome) {
     const mensagens = {
         'lead': `👋 Olá ${nome}! Seu cadastro foi iniciado. Em breve enviaremos o formulário DS-160.`,
+        
         'formulario_solicitado': `📋 Olá ${nome}! O link do formulário DS-160 foi enviado para você. Preencha com atenção e nos avise quando terminar.`,
+        
         'formulario_enviado': `✅ Olá ${nome}! Recebemos seu formulário DS-160 com sucesso!\n\n📌 Nossa equipe já está analisando seus dados.\n\n⏳ Em até 24h entraremos em contato com os próximos passos.`,
+        
         'em_analise': `🔍 Olá ${nome}! Estamos analisando seus documentos e formulário com atenção.\n\n📌 Se houver necessidade de correções, entraremos em contato.\n\n⏳ Aguarde nosso retorno em breve!`,
+        
         'analise_correcoes': `📝 Olá ${nome}! Identificamos alguns pontos que precisam de ajuste no seu formulário.\n\n📌 Em breve nossa equipe entrará em contato para orientar as correções necessárias.`,
+        
         'processo_aberto': `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\n✅ Próximos passos:\n• Agendamento da coleta biométrica (CASV)\n• Preparação para a entrevista\n\n📱 Em breve enviaremos mais detalhes.`,
+        
         'boleto_emitido': `💰 Olá ${nome}! O boleto da taxa consular foi emitido.\n\n📌 Verifique seu e-mail para acessar o boleto.\n⏰ Prazo de pagamento: 7 dias úteis.`,
+        
         'boleto_pago': `✅ Olá ${nome}! Confirmamos o pagamento da taxa consular!\n\n📌 Agora vamos prosseguir com o agendamento da sua entrevista.`,
+        
         'agendado_casv': `📅 Olá ${nome}! Seu CASV (coleta biométrica) foi agendado!\n\n📍 Verifique seu e-mail com os detalhes do local e horário.\n\n📌 Não se esqueça de levar:\n• Passaporte original\n• Comprovante de agendamento\n• Documentos pessoais`,
+        
         'agendado_entrevista': `🎤 Olá ${nome}! Sua entrevista no Consulado foi agendada!\n\n📍 Verifique seu e-mail com a data, horário e local.\n\n📌 Dicas importantes:\n• Chegue com 30 minutos de antecedência\n• Leve todos os documentos originais\n• Mantenha a calma e seja sincero(a)`,
+        
         'treinamento_realizado': `✅ Olá ${nome}! Seu treinamento para a entrevista foi concluído!\n\n🎯 Você está preparado(a) para a entrevista!\n\n📌 Lembre-se:\n• Confiança é a chave\n• Responda com clareza\n• Seja objetivo(a)`,
+        
         'entrevista_realizada': `🎤 Olá ${nome}! Sua entrevista foi realizada!\n\n⏳ Agora é aguardar a decisão consular.\n\n📌 O prazo médio é de 7 a 10 dias úteis.\n\n🌟 Fique tranquilo(a)! Em breve teremos novidades.`,
+        
         'visto_aprovado': `🎉 PARABÉNS, ${nome}! 🎉\n\nSeu visto foi APROVADO!\n\n📌 Próximos passos:\n• Seu passaporte será liberado em 5 a 7 dias úteis\n• Você receberá notificação para retirada/entrega\n\n✈️ Agora é planejar sua viagem!\n\n🌟 A GetVisa Assessoria agradece pela confiança!`,
+        
         'visto_recusado': `😔 Olá ${nome}!\n\nInfelizmente seu visto foi recusado.\n\n📌 Não desanime! Isso é mais comum do que parece.\n\n🔍 Vamos analisar com você os motivos e planejar uma nova tentativa.\n\n📱 Fale com a gente agora: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n💪 Isso não muda o seu objetivo! Vamos trabalhar juntos para reverter esse cenário!`,
+        
         'passaporte_retornado': `📦 Olá ${nome}!\n\nSeu passaporte com o visto já está disponível para retirada/entrega!\n\n✅ Processo concluído com sucesso!\n\n✈️ Agora é realizar seus sonhos!\n\n🌟 Agradecemos por confiar na GetVisa Assessoria!`
     };
 
@@ -2742,28 +1739,68 @@ async function enviarNotificacaoStatus(telefone, status, nome) {
     }
 }
 
-async function salvarTreinamento(telefone, treinamento) {
-    const { data, error } = await supabase
-        .from('etapas_processo')
-        .upsert({
-            cliente_telefone: telefone,
-            etapa_atual: 'treinamento_agendado',
-            data_treinamento_agendado: new Date().toISOString(),
-            dados_treinamento: treinamento,
-            data_atualizacao: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'cliente_telefone' })
-        .select()
-        .single();
+// ============================================================
+// MAPEAMENTO DE ETAPAS
+// ============================================================
+const ETAPA_LABELS = {
+    'formulario_enviado': '📋 Formulário Enviado',
+    'analise_correcoes': '🔍 Análise e Correções',
+    'abertura_processo': '📌 Processo Aberto',
+    'boleto_emitido': '💰 Boleto Emitido',
+    'boleto_pago': '✅ Boleto Pago',
+    'agendado_casv': '📅 CASV Agendado',
+    'treinamento_agendado': '🎯 Treinamento Agendado',
+    'treinamento_realizado': '✅ Treinamento Realizado',
+    'agendado_entrevista': '🎤 Entrevista Agendada',
+    'entrevista_realizada': '🎤 Entrevista Realizada',
+    'visto_aprovado': '🎉 Visto Aprovado',
+    'passaporte_retornado': '📦 Passaporte Retornado',
+    'visto_recusado': '😔 Visto Recusado',
+    'finalizado': '🏁 Processo Finalizado'
+};
 
-    if (error) {
-        console.error('❌ Erro ao salvar treinamento:', error);
+// ============================================================
+// FUNÇÃO PARA ATUALIZAR ETAPA (USANDO etapas_processo)
+// ============================================================
+async function atualizarEtapa(telefone, novaEtapa, dadosAdicionais = {}) {
+    try {
+        const updateData = {
+            etapa_atual: novaEtapa,
+            [`data_${novaEtapa}`]: new Date().toISOString(),
+            data_atualizacao: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            ...dadosAdicionais
+        };
+
+        const { data, error } = await supabase
+            .from('etapas_processo')
+            .upsert({
+                cliente_telefone: telefone,
+                ...updateData
+            }, { onConflict: 'cliente_telefone' })
+            .select()
+            .single();
+
+        if (error) {
+            console.error(`❌ Erro ao atualizar etapa ${novaEtapa}:`, error);
+            return { success: false, error };
+        }
+
+        console.log(`✅ Etapa ${novaEtapa} atualizada para ${telefone}`);
+        
+        // Enviar notificação WhatsApp sobre a mudança
+        await enviarNotificacaoEtapa(telefone, novaEtapa, data);
+        
+        return { success: true, data };
+    } catch (error) {
+        console.error('❌ Erro ao atualizar etapa:', error);
         return { success: false, error };
     }
-
-    return { success: true, data };
 }
 
+// ============================================================
+// FUNÇÃO PARA ENVIAR NOTIFICAÇÃO DE ETAPA
+// ============================================================
 async function enviarNotificacaoEtapa(telefone, etapa, dadosCliente) {
     const mensagens = {
         'formulario_enviado': (nome) => `✅ Olá ${nome}! Recebemos seu formulário DS-160 com sucesso!\n\n📌 Nossa equipe já está analisando seus dados.\n\n⏳ Em até 24h entraremos em contato.`,
@@ -2793,153 +1830,303 @@ async function enviarNotificacaoEtapa(telefone, etapa, dadosCliente) {
     }
 }
 
-async function criarEtapaInicial(telefone) {
-    try {
-        const { data, error } = await supabase
-            .from('etapas_processo')
-            .insert({
-                cliente_telefone: telefone,
-                etapa_atual: 'formulario_enviado',
-                data_atualizacao: new Date().toISOString(),
-                historico: [{
-                    etapa: 'formulario_enviado',
-                    data: new Date().toISOString(),
-                    observacao: 'Formulário DS-160 recebido'
-                }],
-                data_formulario_enviado: new Date().toISOString()
-            })
-            .select()
-            .single();
-        if (error) throw error;
-        console.log('✅ Etapa inicial criada para:', telefone);
-        return data;
-    } catch (error) {
-        if (error.code === '23505') {
-            console.log('⚠️ Etapa inicial já existe para este cliente:', telefone);
-            return null;
-        }
-        console.error('❌ Erro ao criar etapa inicial:', error);
-        throw error;
-    }
-}
+// ============================================================
+// FUNÇÃO PARA BUSCAR ETAPAS DO CLIENTE
+// ============================================================
+async function buscarEtapasCliente(telefone) {
+    const { data, error } = await supabase
+        .from('etapas_processo')
+        .select('*')
+        .eq('cliente_telefone', telefone)
+        .maybeSingle();
 
-async function sendReply(phone, message) {
-    try {
-        console.log(`📨 sendReply INICIADA para ${phone}`);
-        console.log(`📨 Mensagem: ${message}`);
-        const resultado = await enviarWhatsApp(phone, message);
-        console.log(`✅ Mensagem enviada: ${resultado}`);
-        return resultado;
-    } catch (error) {
-        console.error(`❌ Erro ao enviar mensagem para ${phone}:`, error);
-        return false;
+    if (error) {
+        console.error('❌ Erro ao buscar etapas:', error);
+        return { success: false, error };
     }
+
+    return { success: true, data };
 }
 
 // ============================================================
-// 16. FUNÇÕES DE DETECÇÃO DE INTENÇÃO E RESPOSTAS
+// FUNÇÃO PARA SALVAR AGENDAMENTOS (CASV + ENTREVISTA)
+// ============================================================
+async function salvarAgendamentos(telefone, casv, entrevista) {
+    const { data, error } = await supabase
+        .from('etapas_processo')
+        .upsert({
+            cliente_telefone: telefone,
+            etapa_atual: 'agendado_casv',
+            data_agendado_casv: new Date().toISOString(),
+            dados_casv: casv,
+            dados_entrevista: entrevista,
+            data_atualizacao: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'cliente_telefone' })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('❌ Erro ao salvar agendamentos:', error);
+        return { success: false, error };
+    }
+
+    return { success: true, data };
+}
+
+// ============================================================
+// FUNÇÃO PARA SALVAR TREINAMENTO
+// ============================================================
+async function salvarTreinamento(telefone, treinamento) {
+    const { data, error } = await supabase
+        .from('etapas_processo')
+        .upsert({
+            cliente_telefone: telefone,
+            etapa_atual: 'treinamento_agendado',
+            data_treinamento_agendado: new Date().toISOString(),
+            dados_treinamento: treinamento,
+            data_atualizacao: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'cliente_telefone' })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('❌ Erro ao salvar treinamento:', error);
+        return { success: false, error };
+    }
+
+    return { success: true, data };
+}
+
+
+// ============================================================
+// 12. FUNÇÕES DE CLASSIFICAÇÃO E RESPOSTAS DO BOT
 // ============================================================
 
 function normalizarTexto(texto) {
-    return String(texto || '')
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[!?.,;:()[\]$|{}]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+  return String(texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[!?.,;:()[\]$|{}]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function detectarIntencao(mensagem) {
-    const texto = normalizarTexto(mensagem);
+  const texto = normalizarTexto(mensagem);
 
-    if (!texto) {
-        return 'desconhecida';
-    }
-
-    const saudacoes = ['oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'opa', 'e ai', 'tudo bem', 'hello', 'hi'];
-    if (saudacoes.some((item) => texto === item || texto.startsWith(`${item} `))) {
-        return 'saudacao';
-    }
-
-    if (['ds160', 'formulario ds160', 'quero preencher ds160', 'preciso do ds160',
-         'formulario visto americano', 'preencher visto americano', 'quero o formulario', 'link do formulario'].some((item) => texto.includes(item))) {
-        return 'solicitar_ds160';
-    }
-
-    if (['status', 'andamento', 'situacao', 'etapa', 'fase', 'progresso',
-         'como esta meu processo', 'como esta o meu processo', 'qual o andamento', 'qual a situacao'].some((item) => texto.includes(item))) {
-        return 'andamento';
-    }
-
-    if (['documento', 'documentos', 'documentacao', 'requisito', 'requisitos', 'papel', 'papeis'].some((item) => texto.includes(item))) {
-        return 'documentos';
-    }
-
-    if (['prazo', 'quanto tempo', 'quanto demora', 'demora', 'dias', 'semanas', 'agendamento', 'processamento'].some((item) => texto.includes(item))) {
-        return 'prazo';
-    }
-
-    if (['pagamento', 'pagar', 'preco', 'valor', 'valores', 'quanto custa', 'custo', 'investimento', 'taxa'].some((item) => texto.includes(item))) {
-        return 'pagamento';
-    }
-
-    if (['ajuda', 'atendente', 'especialista', 'falar com alguem', 'contato', 'humano'].some((item) => texto.includes(item))) {
-        return 'ajuda';
-    }
-
-    if (['negado', 'negativa', 'recusado', 'recusaram', 'deportado', 'visto negado'].some((item) => texto.includes(item))) {
-        return 'visto_negado';
-    }
-
-    if (texto.includes('visto americano') || texto.includes('visto eua') ||
-        texto.includes('visto estados unidos') || texto.includes('visto usa') ||
-        texto.includes('b1') || texto.includes('b2')) {
-        return 'visto_americano';
-    }
-
-    if (texto.includes('visto canadense') || texto.includes('visto canada')) {
-        return 'visto_canadense';
-    }
-
-    if (texto.includes('visto australiano') || texto.includes('visto australia')) {
-        return 'visto_australiano';
-    }
-
-    if (texto.includes('eta uk') || texto.includes('reino unido') || texto.includes('inglaterra')) {
-        return 'eta_uk';
-    }
-
-    if (texto.includes('passaporte')) {
-        return 'passaporte';
-    }
-
-    if (['quero fazer o visto', 'quero meu visto', 'iniciar processo', 'comecar processo',
-         'quero contratar', 'quero iniciar', 'vou contratar', 'quero informação', 'quero saber', 'me ajuda'].some((item) => texto.includes(item))) {
-        return 'iniciar_processo';
-    }
-
-    if (['indicar', 'recomendar', 'amigo', 'conhecido', 'contato de amigo',
-         'posso indicar', 'quero indicar', 'indicacao', 'recomendacao'].some((item) => texto.includes(item))) {
-        return 'indicar_amigo';
-    }
-
-    if (['falar com especialista', 'falar com atendente', 'falar com humano',
-         'quero falar com alguem', 'preciso de ajuda especializada',
-         'duvida nao contemplada', 'caso especifico', 'situacao diferente'].some((item) => texto.includes(item))) {
-        return 'falar_especialista';
-    }
-
-    if (['duvida', 'pergunta', 'esclarecimento', 'informacao adicional',
-         'nao entendi', 'pode me explicar', 'gostaria de saber'].some((item) => texto.includes(item))) {
-        return 'duvida_geral';
-    }
-
-    if (['otimo', 'excelente', 'muito bom', 'gostei', 'parabens', 'feedback', 'avaliacao'].some((item) => texto.includes(item))) {
-        return 'feedback';
-    }
-
+  if (!texto) {
+    console.log('DEBUG detectarIntencao: Texto vazio, retornando desconhecida.');
     return 'desconhecida';
+  }
+
+  const saudacoes = [
+    'oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'opa', 'e ai', 'tudo bem', 'hello', 'hi'
+  ];
+  if (saudacoes.some((item) => texto === item || texto.startsWith(`${item} `))) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: saudacao');
+    return 'saudacao';
+  }
+
+  if (
+    ['ds160', 'formulario ds160', 'quero preencher ds160', 'preciso do ds160',
+     'formulario visto americano', 'preencher visto americano', 'quero o formulario', 'link do formulario'].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: solicitar_ds160');
+    return 'solicitar_ds160';
+  }
+
+  if (
+    [
+      'status', 'andamento', 'situacao', 'etapa', 'fase', 'progresso',
+      'como esta meu processo', 'como esta o meu processo', 'qual o andamento', 'qual a situacao'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: andamento');
+    return 'andamento';
+  }
+
+  if (
+    [
+      'documento', 'documentos', 'documentacao', 'requisito', 'requisitos',
+      'papel', 'papeis'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: documentos');
+    return 'documentos';
+  }
+
+  if (
+    [
+      'prazo', 'quanto tempo', 'quanto demora', 'demora', 'dias', 'semanas',
+      'agendamento', 'processamento'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: prazo');
+    return 'prazo';
+  }
+
+  if (
+    [
+      'pagamento', 'pagar', 'preco', 'valor', 'valores', 'quanto custa',
+      'custo', 'investimento', 'taxa'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: pagamento');
+    return 'pagamento';
+  }
+
+  if (
+    [
+      'ajuda', 'atendente', 'especialista', 'falar com alguem',
+      'contato', 'humano'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: ajuda');
+    return 'ajuda';
+  }
+
+  if (
+    [
+      'negado', 'negativa', 'recusado', 'recusaram', 'deportado', 'visto negado'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: visto_negado');
+    return 'visto_negado';
+  }
+
+  if (
+    texto.includes('visto americano') ||
+    texto.includes('visto eua') ||
+    texto.includes('visto estados unidos') ||
+    texto.includes('visto usa') ||
+    texto.includes('b1') ||
+    texto.includes('b2')
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: visto_americano');
+    return 'visto_americano';
+  }
+
+  if (
+    texto.includes('visto canadense') ||
+    texto.includes('visto canada')
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: visto_canadense');
+    return 'visto_canadense';
+  }
+
+  if (
+    texto.includes('visto australiano') ||
+    texto.includes('visto australia')
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: visto_australiano');
+    return 'visto_australiano';
+  }
+
+  if (
+    texto.includes('eta uk') ||
+    texto.includes('reino unido') ||
+    texto.includes('inglaterra')
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: eta_uk');
+    return 'eta_uk';
+  }
+
+  if (texto.includes('passaporte')) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: passaporte');
+    return 'passaporte';
+  }
+
+  if (
+    [
+      'quero fazer o visto', 'quero meu visto', 'iniciar processo', 'comecar processo',
+      'quero contratar', 'quero iniciar', 'vou contratar', 'quero informação', 'quero saber', 'me ajuda'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: iniciar_processo');
+    return 'iniciar_processo';
+  }
+
+  // ============================================================
+  // NOVAS INTENÇÕES (movidas para dentro da função)
+  // ============================================================
+
+  // Indicar amigo/contato
+  if (
+    [
+      'indicar', 'recomendar', 'amigo', 'conhecido', 'contato de amigo',
+      'posso indicar', 'quero indicar', 'indicacao', 'recomendacao'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: indicar_amigo');
+    return 'indicar_amigo';
+  }
+
+  // Falar com especialista (já existe 'ajuda', mas vamos reforçar)
+  if (
+    [
+      'falar com especialista', 'falar com atendente', 'falar com humano',
+      'quero falar com alguem', 'preciso de ajuda especializada',
+      'duvida nao contemplada', 'caso especifico', 'situacao diferente'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: falar_especialista');
+    return 'falar_especialista';
+  }
+
+  // Dúvida geral (não relacionada ao processo)
+  if (
+    [
+      'duvida', 'pergunta', 'esclarecimento', 'informacao adicional',
+      'nao entendi', 'pode me explicar', 'gostaria de saber'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: duvida_geral');
+    return 'duvida_geral';
+  }
+
+  // Elogio ou feedback
+  if (
+    [
+      'otimo', 'excelente', 'muito bom', 'gostei', 'parabens',
+      'feedback', 'avaliacao'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: feedback');
+    return 'feedback';
+  }
+
+  console.log('DEBUG detectarIntencao: Nenhuma intenção específica detectada, retornando desconhecida.');
+  return 'desconhecida';
+}
+
+function obterNomeExibicao(nome) {
+  const nomeLimpo = String(nome || '').trim();
+  if (!nomeLimpo || nomeLimpo.toLowerCase() === 'cliente') {
+    return 'Cliente';
+  }
+  return nomeLimpo.split(' ')[0];
+}
+
+function obterNomeEtapa(etapa) {
+  const nomes = {
+    boas_vindas: 'Boas-vindas',
+    formulario_enviado: 'Formulário Enviado',
+    analise_correcoes: 'Análise e Correções',
+    abertura_processo: 'Abertura do Processo',
+    boleto_emitido: 'Boleto Emitido',
+    boleto_pago: 'Boleto Pago',
+    agendamento_realizado: 'Agendamento Realizado',
+    treinamento_realizado: 'Treinamento Concluído',
+    entrevista_realizada: 'Entrevista Realizada',
+    visto_aprovado: 'Visto Aprovado',
+    passaporte_retornado: 'Passaporte Retornado',
+    visto_recusado: 'Visto Recusado',
+    desconhecida: 'Desconhecida'
+  };
+  return nomes[etapa] || 'Etapa Desconhecida';
 }
 
 function getMensagemFormularioParaBot(nomeCliente) {
@@ -2956,7 +2143,7 @@ function getMensagemFormularioParaBot(nomeCliente) {
     return `🌟 *ÓTIMO, ${primeiroNome.toUpperCase()}!* 🌟\n\n` +
            `Para iniciarmos seu processo, preciso que você preencha nosso formulário com os dados do visto americano.\n\n` +
            `📋 *LINK DO FORMULÁRIO:*\n` +
-           `🔗 [Clique aqui para preencher o formulário](https://app.getvisa.com.br/formulario-ds160)\n\n` +
+           `🔗 [Clique aqui para preencher o formulário](https://app.getvisa.com.br/formulario-ds160)` +
            `⏱️ *Tempo estimado:* 15-20 minutos\n` +
            `📱 *Pode preencher pelo celular ou computador*\n\n` +
            `✅ *Depois de preencher:*\n` +
@@ -2994,96 +2181,93 @@ function getMensagemFormularioComEspecialista(nomeCliente) {
 }
 
 function gerarRespostaBot(intencao, nome, etapaAtual) {
-    const primeiroNome = obterNomeExibicao(nome);
-    const etapa = obterNomeEtapa(etapaAtual);
+  console.log('--- DEBUG: INICIO gerarRespostaBot (VERSAO UNIFICADA) ---');
+  console.log('Intencao recebida em gerarRespostaBot:', intencao);
+  const primeiroNome = obterNomeExibicao(nome);
+  const etapa = obterNomeEtapa(etapaAtual);
 
-    const respostas = {
-        saudacao:
-            `👋 Olá, ${primeiroNome}!\n\n` +
-            `Sou o assistente da GetVisa Assessoria. Estou aqui para ajudar com informações sobre vistos, documentos, prazos e andamento do processo.\n\n` +
-            `Como posso ajudar?`,
+  const respostas = {
+    saudacao:
+      `👋 Olá, ${primeiroNome}!\n\n` +
+      `Sou o assistente da GetVisa Assessoria. Estou aqui para ajudar com informações sobre vistos, documentos, prazos e andamento do processo.\n\n` +
+      `Como posso ajudar?`,
 
-        solicitar_ds160: getMensagemFormularioParaBot(primeiroNome),
+    solicitar_ds160: getMensagemFormularioParaBot(primeiroNome),
 
-        andamento:
-            `Certo, ${primeiroNome}! Para verificar o andamento do seu processo, por favor, me informe o número do seu protocolo ou CPF.`,
+    andamento:
+      `Certo, ${primeiroNome}! Para verificar o andamento do seu processo, por favor, me informe o número do seu protocolo ou CPF.`,
 
-        documentos:
-            `Para informações sobre documentos, ${primeiroNome}, preciso saber qual visto ou serviço você precisa. Por exemplo, "documentos para visto americano".`,
+    documentos:
+      `Para informações sobre documentos, ${primeiroNome}, preciso saber qual visto ou serviço você precisa. Por exemplo, "documentos para visto americano".`,
 
-        prazo:
-            `Os prazos variam bastante, ${primeiroNome}. Para qual visto ou serviço você gostaria de saber o prazo?`,
+    prazo:
+      `Os prazos variam bastante, ${primeiroNome}. Para qual visto ou serviço você gostaria de saber o prazo?`,
 
-        pagamento:
-            `Para informações sobre pagamentos, ${primeiroNome}, preciso saber qual serviço ou etapa do processo você se refere. Você pode me dar mais detalhes?`,
+    pagamento:
+      `Para informações sobre pagamentos, ${primeiroNome}, preciso saber qual serviço ou etapa do processo você se refere. Você pode me dar mais detalhes?`,
 
-        ajuda:
-            `Olá, ${primeiroNome}! Se precisar de ajuda ou quiser falar com um especialista, pode me chamar ou entrar em contato direto pelo WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812).`,
+    ajuda:
+      `Olá, ${primeiroNome}! Se precisar de ajuda ou quiser falar com um especialista, pode me chamar ou entrar em contato direto pelo WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812).`,
 
-        visto_negado:
-            `Se o seu visto foi negado, ${primeiroNome}, não se preocupe! Temos um serviço de recuperação. Acesse: <a href="https://getvisa.com.br/visto-americano-negado" target="_blank" style="text-decoration: underline;">getvisa.com.br/visto-americano-negado</a> para uma análise gratuita.`,
+    visto_negado:
+      `Se o seu visto foi negado, ${primeiroNome}, não se preocupe! Temos um serviço de recuperação. Acesse: <a href="https://getvisa.com.br/visto-americano-negado" target="_blank" style="text-decoration: underline;">getvisa.com.br/visto-americano-negado</a> para uma análise gratuita.`,
 
-        visto_americano:
-            `O Visto Americano (B1/B2) é para turismo e negócios, ${primeiroNome}. O processo envolve preenchimento do DS-160, agendamento de entrevista e coleta de biometria. Saiba mais em <a href="https://getvisa.com.br/visto-americano" target="_blank" style="text-decoration: underline;">getvisa.com.br/visto-americano</a>.`,
+    visto_americano:
+      `O Visto Americano (B1/B2) é para turismo e negócios, ${primeiroNome}. O processo envolve preenchimento do DS-160, agendamento de entrevista e coleta de biometria. Saiba mais em <a href="https://getvisa.com.br/visto-americano" target="_blank" style="text-decoration: underline;">getvisa.com.br/visto-americano</a>.`,
 
-        visto_canadense:
-            `Para o Visto Canadense, ${primeiroNome}, o processo geralmente é online e pode incluir biometria. Existem diferentes tipos de visto dependendo do seu objetivo. Mais detalhes em <a href="https://getvisa.com.br/visto-canadense" target="_blank" style="text-decoration: underline;">getvisa.com.br/visto-canadense</a>.`,
+    visto_canadense:
+      `Para o Visto Canadense, ${primeiroNome}, o processo geralmente é online e pode incluir biometria. Existem diferentes tipos de visto dependendo do seu objetivo. Mais detalhes em <a href="https://getvisa.com.br/visto-canadense" target="_blank" style="text-decoration: underline;">getvisa.com.br/visto-canadense</a>.`,
 
-        visto_australiano:
-            `O Visto Australiano, ${primeiroNome}, é solicitado online e pode exigir o envio de documentos. É importante verificar os requisitos específicos para o seu tipo de viagem. Informações em <a href="https://getvisa.com.br/visto-australiano" target="_blank" style="text-decoration: underline;">getvisa.com.br/visto-australiano</a>.`,
+    visto_australiano:
+      `O Visto Australiano, ${primeiroNome}, é solicitado online e pode exigir o envio de documentos. É importante verificar os requisitos específicos para o seu tipo de viagem. Informações em <a href="https://getvisa.com.br/visto-australiano" target="_blank" style="text-decoration: underline;">getvisa.com.br/visto-australiano</a>.`,
 
-        eta_uk:
-            `O eTA UK é uma autorização eletrônica de viagem para o Reino Unido, ${primeiroNome}. Você precisará de um passaporte válido e preencher o formulário online. Ele não é um visto, mas uma permissão para entrar. Informações em <a href="https://getvisa.com.br/eta-uk" target="_blank" style="text-decoration: underline;">getvisa.com.br/eta-uk</a>.`,
+    eta_uk:
+      `O eTA UK é uma autorização eletrônica de viagem para o Reino Unido, ${primeiroNome}. Você precisará de um passaporte válido e preencher o formulário online. Ele não é um visto, mas uma permissão para entrar. Informações em <a href="https://getvisa.com.br/eta-uk" target="_blank" style="text-decoration: underline;">getvisa.com.br/eta-uk</a>.`,
 
-        passaporte:
-            `O passaporte é o documento de viagem essencial, ${primeiroNome}. Para solicitá-lo ou renová-lo, você deve agendar um atendimento na Polícia Federal. Podemos te auxiliar com as informações necessárias. Visite <a href="https://getvisa.com.br/passaporte" target="_blank" style="text-decoration: underline;">getvisa.com.br/passaporte</a>.`,
+    passaporte:
+      `O passaporte é o documento de viagem essencial, ${primeiroNome}. Para solicitá-lo ou renová-lo, você deve agendar um atendimento na Polícia Federal. Podemos te auxiliar com as informações necessárias. Visite <a href="https://getvisa.com.br/passaporte" target="_blank" style="text-decoration: underline;">getvisa.com.br/passaporte</a>.`,
 
-        iniciar_processo:
-            `Excelente, ${primeiroNome}! Para iniciar seu processo de visto, por favor, visite nosso site <a href="https://www.getvisa.com.br/iniciar-processo" target="_blank" style="text-decoration: underline;">www.getvisa.com.br/iniciar-processo</a> ou entre em contato com nossa equipe para um atendimento personalizado.`,
-            
-        indicar_amigo:
-            `👥 *Olá ${primeiroNome}!*\n\nQue legal você indicar a GetVisa! 🌟\n\n📱 *Compartilhe:* wa.me/5521974601812\n🌐 *Site:* getvisa.com.br\n📋 *Formulário:* https://app.getvisa.com.br/formulario-ds160\n\n🎁 *Bônus para você:*\nIndique um amigo que feche o processo e ganhe 10% de desconto!`,
+    iniciar_processo:
+      `Excelente, ${primeiroNome}! Para iniciar seu processo de visto, por favor, visite nosso site <a href="https://www.getvisa.com.br/iniciar-processo" target="_blank" style="text-decoration: underline;">www.getvisa.com.br/iniciar-processo</a> ou entre em contato com nossa equipe para um atendimento personalizado.`,
+      
+    indicar_amigo:
+      `👥 *Olá ${primeiroNome}!*\n\nQue legal você indicar a GetVisa! 🌟\n\n📱 *Compartilhe:* wa.me/5521974601812\n🌐 *Site:* getvisa.com.br\n📋 *Formulário:* https://app.getvisa.com.br/formulario-ds160\n\n🎁 *Bônus para você:*\nIndique um amigo que feche o processo e ganhe 10% de desconto!`,
 
-        falar_especialista:
-            `👨‍💼 *Olá ${primeiroNome}!*\n\nEntendi que você tem uma situação específica.\n\n📱 *Fale com Moisés diretamente:*\n[Clique aqui](https://wa.me/5521974601812)\n\n📧 *Ou por e-mail:* contato@getvisa.com.br\n\n⏰ *Atendimento:* Seg-Sex, 9h às 18h\n📌 *Resposta:* até 2 horas`,
+    falar_especialista:
+      `👨‍💼 *Olá ${primeiroNome}!*\n\nEntendi que você tem uma situação específica.\n\n📱 *Fale com Moisés diretamente:*\n[Clique aqui](https://wa.me/5521974601812)\n\n📧 *Ou por e-mail:* contato@getvisa.com.br\n\n⏰ *Atendimento:* Seg-Sex, 9h às 18h\n📌 *Resposta:* até 2 horas`,
 
-        duvida_geral:
-            `🤔 *Olá ${primeiroNome}!*\n\nPosso ajudar com:\n\n1️⃣ *Documentos* - Quais levar\n2️⃣ *Prazo* - Quanto tempo demora\n3️⃣ *Status* - Andamento do seu processo\n4️⃣ *Valores* - Quanto custa\n\n💡 *Seja específico(a)*, ex: "documentos para visto"`,
+    duvida_geral:
+      `🤔 *Olá ${primeiroNome}!*\n\nPosso ajudar com:\n\n1️⃣ *Documentos* - Quais levar\n2️⃣ *Prazo* - Quanto tempo demora\n3️⃣ *Status* - Andamento do seu processo\n4️⃣ *Valores* - Quanto custa\n\n💡 *Seja específico(a)*, ex: "documentos para visto"`,
 
-        feedback:
-            `⭐ *Olá ${primeiroNome}!*\n\nFicamos felizes com seu feedback! 🌟\n\n📱 *Compartilhe sua experiência:*\n[Clique aqui](https://wa.me/5521974601812)\n\n📧 *Ou por e-mail:* contato@getvisa.com.br\n\n⭐ *Avalie-nos:* Excelente | Bom | Regular`
-    };
+    feedback:
+      `⭐ *Olá ${primeiroNome}!*\n\nFicamos felizes com seu feedback! 🌟\n\n📱 *Compartilhe sua experiência:*\n[Clique aqui](https://wa.me/5521974601812)\n\n📧 *Ou por e-mail:* contato@getvisa.com.br\n\n⭐ *Avalie-nos:* Excelente | Bom | Regular`
+  };
 
-    return respostas[intencao] ||
-        `Olá, ${primeiroNome}!\n\n` +
-        `Não consegui identificar sua solicitação.\n\n` +
-        `Você pode perguntar sobre documentos, prazo, pagamento ou andamento do processo.`;
+  console.log('--- DEBUG: Objeto respostas gerado ---');
+
+  return (
+    respostas[intencao] ||
+    `Olá, ${primeiroNome}!\n\n` +
+      `Não consegui identificar sua solicitação.\n\n` +
+      `Você pode perguntar sobre documentos, prazo, pagamento ou andamento do processo.`
+  );
 }
 
-function getSubmenu(service) {
-    const names = {
-        'visto_americano': '🇺🇸 VISTO AMERICANO',
-        'visto_canadense': '🇨🇦 VISTO CANADENSE',
-        'visto_australiano': '🇦🇺 VISTO AUSTRALIANO',
-        'eta_uk': '🇬🇧 eTA UK',
-        'eta_canadense': '🇨🇦 eTA CANADENSE',
-        'passaporte': '🛂 PASSAPORTE'
-    };
+// ============================================================
+// 13. FUNÇÕES DE MENU (BOT)
+// ============================================================
 
-    const isPassaporte = service === 'passaporte';
-    const opcao5 = isPassaporte ? '🏛️ ONDE FAZER' : '🔄 VISTO NEGADO';
-    const nome = names[service] || 'SERVIÇO';
-
-    return '📋 ' + nome + '\n\n' +
-        '1️⃣ - 💰 PREÇO\n' +
-        '2️⃣ - ⏱️ PRAZO\n' +
-        '3️⃣ - 📄 DOCUMENTOS\n' +
-        '4️⃣ - 🔄 PROCESSO\n' +
-        '5️⃣ - ' + opcao5 + '\n' +
-        '6️⃣ - 📊 AVALIAÇÃO GRATUITA\n' +
-        '7️⃣ - 👨‍💼 FALAR COM ESPECIALISTA\n\n' +
-        '0️⃣ - VOLTAR AO MENU PRINCIPAL\n\n' +
-        'Digite o número da opção (1-7)';
+async function getMenuPrincipal() {
+    return '🌟 GETVISA - ASSESSORIA EM VISTOS\n\n' +
+           'Escolha o serviço desejado:\n\n' +
+           '1️⃣ - 🇺🇸 VISTO AMERICANO\n' +
+           '2️⃣ - 🇨🇦 VISTO CANADENSE\n' +
+           '3️⃣ - 🇦🇺 VISTO AUSTRALIANO\n' +
+           '4️⃣ - 🇬🇧 eTA UK (REINO UNIDO)\n' +
+           '5️⃣ - 🇨🇦 eTA CANADENSE\n' +
+           '6️⃣ - 🛂 PASSAPORTE\n' +
+           '7️⃣ - 📞 AJUDA / CONTATO\n\n' +
+           'Digite o número da opção (1-7) ou 0 para ver este MENU novamente';
 }
 
 function getRespostaSubmenu(servico, opcao) {
@@ -3128,118 +2312,34 @@ function getRespostaSubmenu(servico, opcao) {
     return resposta;
 }
 
-// ============================================================
-// 17. FUNÇÕES DE PROCESSAMENTO DE MENSAGEM DO BOT
-// ============================================================
+function getSubmenu(service) {
+    const names = {
+        'visto_americano': '🇺🇸 VISTO AMERICANO',
+        'visto_canadense': '🇨🇦 VISTO CANADENSE',
+        'visto_australiano': '🇦🇺 VISTO AUSTRALIANO',
+        'eta_uk': '🇬🇧 eTA UK',
+        'eta_canadense': '🇨🇦 eTA CANADENSE',
+        'passaporte': '🛂 PASSAPORTE'
+    };
 
-async function processarMensagem(telefoneLimpo, mensagem) {
-    console.log('🔄 ===== PROCESSAR MENSAGEM INICIADO =====');
-    console.log(`📱 Telefone: ${telefoneLimpo}`);
-    console.log(`💬 Mensagem: "${mensagem}"`);
+    const isPassaporte = service === 'passaporte';
+    const opcao5 = isPassaporte ? '🏛️ ONDE FAZER' : '🔄 VISTO NEGADO';
+    const nome = names[service] || 'SERVIÇO';
 
-    try {
-        let cliente = await buscarClienteEmQualquerTabela(telefoneLimpo, 'clientes');
-        console.log(`🔍 Cliente encontrado: ${cliente ? 'Sim' : 'Não'}`);
-        if (cliente) console.log(`👤 Nome: ${cliente.nome}`);
-
-        let state = userState.get(telefoneLimpo);
-
-        if (!state) {
-            console.log('🆕 Criando novo estado para cliente');
-            state = {
-                onboardingStep: null,
-                onboardingCompleto: false,
-                nome: cliente?.nome || null,
-                email: cliente?.email || null,
-                nivel: 'onboarding',
-                service: null,
-                lastActivity: Date.now()
-            };
-
-            if (cliente?.nome && cliente?.email) {
-                console.log('✅ Cliente já tem nome e email, pulando onboarding');
-                state.onboardingCompleto = true;
-                state.onboardingStep = ONBOARDING_STEPS.COMPLETO;
-                state.nivel = 'principal';
-            } else if (cliente?.nome) {
-                console.log('📝 Cliente tem nome, indo para email');
-                state.onboardingStep = ONBOARDING_STEPS.AGUARDANDO_EMAIL;
-                state.nome = cliente.nome;
-                state.onboardingCompleto = false;
-                state.nivel = 'onboarding';
-                await sendReply(telefoneLimpo, `📝 Olá ${cliente.nome.split(' ')[0]}! Agora me diga seu e-mail:\n\n📧 **Qual é o seu e-mail?**`);
-                return;
-            } else {
-                console.log('👤 Cliente sem nome, iniciando onboarding');
-                state.onboardingStep = ONBOARDING_STEPS.SAUDACAO;
-                state.nivel = 'onboarding';
-                await processarOnboarding(telefoneLimpo, mensagem, state);
-                return;
-            }
-
-            userState.set(telefoneLimpo, state);
-        }
-
-        console.log(`📊 Estado atual:`);
-        console.log(`  - onboardingStep: ${state.onboardingStep}`);
-        console.log(`  - onboardingCompleto: ${state.onboardingCompleto}`);
-        console.log(`  - nivel: ${state.nivel}`);
-        console.log(`  - service: ${state.service}`);
-
-        // Caso especial: comando "menu" ou "0"
-        if (mensagem.trim() === '0' || mensagem.toLowerCase().trim() === 'menu' || mensagem.toLowerCase().trim() === 'menu principal') {
-            console.log('📋 Comando MENU detectado');
-            state.nivel = 'principal';
-            state.service = null;
-            userState.set(telefoneLimpo, state);
-
-            if (!state.onboardingCompleto) {
-                await sendReply(telefoneLimpo, '👋 Antes de continuar, preciso saber seu nome!\n\n📝 **Qual é o seu nome completo?**');
-                return;
-            }
-
-            const menu = await getMenuPrincipal();
-            await sendReply(telefoneLimpo, menu);
-            return;
-        }
-
-        // Se ainda estiver em onboarding
-        if (state.onboardingStep !== ONBOARDING_STEPS.COMPLETO && state.nivel === 'onboarding') {
-            console.log('🔄 Processando onboarding...');
-            await processarOnboarding(telefoneLimpo, mensagem, state);
-            return;
-        }
-
-        // Se estiver em um submenu
-        if (state.nivel === 'submenu' && state.service) {
-            console.log(`📋 Processando submenu para ${state.service}`);
-            await processarOpcaoNoSubmenu(telefoneLimpo, mensagem, state);
-            return;
-        }
-
-        // Menu principal
-        if (state.nivel === 'principal') {
-            console.log('📋 Processando menu principal');
-            await processarOpcaoNoMenuPrincipal(telefoneLimpo, mensagem, state);
-            return;
-        }
-
-        // Fallback
-        console.log('⚠️ Estado desconhecido, voltando para o menu principal');
-        state.nivel = 'principal';
-        state.service = null;
-        userState.set(telefoneLimpo, state);
-        await sendReply(telefoneLimpo, await getMenuPrincipal());
-
-    } catch (error) {
-        console.error('❌ Erro ao processar mensagem:', error);
-        console.error('❌ Stack:', error.stack);
-        await sendReply(telefoneLimpo, '❌ Desculpe, ocorreu um erro. Digite 0 para o menu principal.');
-    }
+    return '📋 ' + nome + '\n\n' +
+        '1️⃣ - 💰 PREÇO\n' +
+        '2️⃣ - ⏱️ PRAZO\n' +
+        '3️⃣ - 📄 DOCUMENTOS\n' +
+        '4️⃣ - 🔄 PROCESSO\n' +
+        '5️⃣ - ' + opcao5 + '\n' +
+        '6️⃣ - 📊 AVALIAÇÃO GRATUITA\n' +
+        '7️⃣ - 👨‍💼 FALAR COM ESPECIALISTA\n\n' +
+        '0️⃣ - VOLTAR AO MENU PRINCIPAL\n\n' +
+        'Digite o número da opção (1-7)';
 }
 
 // ============================================================
-// 18. FUNÇÕES DE ONBOARDING E MENU
+// 14. FUNÇÕES DE ONBOARDING (BOT)
 // ============================================================
 
 async function processarOnboarding(cleanPhone, messageText, state) {
@@ -3354,7 +2454,7 @@ async function processarOnboarding(cleanPhone, messageText, state) {
                         nome: nome,
                         email: email,
                         data_contato: new Date().toISOString(),
-                        status: 'lead',
+                        status: 'novo',
                         onboarding_completo: true,
                         data_onboarding: new Date().toISOString(),
                         updated_at: new Date().toISOString()
@@ -3384,6 +2484,29 @@ async function processarOnboarding(cleanPhone, messageText, state) {
             state.service = null;
             userState.set(cleanPhone, state);
             console.log('✅ Estado atualizado para: COMPLETO');
+
+            // 🔥 ADICIONE ESTE BLOCO: Atualizar status do cliente para "lead"
+            try {
+                const { data: clienteAtualizado, error: updateError } = await supabase
+                    .from('clientes')
+                    .update({ 
+                        status: 'lead',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('telefone', telefoneLimpo)
+                    .select()
+                    .single();
+
+                if (updateError) {
+                    console.error('❌ Erro ao atualizar status do cliente:', updateError);
+                } else {
+                    console.log(`✅ Status atualizado para "lead" para ${telefoneLimpo}`);
+                    // Enviar notificação de status
+                    await enviarNotificacaoStatus(telefoneLimpo, 'lead', clienteAtualizado.nome);
+                }
+            } catch (statusError) {
+                console.error('❌ Erro ao atualizar status:', statusError);
+            }
 
             const primeiroNome = nome.split(' ')[0];
             const mensagemFinal = `✅ Perfeito, ${primeiroNome}! Seus dados foram salvos com sucesso!\n\n` +
@@ -3420,205 +2543,6 @@ async function processarOnboarding(cleanPhone, messageText, state) {
     }
 }
 
-async function getMenuPrincipal() {
-    return '🌟 GETVISA - ASSESSORIA EM VISTOS\n\n' +
-           'Escolha o serviço desejado:\n\n' +
-           '1️⃣ - 🇺🇸 VISTO AMERICANO\n' +
-           '2️⃣ - 🇨🇦 VISTO CANADENSE\n' +
-           '3️⃣ - 🇦🇺 VISTO AUSTRALIANO\n' +
-           '4️⃣ - 🇬🇧 eTA UK (REINO UNIDO)\n' +
-           '5️⃣ - 🇨🇦 eTA CANADENSE\n' +
-           '6️⃣ - 🛂 PASSAPORTE\n' +
-           '7️⃣ - 📞 AJUDA / CONTATO\n\n' +
-           'Digite o número da opção (1-7) ou 0 para ver este MENU novamente';
-}
-
-async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
-    console.log('=== MENU PRINCIPAL ===');
-    console.log('Mensagem recebida: "' + messageText + '"');
-
-    const servicoMap = {
-        '1': 'visto_americano', '2': 'visto_canadense', '3': 'visto_australiano',
-        '4': 'eta_uk', '5': 'eta_canadense', '6': 'passaporte'
-    };
-
-    try {
-        if (servicoMap[messageText]) {
-            const serviceKey = servicoMap[messageText];
-            state.nivel = 'submenu';
-            state.service = serviceKey;
-            userState.set(cleanPhone, state);
-            try {
-                await sendReply(cleanPhone, getSubmenu(serviceKey));
-            } catch (err) {
-                await sendReply(cleanPhone, '📋 Serviço selecionado! Digite 0 para voltar ao menu principal.');
-            }
-            return;
-        }
-
-        if (messageText === '7') {
-            let nome = state?.nome || 'Cliente';
-            try {
-                const { data } = await supabase.from('clientes').select('nome').eq('telefone', cleanPhone).maybeSingle();
-                if (data?.nome) nome = data.nome;
-            } catch (e) {}
-            await sendReply(cleanPhone, `📞 *Olá ${nome.split(' ')[0]}!* Precisa de ajuda? 👇\n\n👨‍💼 *Fale com Moisés:* wa.me/5521974601812\n📧 contato@getvisa.com.br\n🌐 getvisa.com.br\n📋 https://app.getvisa.com.br/formulario-ds160\n\nDigite 0 para o MENU principal`);
-            return;
-        }
-
-        let intent = null;
-        try { intent = detectarIntencao(messageText); } catch (e) {}
-        console.log('Intenção detectada:', intent);
-
-        let clienteDB = null;
-        try {
-            const { data } = await supabase
-                .from('clientes')
-                .select('status, etapa_atual, nome, consulado')
-                .eq('telefone', cleanPhone)
-                .maybeSingle();
-            if (data) clienteDB = data;
-        } catch (e) {}
-
-        const nomeCliente = clienteDB?.nome || state?.nome || 'Cliente';
-        const primeiroNome = nomeCliente.split(' ')[0];
-
-        let servicoCliente = 'visto_americano';
-        let servicoLabel = 'Visto Americano';
-        
-        if (clienteDB?.consulado) {
-            servicoCliente = 'visto_americano';
-            servicoLabel = `Visto Americano (${clienteDB.consulado})`;
-        } else if (clienteDB?.status) {
-            servicoCliente = 'visto_americano';
-            servicoLabel = 'Visto Americano';
-        }
-
-        // Tratamento das intenções
-        if (intent === 'iniciar_processo' || intent === 'solicitar_ds160') {
-            const msg = (state?.nome && state?.email) 
-                ? getMensagemFormularioComEspecialista(nomeCliente)
-                : getMensagemFormularioParaBot(nomeCliente);
-            await sendReply(cleanPhone, msg);
-            return;
-        }
-
-        if (intent === 'andamento') {
-            if (!clienteDB) {
-                await sendReply(cleanPhone, '❌ Ainda não encontrei seu cadastro. Digite 0 para o menu principal.');
-                return;
-            }
-            
-            const statusLabels = {
-                'lead': '📋 Cadastro iniciado - aguardando formulário',
-                'formulario_enviado': '📋 Formulário recebido - em análise',
-                'em_analise': '🔍 Em análise pela equipe',
-                'processo_aberto': '📌 Processo aberto - aguardando agendamento',
-                'agendado_casv': '📅 CASV agendado',
-                'agendado_entrevista': '🎤 Entrevista agendada',
-                'treinamento_realizado': '✅ Treinamento concluído',
-                'entrevista_realizada': '🎤 Entrevista realizada - aguardando decisão',
-                'visto_aprovado': '🎉 Visto APROVADO!',
-                'visto_recusado': '😔 Visto recusado - vamos analisar juntos',
-                'passaporte_retornado': '📦 Passaporte disponível para retirada'
-            };
-            
-            const statusAtual = clienteDB.etapa_atual || clienteDB.status || 'lead';
-            const label = statusLabels[statusAtual] || statusAtual;
-            const dataAtualizacao = clienteDB.ultima_atualizacao ? new Date(clienteDB.ultima_atualizacao).toLocaleDateString('pt-BR') : 'Não disponível';
-            
-            const mensagem = `📊 *Olá ${primeiroNome}!*\n\n📍 *Status:* ${label}\n📅 *Atualização:* ${dataAtualizacao}\n${clienteDB.consulado ? `🏛️ *Consulado:* ${clienteDB.consulado}\n` : ''}\n💪 *Estamos com você!*\n\n📱 [Fale com especialista](https://wa.me/5521974601812)\n\nDigite 0 para o menu principal`;
-            
-            await sendReply(cleanPhone, mensagem);
-            return;
-        }
-
-        if (intent === 'documentos') {
-            const resposta = getRespostaSubmenu(servicoCliente, 'documentos');
-            await sendReply(cleanPhone, `📋 *Olá ${primeiroNome}!*\n\n${resposta}`);
-            return;
-        }
-
-        if (intent === 'prazo') {
-            const resposta = getRespostaSubmenu(servicoCliente, 'prazo');
-            await sendReply(cleanPhone, `⏱️ *Olá ${primeiroNome}!*\n\n${resposta}`);
-            return;
-        }
-
-        if (intent === 'pagamento') {
-            const resposta = getRespostaSubmenu(servicoCliente, 'preco');
-            await sendReply(cleanPhone, `💰 *Olá ${primeiroNome}!*\n\n${resposta}`);
-            return;
-        }
-
-        if (intent === 'visto_americano') {
-            state.nivel = 'submenu';
-            state.service = 'visto_americano';
-            userState.set(cleanPhone, state);
-            await sendReply(cleanPhone, getSubmenu('visto_americano'));
-            return;
-        }
-
-        if (intent === 'visto_negado') {
-            await sendReply(cleanPhone, `🔄 *Olá ${primeiroNome}!*\n\nTeve o visto negado? Não desanime!\n\n🔗 Análise gratuita: https://getvisa.com.br/visto-americano-negado/\n\n✅ *Oferecemos:*\n• Análise do motivo da negativa\n• Correção do formulário\n• Documentação reforçada\n• Preparação para entrevista\n\n💰 Investimento: R$ 380\n\n📱 [Fale com especialista](wa.me/5521974601812)\n\nDigite 0 para o menu principal`);
-            return;
-        }
-
-        if (intent && intent !== 'desconhecida' && intent !== 'andamento' && intent !== 'documentos' && intent !== 'prazo' && intent !== 'pagamento') {
-            let nome = state?.nome || 'Cliente';
-            try {
-                const { data } = await supabase.from('clientes').select('nome').eq('telefone', cleanPhone).maybeSingle();
-                if (data?.nome) nome = data.nome;
-            } catch (e) {}
-            let resposta = gerarRespostaBot(intent, state?.nome, state?.etapaAtual);
-            resposta = resposta.replace(/Cliente/g, nome.split(' ')[0]);
-            await sendReply(cleanPhone, resposta + '\n\nDigite 0 para o menu principal');
-            return;
-        }
-
-        // Nenhuma intenção detectada - contato direto com especialista
-        console.log('⚠️ Nenhuma intenção detectada para:', messageText);
-        
-        let nomeFallback = state?.nome || 'Cliente';
-        try {
-            const { data } = await supabase
-                .from('clientes')
-                .select('nome')
-                .eq('telefone', cleanPhone)
-                .maybeSingle();
-            if (data?.nome) nomeFallback = data.nome;
-        } catch (e) {}
-        
-        const primeiroNomeFallback = nomeFallback.split(' ')[0];
-        
-        const fallbackMsg = `🤔 *Olá ${primeiroNomeFallback}!*
-
-Não entendi sua pergunta. 😅
-
-Mas não se preocupe! Nosso especialista pode ajudar com qualquer dúvida.
-
-📱 *FALE DIRETAMENTE COM MOISÉS:*
-[Clique aqui](https://wa.me/5521974601812)
-
-📧 *Ou por e-mail:* contato@getvisa.com.br
-
-💡 *Dica:* Para respostas rápidas, use:
-• "documentos" - Lista de documentos
-• "prazo" - Prazos do processo  
-• "status" - Andamento do seu caso
-• "valores" - Investimento
-
-Digite 0 para o menu principal`;
-
-        await sendReply(cleanPhone, fallbackMsg);
-
-    } catch (error) {
-        console.error('❌ ERRO NO processarOpcaoNoMenuPrincipal:', error);
-        console.error('❌ Stack:', error.stack);
-        await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro. Digite 0 para tentar novamente.');
-    }
-}
-
 async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
     const service = state.service;
     const nomeCliente = state.nome ? ', ' + state.nome.split(' ')[0] : '';
@@ -3636,6 +2560,7 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
         '7': 'especialista'
     };
 
+    // 1. Primeiro, verifica se é uma opção válida do submenu (1 a 7)
     if (opcoesSubmenu[messageText]) {
         console.log('Processando opção ' + messageText + ' do submenu de ' + service);
 
@@ -3732,15 +2657,18 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
         return;
     }
 
+    // 2. Se não for opção, detecta intenção (prioridade)
     const intencao = detectarIntencao(messageText);
     console.log('Intenção detectada no submenu:', intencao);
 
+    // 3. Se for uma intenção de formulário/início, interrompe o submenu e responde diretamente
     if (intencao === 'solicitar_ds160' || intencao === 'iniciar_processo') {
         console.log('🚀 Cliente quer o formulário DS-160 (saindo do submenu)');
         const nomeCliente2 = state.nome || 'Cliente';
-        const mensagemFormulario = getMensagemFormularioComEspecialista(nomeCliente2);
+        const mensagemFormulario = getMensagemFormularioComEspecialista(nomeCliente);
         await sendReply(cleanPhone, mensagemFormulario);
         
+        // Atualiza status no Supabase
         try {
             await supabase
                 .from('clientes')
@@ -3754,6 +2682,7 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
             console.error('Erro ao atualizar status:', err);
         }
         
+        // Notifica especialista (opcional)
         try {
             await enviarWhatsApp(process.env.ADMIN_PHONE, 
                 `📋 *Cliente solicitou o formulário DS-160!*\n\n` +
@@ -3766,18 +2695,22 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
             console.error('Erro ao notificar especialista:', err);
         }
         
+        // Opcional: volta para o menu principal após enviar o formulário
         state.nivel = 'principal';
         state.service = null;
         userState.set(cleanPhone, state);
+        
         return;
     }
 
+    // 4. Se for outra intenção, responde com a resposta genérica
     if (intencao && intencao !== 'desconhecida') {
         const respostaIntencao = gerarRespostaBot(intencao, state.nome, null);
         await sendReply(cleanPhone, respostaIntencao);
         return;
     }
 
+    // 5. Se nada disso, exibe a mensagem de erro
     const erroMsg = '❌ Opção inválida' + nomeCliente + '!\n\n' +
                    'Você está no menu: ' + getServiceName(service).toUpperCase() + '\n\n' +
                    'Opções disponíveis:\n' +
@@ -3786,27 +2719,319 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
     await sendReply(cleanPhone, erroMsg);
 }
 
-async function buscarClienteEmQualquerTabela(telefoneLimpo, tabelaInicial = 'clientes') {
-    const tabelas = [tabelaInicial, 'clientes_ativos', 'clientes_finalizados', 'contatos_amigos'];
-    for (const tabela of tabelas) {
-        try {
-            const { data, error } = await supabase
-                .from(tabela)
-                .select('*')
-                .eq('telefone', telefoneLimpo)
-                .maybeSingle();
-            if (!error && data) {
-                return data;
-            }
-        } catch (e) {
-            console.log(`Tabela ${tabela} não encontrada ou erro:`, e.message);
-        }
-    }
-    return null;
-}
 
 // ============================================================
-// 19. FUNÇÃO DE GERAÇÃO DE PDF (DS-160)
+// FUNÇÃO DE ENVIO DE RESPOSTA (WHATSAPP)
+// ============================================================
+async function sendReply(phone, message) {
+    try {
+        console.log(`📨 sendReply INICIADA para ${phone}`);
+        console.log(`📨 Mensagem: ${message}`);
+        const resultado = await enviarWhatsApp(phone, message);
+        console.log(`✅ Mensagem enviada: ${resultado}`);
+        return resultado;
+    } catch (error) {
+        console.error(`❌ Erro ao enviar mensagem para ${phone}:`, error);
+        return false;
+    }
+}
+
+
+async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
+    console.log('=== MENU PRINCIPAL ===');
+    console.log('Mensagem recebida: "' + messageText + '"');
+
+    const servicoMap = {
+        '1': 'visto_americano', '2': 'visto_canadense', '3': 'visto_australiano',
+        '4': 'eta_uk', '5': 'eta_canadense', '6': 'passaporte'
+    };
+
+    try {
+        // ============================================================
+        // 1. SERVIÇOS NUMÉRICOS (1-6)
+        // ============================================================
+        if (servicoMap[messageText]) {
+            const serviceKey = servicoMap[messageText];
+            state.nivel = 'submenu';
+            state.service = serviceKey;
+            userState.set(cleanPhone, state);
+            try {
+                await sendReply(cleanPhone, getSubmenu(serviceKey));
+            } catch (err) {
+                await sendReply(cleanPhone, '📋 Serviço selecionado! Digite 0 para voltar ao menu principal.');
+            }
+            return;
+        }
+
+        // ============================================================
+        // 2. OPÇÃO 7 - AJUDA / CONTATO
+        // ============================================================
+        if (messageText === '7') {
+            let nome = state?.nome || 'Cliente';
+            try {
+                const { data } = await supabase.from('clientes').select('nome').eq('telefone', cleanPhone).maybeSingle();
+                if (data?.nome) nome = data.nome;
+            } catch (e) {}
+            await sendReply(cleanPhone, `📞 *Olá ${nome.split(' ')[0]}!* Precisa de ajuda? 👇\n\n👨‍💼 *Fale com Moisés:* wa.me/5521974601812\n📧 contato@getvisa.com.br\n🌐 getvisa.com.br\n📋 https://app.getvisa.com.br/formulario-ds160\n\nDigite 0 para o MENU principal`);
+            return;
+        }
+
+        // ============================================================
+        // 3. DETECTAR INTENÇÃO
+        // ============================================================
+        let intent = null;
+        try { intent = detectarIntencao(messageText); } catch (e) {}
+        console.log('Intenção detectada:', intent);
+
+        // ============================================================
+        // 4. BUSCAR CLIENTE NO SUPABASE
+        // ============================================================
+        let clienteDB = null;
+        try {
+            const { data } = await supabase
+                .from('clientes')
+                .select('status, etapa_atual, nome, consulado')
+                .eq('telefone', cleanPhone)
+                .maybeSingle();
+            if (data) clienteDB = data;
+        } catch (e) {}
+
+        const nomeCliente = clienteDB?.nome || state?.nome || 'Cliente';
+        const primeiroNome = nomeCliente.split(' ')[0];
+
+        // ============================================================
+        // 5. QUAL O SERVIÇO DO CLIENTE?
+        // ============================================================
+        let servicoCliente = 'visto_americano';
+        let servicoLabel = 'Visto Americano';
+        
+        if (clienteDB?.consulado) {
+            servicoCliente = 'visto_americano';
+            servicoLabel = `Visto Americano (${clienteDB.consulado})`;
+        } else if (clienteDB?.status) {
+            servicoCliente = 'visto_americano';
+            servicoLabel = 'Visto Americano';
+        }
+
+        // ============================================================
+        // 6. TRATAMENTO DAS INTENÇÕES (USANDO RESPOSTAS DETALHADAS)
+        // ============================================================
+
+        // 6.1 INICIAR PROCESSO / SOLICITAR DS-160
+        if (intent === 'iniciar_processo' || intent === 'solicitar_ds160') {
+            const msg = (state?.nome && state?.email) 
+                ? getMensagemFormularioComEspecialista(nomeCliente)
+                : getMensagemFormularioParaBot(nomeCliente);
+            await sendReply(cleanPhone, msg);
+            return;
+        }
+
+        // 6.2 ANDAMENTO DO PROCESSO
+        if (intent === 'andamento') {
+            if (!clienteDB) {
+                await sendReply(cleanPhone, '❌ Ainda não encontrei seu cadastro. Digite 0 para o menu principal.');
+                return;
+            }
+            
+            const statusLabels = {
+                'lead': '📋 Cadastro iniciado - aguardando formulário',
+                'formulario_enviado': '📋 Formulário recebido - em análise',
+                'em_analise': '🔍 Em análise pela equipe',
+                'processo_aberto': '📌 Processo aberto - aguardando agendamento',
+                'agendado_casv': '📅 CASV agendado',
+                'agendado_entrevista': '🎤 Entrevista agendada',
+                'treinamento_realizado': '✅ Treinamento concluído',
+                'entrevista_realizada': '🎤 Entrevista realizada - aguardando decisão',
+                'visto_aprovado': '🎉 Visto APROVADO!',
+                'visto_recusado': '😔 Visto recusado - vamos analisar juntos',
+                'passaporte_retornado': '📦 Passaporte disponível para retirada'
+            };
+            
+            const statusAtual = clienteDB.etapa_atual || clienteDB.status || 'lead';
+            const label = statusLabels[statusAtual] || statusAtual;
+            const dataAtualizacao = clienteDB.ultima_atualizacao ? new Date(clienteDB.ultima_atualizacao).toLocaleDateString('pt-BR') : 'Não disponível';
+            
+            const mensagem = `📊 *Olá ${primeiroNome}!*\n\n📍 *Status:* ${label}\n📅 *Atualização:* ${dataAtualizacao}\n${clienteDB.consulado ? `🏛️ *Consulado:* ${clienteDB.consulado}\n` : ''}\n💪 *Estamos com você!*\n\n📱 [Fale com especialista](https://wa.me/5521974601812)\n\nDigite 0 para o menu principal`;
+            
+            await sendReply(cleanPhone, mensagem);
+            return;
+        }
+
+        // 6.3 DOCUMENTOS - USANDO RESPOSTA DETALHADA
+        if (intent === 'documentos') {
+            console.log('📄 Cliente perguntou sobre documentos - usando resposta detalhada');
+            const resposta = getRespostaSubmenu(servicoCliente, 'documentos');
+            await sendReply(cleanPhone, `📋 *Olá ${primeiroNome}!*\n\n${resposta}`);
+            return;
+        }
+
+        // 6.4 PRAZO - USANDO RESPOSTA DETALHADA
+        if (intent === 'prazo') {
+            console.log('⏱️ Cliente perguntou sobre prazo - usando resposta detalhada');
+            const resposta = getRespostaSubmenu(servicoCliente, 'prazo');
+            await sendReply(cleanPhone, `⏱️ *Olá ${primeiroNome}!*\n\n${resposta}`);
+            return;
+        }
+
+        // 6.5 PAGAMENTO - USANDO RESPOSTA DETALHADA
+        if (intent === 'pagamento') {
+            console.log('💰 Cliente perguntou sobre pagamento - usando resposta detalhada');
+            const resposta = getRespostaSubmenu(servicoCliente, 'preco');
+            await sendReply(cleanPhone, `💰 *Olá ${primeiroNome}!*\n\n${resposta}`);
+            return;
+        }
+
+        // 6.6 PROCESSO - USANDO RESPOSTA DETALHADA
+        if (intent === 'processo') {
+            console.log('🔄 Cliente perguntou sobre o processo');
+            const resposta = getRespostaSubmenu(servicoCliente, 'processo');
+            await sendReply(cleanPhone, `🔄 *Olá ${primeiroNome}!*\n\n${resposta}`);
+            return;
+        }
+
+        // 6.7 INDICAR AMIGO
+        if (intent === 'indicar_amigo') {
+            await sendReply(cleanPhone, `👥 *Olá ${primeiroNome}!* Que legal! 🌟\n\n📱 Compartilhe: wa.me/5521974601812\n🌐 getvisa.com.br\n📋 https://app.getvisa.com.br/formulario-ds160\n\n🎁 *Bônus:* Indique um amigo que feche o processo e ganhe 10% de desconto!\n\nDigite 0 para o menu principal`);
+            return;
+        }
+
+        // 6.8 FALAR COM ESPECIALISTA
+        if (intent === 'falar_especialista') {
+            await sendReply(cleanPhone, `👨‍💼 *Olá ${primeiroNome}!*\n\n📱 Fale com Moisés: wa.me/5521974601812\n📧 contato@getvisa.com.br\n⏰ Seg-Sex, 9h-18h\n💡 *Dica:* Tenha seu número de protocolo em mãos!\n\nDigite 0 para o menu principal`);
+            return;
+        }
+
+        // 6.9 DÚVIDA GERAL
+        if (intent === 'duvida_geral') {
+            await sendReply(cleanPhone, `🤔 *Olá ${primeiroNome}!*\n\nPosso ajudar com:\n1️⃣ *Documentos* - Quais levar\n2️⃣ *Prazo* - Quanto tempo demora\n3️⃣ *Status* - Andamento do seu processo\n4️⃣ *Valores* - Quanto custa\n\n💡 *Seja específico(a)*, ex: "documentos para visto"\n📱 wa.me/5521974601812\n\nDigite 0 para o menu principal`);
+            return;
+        }
+
+        // 6.10 FEEDBACK
+        if (intent === 'feedback') {
+            await sendReply(cleanPhone, `⭐ *Olá ${primeiroNome}!* Obrigado! 🌟\n\n📱 wa.me/5521974601812\n📧 contato@getvisa.com.br\n⭐ *Avalie:* Excelente | Bom | Regular\n\nDigite 0 para o menu principal`);
+            return;
+        }
+
+        // 6.11 VISTO AMERICANO (intenção direta)
+        if (intent === 'visto_americano') {
+            state.nivel = 'submenu';
+            state.service = 'visto_americano';
+            userState.set(cleanPhone, state);
+            await sendReply(cleanPhone, getSubmenu('visto_americano'));
+            return;
+        }
+
+        // 6.12 VISTO NEGADO
+        if (intent === 'visto_negado') {
+            await sendReply(cleanPhone, `🔄 *Olá ${primeiroNome}!*\n\nTeve o visto negado? Não desanime!\n\n🔗 Análise gratuita: https://getvisa.com.br/visto-americano-negado/\n\n✅ *Oferecemos:*\n• Análise do motivo da negativa\n• Correção do formulário\n• Documentação reforçada\n• Preparação para entrevista\n\n💰 Investimento: R$ 380\n\n📱 [Fale com especialista](wa.me/5521974601812)\n\nDigite 0 para o menu principal`);
+            return;
+        }
+
+        // ============================================================
+        // 7. FALLBACK - APENAS PARA INTENÇÕES VÁLIDAS NÃO TRATADAS
+        // ============================================================
+        if (intent && intent !== 'desconhecida' && intent !== 'andamento' && intent !== 'documentos' && intent !== 'prazo' && intent !== 'pagamento') {
+            let nome = state?.nome || 'Cliente';
+            try {
+                const { data } = await supabase.from('clientes').select('nome').eq('telefone', cleanPhone).maybeSingle();
+                if (data?.nome) nome = data.nome;
+            } catch (e) {}
+            let resposta = gerarRespostaBot(intent, state?.nome, state?.etapaAtual);
+            resposta = resposta.replace(/Cliente/g, nome.split(' ')[0]);
+            await sendReply(cleanPhone, resposta + '\n\nDigite 0 para o menu principal');
+            return;
+        }
+
+               // ============================================================
+        // 8. NENHUMA INTENÇÃO DETECTADA - CONTATO DIRETO COM ESPECIALISTA
+        // ============================================================
+        console.log('⚠️ Nenhuma intenção detectada para:', messageText);
+        
+        // Buscar nome do cliente
+        let nomeFallback = state?.nome || 'Cliente';
+        try {
+            const { data } = await supabase
+                .from('clientes')
+                .select('nome')
+                .eq('telefone', cleanPhone)
+                .maybeSingle();
+            if (data?.nome) nomeFallback = data.nome;
+        } catch (e) {}
+        
+        const primeiroNomeFallback = nomeFallback.split(' ')[0];
+        
+        // 🔥 MENSAGEM DIRETA COM CONTATO DO ESPECIALISTA EM DESTAQUE
+        const fallbackMsg = `🤔 *Olá ${primeiroNomeFallback}!*
+
+Não entendi sua pergunta. 😅
+
+Mas não se preocupe! Nosso especialista pode ajudar com qualquer dúvida.
+
+📱 *FALE DIRETAMENTE COM MOISÉS:*
+[Clique aqui](https://wa.me/5521974601812)
+
+📧 *Ou por e-mail:* contato@getvisa.com.br
+
+💡 *Dica:* Para respostas rápidas, use:
+• "documentos" - Lista de documentos
+• "prazo" - Prazos do processo  
+• "status" - Andamento do seu caso
+• "valores" - Investimento
+
+Digite 0 para o menu principal`;
+
+        await sendReply(cleanPhone, fallbackMsg);
+
+    } catch (error) {
+        console.error('❌ ERRO NO processarOpcaoNoMenuPrincipal:', error);
+        console.error('❌ Stack:', error.stack);
+        await sendReply(cleanPhone, '❌ Desculpe, ocorreu um erro. Digite 0 para tentar novamente.');
+    }
+} // <-- FECHA A FUNÇÃO processarOpcaoNoMenuPrincipal
+
+// ============================================================
+// 17. WEBHOOK PRINCIPAL (Z-API)
+// ============================================================
+
+// ============================================================
+// WEBHOOK PRINCIPAL (Z-API) - PROCESSAMENTO DIRETO
+// ============================================================
+app.post('/api/webhook/zapi', async (req, res) => {
+    console.log('📨 Webhook Z-API recebido!');
+    
+    // Responde imediatamente para a Z-API
+    res.status(200).send('OK');
+
+    // Processa a mensagem em background
+    (async () => {
+        try {
+            const body = req.body;
+            const telefone = body.phone || body.from || '';
+            const mensagem = body.text?.message || body.message || body.text || '';
+            
+            console.log(`📱 Telefone: ${telefone}`);
+            console.log(`💬 Mensagem: ${mensagem}`);
+            
+            if (!telefone || !mensagem) {
+                console.log('⚠️ Dados incompletos, ignorando.');
+                return;
+            }
+
+            const telefoneLimpo = limparTelefone(telefone);
+            console.log(`📱 Telefone limpo: ${telefoneLimpo}`);
+
+            // Processa diretamente
+            await processarMensagem(telefoneLimpo, mensagem);
+
+        } catch (erro) {
+            console.error('❌ Erro no webhook:', erro);
+        }
+    })();
+});
+
+// ============================================================
+// 18. FUNÇÕES DE GERAÇÃO DE PDF (DS-160)
 // ============================================================
 
 function validateDS160(formData) {
@@ -3839,9 +3064,12 @@ async function gerarPDF_DS160(dados) {
         doc.fontSize(18).fillColor('#003366').text('Formulário DS-160 - GetVisa Assessoria', { align: 'center' });
         doc.moveDown();
 
-        // MAPEAMENTO COMPLETO DE TODOS OS CAMPOS
+        // 🔥 MAPEAMENTO COMPLETO DE TODOS OS CAMPOS
         const todosCampos = {
+            // ========== PASSO 1 ==========
             'Consulado/Embaixada': dados.consulado || '',
+
+            // ========== PASSO 2 - INFORMAÇÕES PESSOAIS ==========
             'Nome Completo': dados.full_name || dados['text-84'] || dados.nome || '',
             'Outros Sobrenomes': dados.other_surnames || '',
             'Gênero': dados['radio-genero'] === 'MALE' ? 'Masculino' : dados['radio-genero'] === 'FEMALE' ? 'Feminino' : dados['radio-genero'] || '',
@@ -3855,6 +3083,8 @@ async function gerarPDF_DS160(dados) {
             'CPF': dados.cpf || '',
             'SSN (Seguro Social EUA)': dados.ssn || 'Não informado',
             'Tax ID (ITIN)': dados.tax_id || 'Não informado',
+
+            // ========== PASSO 3 - VIAGEM ==========
             'Propósito da Viagem': dados.travel_purpose === 'BUSINESS_PLEASURE' ? 'Turismo/Negócios (B1/B2)' : dados.travel_purpose === 'STUDY' ? 'Estudos' : dados.travel_purpose === 'OTHER' ? 'Outros' : dados.travel_purpose || '',
             'Data de Chegada nos EUA': dados.arrival_date || '',
             'Locais a Visitar': dados.places_to_visit || '',
@@ -3867,9 +3097,13 @@ async function gerarPDF_DS160(dados) {
             'País do Pagador': dados.payer_country || '',
             'Telefone do Pagador': dados.payer_phone || '',
             'Email do Pagador': dados.payer_email || '',
+
+            // ========== PASSO 4 - ACOMPANHANTES ==========
             'Acompanhantes': Array.isArray(dados['companion_name[]']) ? dados['companion_name[]'].filter(Boolean).join(', ') : dados['companion_name[]'] || '',
             'Relação dos Acompanhantes': Array.isArray(dados['companion_relationship[]']) ? dados['companion_relationship[]'].filter(Boolean).join(', ') : dados['companion_relationship[]'] || '',
             'Nome do Grupo': dados.group_name || '',
+
+            // ========== PASSO 5 - VIAGENS ANTERIORES ==========
             'Já esteve nos EUA': dados['radio-us-travel'] === 'one' ? 'Sim' : 'Não',
             'Viagens Anteriores (datas)': dados['us_travel_date[]'] ? dados['us_travel_date[]'].filter(Boolean).join(', ') : '',
             'Duração das Viagens (dias)': dados['us_travel_duration[]'] ? dados['us_travel_duration[]'].filter(Boolean).join(', ') : '',
@@ -3885,6 +3119,8 @@ async function gerarPDF_DS160(dados) {
             'Visto cancelado/revogado': dados['radio-visa-cancelled'] === 'YES' ? `Sim - ${dados.visa_cancelled_expl || ''}` : 'Não',
             'Visto negado/entrada negada': dados['radio-visa-refused'] === 'one' ? `Sim - ${dados.visa_refused_explanation || ''}` : 'Não',
             'Petição de imigração': dados['radio-petition'] === 'one' ? `Sim - ${dados.petition_details || ''}` : 'Não',
+
+            // ========== PASSO 6 - ENDEREÇO E CONTATO ==========
             'Endereço Residencial': dados.address || dados.endereco || '',
             'Cidade': dados.city || dados.cidade || '',
             'Estado/Província': dados.state || dados.estado || '',
@@ -3898,6 +3134,8 @@ async function gerarPDF_DS160(dados) {
             'E-mails Adicionais': dados['emails_extra[]'] ? dados['emails_extra[]'].filter(Boolean).join(', ') : '',
             'Redes Sociais': dados['social_plataforma[]'] && dados['social_identificador[]'] ? dados['social_plataforma[]'].map((p, i) => `${p}: ${dados['social_identificador[]'][i] || ''}`).filter(Boolean).join('; ') : '',
             'Presença Adicional em Redes Sociais': dados.social_extra || '',
+
+            // ========== PASSO 7 - PASSAPORTE ==========
             'Número do Passaporte': dados.passport_number || dados['passaporte_numero'] || '',
             'País/Autoridade Emissora': dados.passport_country || '',
             'Cidade de Emissão': dados.passport_city || '',
@@ -3909,12 +3147,16 @@ async function gerarPDF_DS160(dados) {
             'Número do Passaporte Perdido': dados.passport_lost_number || '',
             'Data do Ocorrido': dados.passport_lost_date || '',
             'Local do Ocorrido': dados.passport_lost_location || '',
+
+            // ========== PASSO 8 - CONTATO NOS EUA ==========
             'Pessoa de Contato nos EUA': dados.us_contact_name || '',
             'Organização nos EUA': dados.us_contact_org || '',
             'Relação com o Contato': dados.us_contact_relationship || '',
             'Endereço nos EUA': dados.us_contact_address || '',
             'Telefone nos EUA': dados.us_contact_phone || '',
             'Email nos EUA': dados.us_contact_email || '',
+
+            // ========== PASSO 9 - FAMÍLIA ==========
             'Nome do Pai': dados.father_name || '',
             'Data de Nascimento do Pai': dados.father_dob || '',
             'Pai nos EUA': dados.father_in_us === 'YES' ? 'Sim' : 'Não',
@@ -3936,6 +3178,8 @@ async function gerarPDF_DS160(dados) {
             'Estado do Cônjuge': dados.spouse_address_state || '',
             'CEP do Cônjuge': dados.spouse_address_zip || '',
             'País do Cônjuge': dados.spouse_address_country || '',
+
+            // ========== PASSO 10 - TRABALHO ==========
             'Ocupação Principal': dados['radio-occupation'] === 'Aposentado' ? 'Aposentado(a)' : dados['radio-occupation'] === 'Dona de Casa' ? 'Dona de Casa' : dados['radio-occupation'] === 'Profissional' ? 'Profissional' : dados['radio-occupation'] === 'Estudante' ? 'Estudante' : dados['radio-occupation'] || '',
             'Empregador/Instituição': dados.employer_name || '',
             'Endereço do Empregador': dados.employer_address || '',
@@ -3958,10 +3202,13 @@ async function gerarPDF_DS160(dados) {
             'Especialidade Militar': dados.military_specialty || '',
             'Data de Início no Serviço Militar': dados.military_start || '',
             'Data de Saída do Serviço Militar': dados.military_end || '',
+
+            // ========== PASSO 11 - SEGURANÇA ==========
             'Preso ou Condenado': dados['radio-arrested'] === 'YES' ? `Sim - ${dados.arrested_explanation || ''}` : 'Não',
             'Deportado': dados['radio-deported'] === 'YES' ? `Sim - ${dados.deported_explanation || ''}` : 'Não'
         };
 
+        // Função para escrever seções
         function writeSection(title, campos, doc) {
             doc.moveDown(1);
             doc.fontSize(14).fillColor('#003366').text(title, { underline: true });
@@ -3980,18 +3227,28 @@ async function gerarPDF_DS160(dados) {
             }
         }
 
+        // Seções do PDF
         const secoes = {
-            'Dados Pessoais': ['Consulado/Embaixada', 'Nome Completo', 'Outros Sobrenomes', 'Gênero', 'Estado Civil', 'Data de Nascimento', 'Cidade de Nascimento', 'Estado/Província de Nascimento', 'País de Nascimento', 'Outra Nacionalidade', 'Residente Permanente de outro país', 'CPF', 'SSN (Seguro Social EUA)', 'Tax ID (ITIN)'],
-            'Informacoes da Viagem': ['Propósito da Viagem', 'Data de Chegada nos EUA', 'Locais a Visitar', 'Responsável pelo Pagamento', 'Nome do Pagador', 'Endereço do Pagador', 'Cidade do Pagador', 'Estado do Pagador', 'CEP do Pagador', 'País do Pagador', 'Telefone do Pagador', 'Email do Pagador'],
-            'Acompanhantes': ['Acompanhantes', 'Relação dos Acompanhantes', 'Nome do Grupo'],
-            'Viagens Anteriores e Vistos': ['Já esteve nos EUA', 'Viagens Anteriores (datas)', 'Duração das Viagens (dias)', 'Possui Carteira de Habilitação dos EUA', 'Número da Habilitação', 'Estado da Habilitação', 'Já teve visto americano', 'Data da Última Emissão do Visto', 'Número do Visto', 'Mesmo tipo de visto', 'Mesmo país/cidade da última aplicação', 'Impressões digitais coletadas', 'Visto cancelado/revogado', 'Visto negado/entrada negada', 'Petição de imigração'],
-            'Endereco e Contato': ['Endereço Residencial', 'Cidade', 'Estado/Província', 'CEP', 'País', 'Telefone Principal', 'Telefone Secundário', 'Telefone do Trabalho', 'Telefones Adicionais', 'E-mail Principal', 'E-mails Adicionais', 'Redes Sociais', 'Presença Adicional em Redes Sociais'],
-            'Passaporte': ['Número do Passaporte', 'País/Autoridade Emissora', 'Cidade de Emissão', 'Estado de Emissão', 'Data de Emissão', 'Data de Validade', 'Passaporte Perdido/Roubado', 'Número do BO/Observações', 'Número do Passaporte Perdido', 'Data do Ocorrido', 'Local do Ocorrido'],
-            'Contato nos EUA': ['Pessoa de Contato nos EUA', 'Organização nos EUA', 'Relação com o Contato', 'Endereço nos EUA', 'Telefone nos EUA', 'Email nos EUA'],
-            'Informacoes Familiares': ['Nome do Pai', 'Data de Nascimento do Pai', 'Pai nos EUA', 'Situação do Pai nos EUA', 'Nome da Mãe', 'Data de Nascimento da Mãe', 'Mãe nos EUA', 'Situação da Mãe nos EUA', 'Parentes Diretos nos EUA', 'Detalhes dos Parentes Diretos', 'Outros Parentes nos EUA', 'Nome do Cônjuge/Ex-Cônjuge', 'Data de Nascimento do Cônjuge', 'Nacionalidade do Cônjuge', 'Cidade de Nascimento do Cônjuge', 'País de Nascimento do Cônjuge', 'Endereço do Cônjuge', 'Cidade do Cônjuge', 'Estado do Cônjuge', 'CEP do Cônjuge', 'País do Cônjuge'],
-            'Trabalho e Educacao': ['Ocupação Principal', 'Empregador/Instituição', 'Endereço do Empregador', 'Cidade do Empregador', 'Estado do Empregador', 'CEP do Empregador', 'Telefone do Empregador', 'Data de Início no Emprego', 'Renda Mensal', 'Descrição das Funções', 'Outras Ocupações', 'Empregos Anteriores', 'Cursos/Educação', 'Idiomas (além do Português)', 'Países Visitados (últimos 5 anos)', 'Treinamento Especializado', 'Serviço Militar', 'Ramo Militar', 'Patente Militar', 'Especialidade Militar', 'Data de Início no Serviço Militar', 'Data de Saída do Serviço Militar'],
-            'Seguranca': ['Preso ou Condenado', 'Deportado']
-        };
+    'Dados Pessoais': ['Consulado/Embaixada', 'Nome Completo', 'Outros Sobrenomes', 'Gênero', 'Estado Civil', 'Data de Nascimento', 'Cidade de Nascimento', 'Estado/Província de Nascimento', 'País de Nascimento', 'Outra Nacionalidade', 'Residente Permanente de outro país', 'CPF', 'SSN (Seguro Social EUA)', 'Tax ID (ITIN)'],
+    
+    'Informacoes da Viagem': ['Propósito da Viagem', 'Data de Chegada nos EUA', 'Locais a Visitar', 'Responsável pelo Pagamento', 'Nome do Pagador', 'Endereço do Pagador', 'Cidade do Pagador', 'Estado do Pagador', 'CEP do Pagador', 'País do Pagador', 'Telefone do Pagador', 'Email do Pagador'],
+    
+    'Acompanhantes': ['Acompanhantes', 'Relação dos Acompanhantes', 'Nome do Grupo'],
+    
+    'Viagens Anteriores e Vistos': ['Já esteve nos EUA', 'Viagens Anteriores (datas)', 'Duração das Viagens (dias)', 'Possui Carteira de Habilitação dos EUA', 'Número da Habilitação', 'Estado da Habilitação', 'Já teve visto americano', 'Data da Última Emissão do Visto', 'Número do Visto', 'Mesmo tipo de visto', 'Mesmo país/cidade da última aplicação', 'Impressões digitais coletadas', 'Visto cancelado/revogado', 'Visto negado/entrada negada', 'Petição de imigração'],
+    
+    'Endereco e Contato': ['Endereço Residencial', 'Cidade', 'Estado/Província', 'CEP', 'País', 'Telefone Principal', 'Telefone Secundário', 'Telefone do Trabalho', 'Telefones Adicionais', 'E-mail Principal', 'E-mails Adicionais', 'Redes Sociais', 'Presença Adicional em Redes Sociais'],
+    
+    'Passaporte': ['Número do Passaporte', 'País/Autoridade Emissora', 'Cidade de Emissão', 'Estado de Emissão', 'Data de Emissão', 'Data de Validade', 'Passaporte Perdido/Roubado', 'Número do BO/Observações', 'Número do Passaporte Perdido', 'Data do Ocorrido', 'Local do Ocorrido'],
+    
+    'Contato nos EUA': ['Pessoa de Contato nos EUA', 'Organização nos EUA', 'Relação com o Contato', 'Endereço nos EUA', 'Telefone nos EUA', 'Email nos EUA'],
+    
+    'Informacoes Familiares': ['Nome do Pai', 'Data de Nascimento do Pai', 'Pai nos EUA', 'Situação do Pai nos EUA', 'Nome da Mãe', 'Data de Nascimento da Mãe', 'Mãe nos EUA', 'Situação da Mãe nos EUA', 'Parentes Diretos nos EUA', 'Detalhes dos Parentes Diretos', 'Outros Parentes nos EUA', 'Nome do Cônjuge/Ex-Cônjuge', 'Data de Nascimento do Cônjuge', 'Nacionalidade do Cônjuge', 'Cidade de Nascimento do Cônjuge', 'País de Nascimento do Cônjuge', 'Endereço do Cônjuge', 'Cidade do Cônjuge', 'Estado do Cônjuge', 'CEP do Cônjuge', 'País do Cônjuge'],
+    
+    'Trabalho e Educacao': ['Ocupação Principal', 'Empregador/Instituição', 'Endereço do Empregador', 'Cidade do Empregador', 'Estado do Empregador', 'CEP do Empregador', 'Telefone do Empregador', 'Data de Início no Emprego', 'Renda Mensal', 'Descrição das Funções', 'Outras Ocupações', 'Empregos Anteriores', 'Cursos/Educação', 'Idiomas (além do Português)', 'Países Visitados (últimos 5 anos)', 'Treinamento Especializado', 'Serviço Militar', 'Ramo Militar', 'Patente Militar', 'Especialidade Militar', 'Data de Início no Serviço Militar', 'Data de Saída do Serviço Militar'],
+    
+    'Seguranca': ['Preso ou Condenado', 'Deportado']
+};
 
         for (const [titulo, campos] of Object.entries(secoes)) {
             const filteredCampos = {};
@@ -4008,230 +3265,443 @@ async function gerarPDF_DS160(dados) {
     });
 }
 
-// ============================================================
-// 20. ROTAS DE DEPURAÇÃO (DEBUG)
-// ============================================================
-
-app.post('/api/test-receive', function(req, res) {
-    console.log('📨 ===== TESTE DE RECEBIMENTO =====');
-    console.log('📨 Headers:', req.headers);
-    console.log('📨 Body recebido:', JSON.stringify(req.body, null, 2));
-
-    res.json({
-        success: true,
-        received: true,
-        keys: Object.keys(req.body),
-        count: Object.keys(req.body).length,
-        timestamp: new Date().toISOString()
-    });
-});
-
-app.post('/api/debug/criar-cliente', async (req, res) => {
-    console.log('🔍 ===== DEBUG: CRIAR CLIENTE =====');
-
+function getMensagemFormularioDS160ParaCliente(nomeCliente) {
+    let primeiroNome = 'Cliente';
     try {
-        const { telefone, nome } = req.body;
-
-        if (!telefone) {
-            return res.status(400).json({
-                sucesso: false,
-                erro: 'Telefone é obrigatório'
-            });
+        if (nomeCliente && typeof nomeCliente === 'string' && nomeCliente.trim().length > 0) {
+            primeiroNome = nomeCliente.trim().split(' ')[0];
         }
+    } catch (err) {
+        console.error('Erro ao processar nome:', err);
+        primeiroNome = 'Cliente';
+    }
 
-        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
-        console.log('📱 Telefone:', telefoneLimpo);
-        console.log('👤 Nome:', nome || '(vazio)');
+    return `🎉 *PARABÉNS, ${primeiroNome.toUpperCase()}!* 🎉\n\n` +
+           `Recebemos seu formulário DS-160 e ele já está em análise pela nossa equipe!\n\n` +
+           `✅ *O que acontece agora:*\n` +
+           `• Em breve você receberá um e-mail com o PDF do seu formulário preenchido para revisão.\n` +
+           `• Nossa equipe entrará em contato para os próximos passos, incluindo o agendamento da entrevista.\n\n` +
+           `🌟 *Sua jornada para os EUA continua!* ✈️\n\n` +
+           `📱 Dúvidas? Fale com a gente: [Fale com nosso especialista](https://wa.me/5521974601812)`;
+}
 
-        const dados = {
-            telefone: telefoneLimpo,
-            data_contato: new Date().toISOString(),
-            status: 'novo',
-            onboarding_completo: false,
-            updated_at: new Date().toISOString()
-        };
+// ============================================================
+// 19. FUNÇÕES DE GERENCIAMENTO DE CLIENTES E ETAPAS
+// ============================================================
 
-        if (nome && nome !== 'Cliente' && !nome.startsWith('Cliente_')) {
-            dados.nome = nome;
+async function buscarClienteEmQualquerTabela(telefoneLimpo, tabelaInicial = 'clientes') {
+    const tabelas = [tabelaInicial, 'clientes_ativos', 'clientes_finalizados', 'contatos_amigos'];
+    for (const tabela of tabelas) {
+        try {
+            const { data, error } = await supabase
+                .from(tabela)
+                .select('*')
+                .eq('telefone', telefoneLimpo)
+                .maybeSingle();
+            if (!error && data) {
+                return data;
+            }
+        } catch (e) {
+            console.log(`Tabela ${tabela} não encontrada ou erro:`, e.message);
         }
+    }
+    return null;
+}
 
+async function criarEtapaInicial(telefone) {
+    try {
         const { data, error } = await supabase
-            .from('clientes')
-            .upsert(dados, { onConflict: 'telefone' })
+            .from('etapas_processo')
+            .insert({
+                cliente_telefone: telefone,
+                etapa_atual: 'formulario_enviado',
+                data_atualizacao: new Date().toISOString(),
+                historico: [{
+                    etapa: 'formulario_enviado',
+                    data: new Date().toISOString(),
+                    observacao: 'Formulário DS-160 recebido'
+                }],
+                data_formulario_enviado: new Date().toISOString()
+            })
             .select()
             .single();
+        if (error) throw error;
+        console.log('✅ Etapa inicial criada para:', telefone);
+        return data;
+    } catch (error) {
+        if (error.code === '23505') {
+            console.log('⚠️ Etapa inicial já existe para este cliente:', telefone);
+            return null;
+        }
+        console.error('❌ Erro ao criar etapa inicial:', error);
+        throw error;
+    }
+}
+
+async function gerarMensagemEtapa(clienteTelefone, etapaId) {
+    const { data: etapaData, error } = await supabase
+        .from('etapas_processo')
+        .select('*')
+        .eq('cliente_telefone', clienteTelefone)
+        .maybeSingle();
+
+    if (error || !etapaData) {
+        console.error('Erro ao buscar etapa do cliente:', error);
+        return 'Não foi possível encontrar informações sobre o andamento do seu processo.';
+    }
+
+    const etapaInfo = ETAPAS[etapaId || etapaData.etapa_atual];
+    if (!etapaInfo) {
+        return 'Etapa desconhecida. Por favor, entre em contato com nosso suporte.';
+    }
+
+    const nomeCliente = (await buscarClienteEmQualquerTabela(clienteTelefone))?.nome?.split(' ')[0] || 'Cliente';
+
+    let mensagem = `Olá ${nomeCliente}!\n\n`;
+    mensagem += `Seu processo na GetVisa Assessoria está na etapa:\n\n`;
+    mensagem += `📍 *${etapaInfo.label.toUpperCase()}*\n\n`;
+
+    switch (etapaInfo.id) {
+        case 'formulario_enviado':
+            mensagem += `Recebemos seu formulário e nossa equipe já está analisando os dados.`;
+            break;
+        case 'analise_correcoes':
+            mensagem += `Estamos revisando seu formulário e documentos. Se houver necessidade de correções, entraremos em contato.`;
+            break;
+        case 'abertura_processo':
+            mensagem += `Seu processo foi aberto e estamos preparando os próximos passos para o agendamento.`;
+            break;
+        case 'boleto_emitido':
+            mensagem += `O boleto da taxa consular foi emitido. Por favor, verifique seu e-mail para efetuar o pagamento.`;
+            break;
+        case 'boleto_pago':
+            mensagem += `Confirmamos o pagamento do seu boleto! Agora vamos prosseguir com o agendamento.`;
+            break;
+        case 'agendamento_realizado':
+            mensagem += `Seu agendamento para o CASV e Consulado foi realizado! Verifique seu e-mail para os detalhes.`;
+            break;
+        case 'treinamento_realizado':
+            mensagem += `Seu treinamento para a entrevista foi concluído. Você está pronto(a)!`;
+            break;
+        case 'entrevista_realizada':
+            mensagem += `Sua entrevista foi realizada. Agora é aguardar a decisão consular!`;
+            break;
+        case 'visto_aprovado':
+            mensagem += `Parabéns! Seu visto foi aprovado! Estamos aguardando o retorno do seu passaporte.`;
+            break;
+        case 'passaporte_retornado':
+            mensagem += `Seu passaporte com o visto já está disponível para retirada/entrega! Entraremos em contato para combinar.`;
+            break;
+        case 'visto_recusado':
+            mensagem += `Infelizmente, seu visto foi recusado. Nossa equipe entrará em contato para analisar as opções.`;
+            break;
+        default:
+            mensagem += `Aguarde novas atualizações da nossa equipe.`;
+            break;
+    }
+
+    mensagem += `\n\nEm caso de dúvidas, fale com a gente: [Fale com nosso especialista](https://wa.me/5521974601812)`;
+    return mensagem;
+}
+
+async function notificarClienteEtapa(clienteTelefone, etapaId, mensagemPersonalizada = null) {
+    if (!FEATURES.SISTEMA_ETAPAS.ativo || !FEATURES.SISTEMA_ETAPAS.notificar_cliente) {
+        console.log('Notificação de etapa desativada nas FEATURES.');
+        return false;
+    }
+
+    const mensagem = mensagemPersonalizada || (await gerarMensagemEtapa(clienteTelefone, etapaId));
+    return enviarWhatsApp(clienteTelefone, mensagem);
+}
+
+// ============================================================
+// 20. ROTAS DE ADMINISTRAÇÃO
+// ============================================================
+
+app.post('/api/admin/regenerar-pdf', async function(req, res) {
+    try {
+        const adminKey = req.headers['x-admin-key'];
+        if (adminKey !== ADMIN_API_KEY) {
+            return res.status(401).json({ error: 'Não autorizado' });
+        }
+
+        const { telefone, email, enviar_whatsapp } = req.body;
+
+        if (!telefone) {
+            return res.status(400).json({ error: 'Telefone é obrigatório' });
+        }
+
+        console.log(`📌 Regenerando PDF para telefone: ${telefone}`);
+
+        const telefoneLimpo = limparTelefone(telefone);
+
+        const { data: cliente, error } = await supabase
+            .from('clientes_ativos')
+            .select('*')
+            .eq('telefone', telefoneLimpo)
+            .maybeSingle();
 
         if (error) {
-            console.error('❌ UPSERT falhou:', error);
-            return res.json({
-                sucesso: false,
-                erro: error,
-                mensagem: 'Não foi possível criar o cliente'
-            });
+            console.error('❌ Erro ao buscar cliente:', error);
+            return res.status(500).json({ error: error.message });
         }
 
-        return res.json({
-            sucesso: true,
-            dados: data,
-            mensagem: 'Cliente criado com sucesso'
-        });
-
-    } catch (error) {
-        console.error('❌ Erro crítico:', error);
-        return res.status(500).json({
-            sucesso: false,
-            erro: error.message,
-            stack: error.stack
-        });
-    }
-});
-
-app.get('/api/debug/verificar-tabela', async (req, res) => {
-    console.log('🔍 ===== VERIFICANDO TABELA clientes =====');
-
-    try {
-        const { error: tableError } = await supabase
-            .from('clientes')
-            .select('id')
-            .limit(1);
-
-        if (tableError) {
-            return res.json({
-                existe: false,
-                erro: tableError,
-                mensagem: 'Tabela clientes não existe'
-            });
+        if (!cliente) {
+            return res.status(404).json({ error: 'Cliente não encontrado em clientes_ativos' });
         }
 
-        const { data: sample, error: sampleError } = await supabase
-            .from('clientes')
+        const { data: formulario, error: formError } = await supabase
+            .from('formularios_ds160')
             .select('*')
-            .limit(1);
+            .eq('telefone', telefoneLimpo)
+            .maybeSingle();
 
-        if (sampleError) {
-            return res.json({
-                existe: true,
-                erro: sampleError,
-                mensagem: 'Erro ao ler estrutura'
+        if (formError) {
+            console.error('❌ Erro ao buscar formulário:', formError);
+        }
+
+        if (!formulario) {
+            return res.status(404).json({
+                error: 'Dados do formulário não encontrados.'
             });
         }
 
-        const colunas = sample && sample.length > 0 ? Object.keys(sample[0]) : [];
+        const pdfBuffer = await gerarPDF_DS160(formulario);
+        console.log(`📄 PDF regenerado para ${cliente.nome}, tamanho: ${pdfBuffer.length} bytes`);
 
-        return res.json({
-            existe: true,
-            colunas: colunas,
-            tem_dados: sample && sample.length > 0,
-            amostra: sample && sample.length > 0 ? sample[0] : null,
-            mensagem: 'Tabela clientes existe e está acessível'
-        });
+        if (email) {
+            await resend.emails.send({
+                from: 'GetVisa <contato@getvisa.com.br>',
+                to: [email],
+                subject: 'PDF Regenerado - DS-160 ' + cliente.nome,
+                html: '<strong>Olá!</strong><br><p>Segue o PDF regenerado com os dados completos do formulário DS-160.</p>',
+                attachments: [{
+                    filename: 'DS160_' + cliente.nome.replace(/[^a-z0-9]/gi, '_') + '.pdf',
+                    content: pdfBuffer.toString('base64')
+                }]
+            });
+            console.log('📧 PDF enviado por e-mail para:', email);
+        }
 
-    } catch (error) {
-        return res.status(500).json({
-            erro: error.message,
-            stack: error.stack
-        });
-    }
-});
+        if (enviar_whatsapp) {
+            try {
+                const nomeCliente = cliente.nome.split(' ')[0];
+                await enviarPDFWhatsApp(telefoneLimpo, pdfBuffer, nomeCliente);
+                console.log('📱 PDF enviado por WhatsApp para:', telefoneLimpo);
+            } catch (err) {
+                console.error('❌ Erro ao enviar PDF por WhatsApp:', err);
+            }
+        }
 
-app.post('/api/test/webhook-manual', async function(req, res) {
-    console.log('TESTE MANUAL');
-    console.log('Body:', JSON.stringify(req.body, null, 2));
+        const pastaPDFs = path.join(__dirname, 'pdfs_regenerados');
 
-    var phone = req.body.phone;
-    var message = req.body.message || 'Teste';
+        if (!fs.existsSync(pastaPDFs)) {
+            fs.mkdirSync(pastaPDFs, { recursive: true });
+        }
 
-    if (!phone) {
-        return res.status(400).json({ error: 'Phone e obrigatorio' });
-    }
+        const nomeArquivo = `DS160_${cliente.nome.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.pdf`;
+        const caminhoArquivo = path.join(pastaPDFs, nomeArquivo);
+        fs.writeFileSync(caminhoArquivo, pdfBuffer);
 
-    try {
-        var cleanPhone = phone.toString().replace(/\D/g, '');
-        console.log('Telefone limpo: ' + cleanPhone);
-        console.log('Mensagem: "' + message + '"');
-
-        var resultado = await sendReply(cleanPhone, 'TESTE MANUAL\n\nSe voce esta vendo esta mensagem, o sistema esta funcionando!\n\nDigite 0 para o menu principal');
+        console.log(`💾 PDF salvo em: ${caminhoArquivo}`);
 
         res.json({
-            success: resultado,
-            phone: cleanPhone,
-            message_sent: resultado,
-            timestamp: new Date().toISOString()
+            success: true,
+            message: 'PDF regenerado com sucesso!',
+            cliente: {
+                nome: cliente.nome,
+                telefone: cliente.telefone
+            },
+            pdf_gerado: true,
+            email_enviado: !!email,
+            whatsapp_enviado: !!enviar_whatsapp,
+            arquivo_salvo: caminhoArquivo
         });
+
     } catch (error) {
-        console.error('Erro no teste manual:', error);
+        console.error('❌ Erro ao regenerar PDF:', error);
+        res.status(500).json({
+            error: 'Erro ao regenerar PDF',
+            detalhe: error.message
+        });
+    }
+});
+
+app.get('/api/admin/buscar-formulario/:telefone', async function(req, res) {
+    try {
+        const adminKey = req.headers['x-admin-key'];
+        if (adminKey !== ADMIN_API_KEY) {
+            return res.status(401).json({ error: 'Não autorizado' });
+        }
+
+        const telefone = req.params.telefone;
+        const telefoneLimpo = limparTelefone(telefone);
+
+        const tabelas = ['formularios_ds160', 'clientes_ativos', 'clientes'];
+        let dados = null;
+        let encontradoEm = null;
+
+        for (const tabela of tabelas) {
+            try {
+                const { data, error } = await supabase
+                    .from(tabela)
+                    .select('*')
+                    .eq('telefone', telefoneLimpo)
+                    .maybeSingle();
+
+                if (!error && data) {
+                    dados = data;
+                    encontradoEm = tabela;
+                    break;
+                }
+            } catch (e) {
+                console.log(`Tabela ${tabela} não encontrada ou erro:`, e.message);
+            }
+        }
+
+        if (!dados) {
+            return res.status(404).json({
+                error: 'Dados do formulário não encontrados em nenhuma tabela'
+            });
+        }
+
+        res.json({
+            success: true,
+            encontrado_em: encontradoEm,
+            dados: dados
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao buscar formulário:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/debug/testar-webhook', async (req, res) => {
-    console.log('🔍 ===== TESTE MANUAL DO WEBHOOK =====');
-
+app.post('/api/clientes/finalizar', async function(req, res) {
     try {
-        const { telefone, mensagem } = req.body;
+        var telefone = req.body.telefone;
+        var resultado = req.body.resultado || 'aprovado';
+        var observacoes = req.body.observacoes || '';
+        var servico = req.body.servico || 'Visto Americano';
+        var email = req.body.email || '';
 
         if (!telefone) {
             return res.status(400).json({ erro: 'Telefone é obrigatório' });
         }
 
-        const cleanPhone = telefone.toString().replace(/\D/g, '').replace(/^55/, '');
-        const msg = mensagem || 'oi, quero meu visto';
-
-        console.log('📱 Telefone:', cleanPhone);
-        console.log('💬 Mensagem:', msg);
-
-        const telefoneLimpo = cleanPhone;
+        console.log(`📌 Finalizando cliente ${telefone}: ${resultado}`);
 
         const { data: cliente, error } = await supabase
-            .from('clientes')
-            .upsert({
-                telefone: telefoneLimpo,
-                data_contato: new Date().toISOString(),
-                status: 'novo',
-                onboarding_completo: false,
+            .from('clientes_ativos')
+            .select('*')
+            .eq('telefone', telefone)
+            .maybeSingle();
+
+        if (error) {
+            return res.status(500).json({ erro: error.message });
+        }
+
+        if (!cliente) {
+            return res.status(404).json({ erro: 'Cliente não encontrado em clientes_ativos' });
+        }
+
+        let finalizado;
+        const { data: insertData, error: insertError } = await supabase
+            .from('clientes_finalizados')
+            .insert({
+                telefone: cliente.telefone,
+                nome: cliente.nome,
+                email: email || null,
+                servico: servico,
+                data_inicio: cliente.criado_em || new Date().toISOString(),
+                data_finalizacao: new Date().toISOString(),
+                observacoes: observacoes || `Processo finalizado com ${resultado}`,
+                created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
-            }, { onConflict: 'telefone' })
+            })
             .select()
             .single();
 
-        if (error) {
-            console.error('❌ Erro ao criar:', error);
-            return res.json({
-                sucesso: false,
-                etapa: 'criar_cliente',
-                erro: error,
-                mensagem: 'Falha ao criar cliente'
-            });
+        if (insertError) {
+            const { data: updateData, error: updateError } = await supabase
+                .from('clientes_finalizados')
+                .update({
+                    servico: servico,
+                    data_finalizacao: new Date().toISOString(),
+                    observacoes: observacoes || `Processo finalizado com ${resultado}`,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('telefone', telefone)
+                .select()
+                .single();
+
+            if (updateError) {
+                return res.status(500).json({ erro: updateError.message });
+            }
+            finalizado = updateData;
+        } else {
+            finalizado = insertData;
         }
 
-        console.log('✅ Cliente criado:', cliente);
+        await supabase
+            .from('clientes_ativos')
+            .delete()
+            .eq('telefone', telefone);
 
-        const saudacao = '👋 Olá! Seja muito bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸\n\nSomos especialistas em vistos americanos e estamos aqui para realizar seu sonho de viajar para os EUA! ✈️\n\nPara começarmos seu atendimento de forma personalizada, preciso saber:\n\n📝 **Qual é o seu nome completo?**\n\nEx: Maria Silva';
+        await supabase
+            .from('clientes')
+            .delete()
+            .eq('telefone', telefone);
 
-        console.log('📨 Enviando WhatsApp de teste...');
-        const enviado = await enviarWhatsApp(cleanPhone, saudacao);
+        await supabase
+            .from('contatos_amigos')
+            .delete()
+            .eq('telefone', telefone);
 
-        return res.json({
-            sucesso: true,
-            cliente_criado: cliente,
-            mensagem_enviada: enviado,
-            mensagem: saudacao,
-            observacao: 'Verifique se recebeu a mensagem no WhatsApp'
+        console.log(`✅ Cliente ${telefone} finalizado e movido para clientes_finalizados`);
+
+        try {
+            const nomeCliente = cliente.nome && !cliente.nome.startsWith('Cliente_')
+                ? cliente.nome.split(' ')[0]
+                : 'Cliente';
+
+            let mensagem = '';
+            if (resultado === 'recusado') {
+                mensagem = `😔 Olá ${nomeCliente}!\n\n` +
+                          `Sabemos que essa notícia dói, ainda mais depois de tanta dedicação na preparação.\n\n` +
+                          `É importante entender: a decisão final do visto acontece no momento da entrevista, e depende muito da avaliação pessoal do oficial consular naquele instante — algo que vai além da documentação e da preparação, por mais completa que tenha sido.\n\n` +
+                          `🔍 Vamos analisar com você os detalhes da entrevista para entender o que pesou na decisão e ajustar a estratégia para a próxima tentativa.\n\n` +
+                          `📱 Fale com a gente agora para uma análise gratuita:\n` +
+                          `[Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+                          `💪 Isso não muda o seu objetivo. Vamos trabalhar juntos para reverter esse cenário!`;
+            } else {
+                mensagem = `🎉 PARABÉNS, ${nomeCliente}! 🎉\n\n` +
+                          `Seu passaporte com o visto foi retornado!\n\n` +
+                          `✅ Seu processo foi concluído com sucesso!\n\n` +
+                          `🌟 Agradecemos por confiar na GetVisa Assessoria!\n\n` +
+                          `✈️ Boa viagem! Vá realizar seus sonhos!`;
+            }
+
+            await enviarWhatsApp(telefone, mensagem);
+            console.log(`✅ Mensagem de finalização enviada para ${telefone}`);
+        } catch (err) {
+            console.error(`❌ Erro ao enviar mensagem de finalização:`, err);
+        }
+
+        res.json({
+            success: true,
+            message: `Cliente finalizado com ${resultado}`,
+            cliente: finalizado
         });
 
     } catch (error) {
-        console.error('❌ Erro:', error);
-        return res.status(500).json({
-            sucesso: false,
-            erro: error.message,
-            stack: error.stack
+        console.error('❌ Erro ao finalizar cliente:', error);
+        res.status(500).json({
+            erro: 'Erro ao finalizar cliente',
+            detalhe: error.message
         });
     }
 });
-
-// ============================================================
-// 21. ROTAS DE ADMIN (BANCO DE DADOS)
-// ============================================================
 
 app.get('/api/test/banco', async function(req, res) {
     try {
@@ -4273,11 +3743,6 @@ app.post('/api/etapas/finalizar', async function(req, res) {
     console.log('📌 Body recebido:', JSON.stringify(req.body, null, 2));
 
     try {
-        const adminKey = req.headers['x-admin-key'];
-        if (adminKey !== ADMIN_API_KEY) {
-            return res.status(401).json({ error: 'Não autorizado' });
-        }
-
         var telefone = req.body.telefone;
         var etapaFinal = req.body.etapa_final || 'passaporte_retornado';
         var nota = req.body.nota || '';
@@ -4490,7 +3955,40 @@ app.post('/api/etapas/finalizar', async function(req, res) {
     }
 });
 
-app.get('/api/clientes/finalizados/:telefone', auth.verificarApiKey, async function(req, res) {
+app.get('/api/clientes/finalizados', async function(req, res) {
+    try {
+        console.log('📌 [GET] /api/clientes/finalizados');
+
+        const { data, error } = await supabase
+            .from('clientes_finalizados')
+            .select('*')
+            .order('data_finalizacao', { ascending: false });
+
+        if (error) {
+            console.error('❌ Erro no Supabase:', error);
+            return res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+
+        console.log(`✅ ${data?.length || 0} clientes finalizados encontrados`);
+
+        res.json({
+            success: true,
+            finalizados: data || []
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao buscar finalizados:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+app.get('/api/clientes/finalizados/:telefone', async function(req, res) {
     try {
         const telefone = req.params.telefone;
         console.log(`📌 [GET] /api/clientes/finalizados/${telefone}`);
@@ -4541,6 +4039,602 @@ app.get('/api/clientes/finalizados/:telefone', auth.verificarApiKey, async funct
 
     } catch (error) {
         console.error('❌ Erro ao buscar cliente finalizado:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+app.post('/api/clientes/reabrir', async function(req, res) {
+    try {
+        const telefone = req.body.telefone;
+        console.log(`📌 [POST] /api/clientes/reabrir`);
+        console.log(`📌 Telefone: ${telefone}`);
+
+        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+        console.log(`🔄 Reabrindo: ${telefoneLimpo}`);
+
+        let { data: cliente, error } = await supabase
+            .from('clientes_finalizados')
+            .select('*')
+            .eq('telefone', telefoneLimpo)
+            .maybeSingle();
+
+        if (!cliente) {
+            const telefoneFormatado = formatarTelefone(telefoneLimpo);
+            console.log(`🔍 Tentando formato: ${telefoneFormatado}`);
+
+            const { data: dataFormatado } = await supabase
+                .from('clientes_finalizados')
+                .select('*')
+                .eq('telefone', telefoneFormatado)
+                .maybeSingle();
+            cliente = dataFormatado;
+        }
+
+        if (error) {
+            console.error('❌ Erro:', error);
+            return res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+
+        if (!cliente) {
+            console.log(`❌ Cliente não encontrado em finalizados`);
+            return res.status(404).json({
+                success: false,
+                error: 'Cliente não encontrado em finalizados'
+            });
+        }
+
+        console.log(`✅ Cliente encontrado: ${cliente.nome}`);
+
+        const { data: existente } = await supabase
+            .from('clientes_ativos')
+            .select('telefone')
+            .eq('telefone', cliente.telefone)
+            .maybeSingle();
+
+        if (existente) {
+            console.log(`⚠️ Cliente já existe em ativos, removendo...`);
+            await supabase
+                .from('clientes_ativos')
+                .delete()
+                .eq('telefone', cliente.telefone);
+        }
+
+        let ativo;
+        const { data: insertData, error: insertError } = await supabase
+            .from('clientes_ativos')
+            .insert({
+                telefone: cliente.telefone,
+                nome: cliente.nome,
+                email: cliente.email || null,
+                criado_em: cliente.data_inicio || new Date().toISOString(),
+                atualizado_em: new Date().toISOString(),
+                status: 'reaberto'
+            })
+            .select()
+            .single();
+
+        if (insertError) {
+            console.error('❌ Erro ao inserir em ativos:', insertError);
+            return res.status(500).json({
+                success: false,
+                error: insertError.message
+            });
+        } else {
+            ativo = insertData;
+        }
+
+        console.log(`✅ Cliente inserido em clientes_ativos`);
+
+        await supabase
+            .from('clientes_finalizados')
+            .delete()
+            .eq('telefone', cliente.telefone);
+
+        console.log(`🗑️ Cliente removido de clientes_finalizados`);
+
+        try {
+            await criarEtapaInicial(telefoneLimpo);
+            console.log(`✅ Etapa inicial criada`);
+        } catch (err) {
+            console.error('❌ Erro ao criar etapa:', err);
+        }
+
+        try {
+            const nomeCliente = cliente.nome && !cliente.nome.startsWith('Cliente_')
+                ? cliente.nome.split(' ')[0]
+                : 'Cliente';
+
+            const mensagem = `🔄 Olá ${nomeCliente}!\n\n` +
+                           `Seu processo foi REABERTO pela nossa equipe.\n\n` +
+                           `📋 Status: Em andamento\n` +
+                           `📍 Etapa atual: Formulário recebido\n\n` +
+                           `Em breve nossa equipe entrará em contato com os próximos passos.\n\n` +
+                           `📱 Dúvidas? Fale conosco pelo WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812)`;
+
+            await enviarWhatsApp(cliente.telefone, mensagem);
+            console.log(`✅ Mensagem de reabertura enviada`);
+        } catch (err) {
+            console.error('❌ Erro ao enviar mensagem:', err);
+        }
+
+        console.log(`✅ Processo reaberto com sucesso!`);
+
+        res.json({
+            success: true,
+            message: 'Processo reaberto com sucesso',
+            cliente: ativo
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao reabrir processo:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+app.get('/api/clientes/buscar/:telefone', async function(req, res) {
+    try {
+        const telefone = req.params.telefone;
+        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+
+        console.log(`🔍 Buscando cliente: ${telefoneLimpo}`);
+
+        // 🔥 CORREÇÃO: Usar APENAS a tabela 'clientes'
+        const { data, error } = await supabase
+            .from('clientes')
+            .select('*')
+            .eq('telefone', telefoneLimpo)
+            .maybeSingle();
+
+        if (error) {
+            console.error('❌ Erro:', error);
+            return res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                error: 'Cliente não encontrado'
+            });
+        }
+
+        res.json({
+            success: true,
+            cliente: data
+        });
+
+    } catch (error) {
+        console.error('❌ Erro:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+app.post('/api/test-receive', function(req, res) {
+    console.log('📨 ===== TESTE DE RECEBIMENTO =====');
+    console.log('📨 Headers:', req.headers);
+    console.log('📨 Body recebido:', JSON.stringify(req.body, null, 2));
+
+    const logData = {
+        timestamp: new Date().toISOString(),
+        headers: req.headers,
+        body: req.body,
+        bodyKeys: Object.keys(req.body)
+    };
+
+    fs.appendFileSync('teste-recebimento.log', JSON.stringify(logData, null, 2) + '\n---\n');
+
+    res.json({
+        success: true,
+        received: true,
+        keys: Object.keys(req.body),
+        count: Object.keys(req.body).length,
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.post('/api/debug/criar-cliente', async (req, res) => {
+    console.log('🔍 ===== DEBUG: CRIAR CLIENTE =====');
+
+    try {
+        const { telefone, nome } = req.body;
+
+        if (!telefone) {
+            return res.status(400).json({
+                sucesso: false,
+                erro: 'Telefone é obrigatório'
+            });
+        }
+
+        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+        console.log('📱 Telefone:', telefoneLimpo);
+        console.log('👤 Nome:', nome || '(vazio)');
+
+        console.log('🔍 Verificando tabela clientes...');
+        const { error: tableCheck } = await supabase
+            .from('clientes')
+            .select('id')
+            .limit(1);
+
+        if (tableCheck) {
+            console.error('❌ Erro na tabela:', tableCheck);
+            return res.json({
+                sucesso: false,
+                etapa: 'verificacao_tabela',
+                erro: tableCheck,
+                mensagem: 'Tabela clientes não existe ou está inacessível'
+            });
+        }
+
+        console.log('🔄 Tentando UPSERT...');
+        const dados = {
+            telefone: telefoneLimpo,
+            data_contato: new Date().toISOString(),
+            status: 'novo',
+            onboarding_completo: false,
+            updated_at: new Date().toISOString()
+        };
+
+        if (nome && nome !== 'Cliente' && !nome.startsWith('Cliente_')) {
+            dados.nome = nome;
+        }
+
+        let upsertData;
+        const { data: insertData, error: upsertError } = await supabase
+            .from('clientes')
+            .upsert(dados, { onConflict: 'telefone' })
+            .select()
+            .single();
+
+        if (upsertError) {
+            console.error('❌ UPSERT falhou:', upsertError);
+
+            console.log('🔄 Tentando INSERT direto...');
+            const { data: directInsertData, error: insertError } = await supabase
+                .from('clientes')
+                .insert(dados)
+                .select()
+                .single();
+
+            if (insertError) {
+                console.error('❌ INSERT falhou:', insertError);
+
+                return res.json({
+                    sucesso: false,
+                    etapa: 'insert',
+                    erro: insertError,
+                    mensagem: 'Não foi possível criar o cliente',
+                    detalhes: {
+                        codigo: insertError.code,
+                        mensagem: insertError.message,
+                        detalhe: insertError.details
+                    }
+                });
+            }
+
+            return res.json({
+                sucesso: true,
+                etapa: 'insert',
+                dados: directInsertData,
+                mensagem: 'Cliente criado com INSERT'
+            });
+        } else {
+            upsertData = insertData;
+        }
+
+        return res.json({
+            sucesso: true,
+            etapa: 'upsert',
+            dados: upsertData,
+            mensagem: 'Cliente criado com UPSERT'
+        });
+
+    } catch (error) {
+        console.error('❌ Erro crítico:', error);
+        return res.status(500).json({
+            sucesso: false,
+            erro: error.message,
+            stack: error.stack
+        });
+    }
+});
+
+app.get('/api/debug/verificar-tabela', async (req, res) => {
+    console.log('🔍 ===== VERIFICANDO TABELA clientes =====');
+
+    try {
+        const { error: tableError } = await supabase
+            .from('clientes')
+            .select('id')
+            .limit(1);
+
+        if (tableError) {
+            return res.json({
+                existe: false,
+                erro: tableError,
+                mensagem: 'Tabela clientes não existe'
+            });
+        }
+
+        const { data: sample, error: sampleError } = await supabase
+            .from('clientes')
+            .select('*')
+            .limit(1);
+
+        if (sampleError) {
+            return res.json({
+                existe: true,
+                erro: sampleError,
+                mensagem: 'Erro ao ler estrutura'
+            });
+        }
+
+        const colunas = sample && sample.length > 0 ? Object.keys(sample[0]) : [];
+
+        return res.json({
+            existe: true,
+            colunas: colunas,
+            tem_dados: sample && sample.length > 0,
+            amostra: sample && sample.length > 0 ? sample[0] : null,
+            mensagem: 'Tabela clientes existe e está acessível'
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            erro: error.message,
+            stack: error.stack
+        });
+    }
+});
+
+app.post('/api/debug/criar-tabela', async (req, res) => {
+    console.log('🔍 ===== CRIANDO TABELAS =====');
+
+    try {
+        const sql = `
+            CREATE TABLE IF NOT EXISTS clientes (
+                id SERIAL PRIMARY KEY,
+                telefone VARCHAR(20) UNIQUE NOT NULL,
+                nome VARCHAR(100),
+                email VARCHAR(100),
+                data_contato TIMESTAMP DEFAULT NOW(),
+                status VARCHAR(20) DEFAULT 'novo',
+                onboarding_completo BOOLEAN DEFAULT FALSE,
+                data_onboarding TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_clientes_telefone ON clientes(telefone);
+            CREATE INDEX IF NOT EXISTS idx_clientes_status ON clientes(status);
+
+            CREATE TABLE IF NOT EXISTS clientes_ativos (
+                id SERIAL PRIMARY KEY,
+                telefone VARCHAR(20) UNIQUE NOT NULL,
+                nome VARCHAR(100),
+                email VARCHAR(100),
+                criado_em TIMESTAMP DEFAULT NOW(),
+                atualizado_em TIMESTAMP DEFAULT NOW(),
+                status VARCHAR(50) DEFAULT 'em_processo'
+            );
+
+            CREATE TABLE IF NOT EXISTS clientes_finalizados (
+                id SERIAL PRIMARY KEY,
+                telefone VARCHAR(20) UNIQUE NOT NULL,
+                nome VARCHAR(100),
+                email VARCHAR(100),
+                servico VARCHAR(100),
+                data_inicio TIMESTAMP,
+                data_finalizacao TIMESTAMP DEFAULT NOW(),
+                observacoes TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS contatos_amigos (
+                id SERIAL PRIMARY KEY,
+                telefone VARCHAR(20) UNIQUE NOT NULL,
+                nome VARCHAR(100),
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS etapas_processo (
+                id SERIAL PRIMARY KEY,
+                cliente_telefone VARCHAR(20) UNIQUE NOT NULL,
+                etapa_atual VARCHAR(50) NOT NULL,
+                data_atualizacao TIMESTAMP DEFAULT NOW(),
+                historico JSONB DEFAULT '[]',
+                data_formulario_enviado TIMESTAMP,
+                data_analise_correcoes TIMESTAMP,
+                data_abertura_processo TIMESTAMP,
+                data_boleto_emitido TIMESTAMP,
+                data_boleto_pago TIMESTAMP,
+                data_agendamento_realizado TIMESTAMP,
+                data_treinamento_realizado TIMESTAMP,
+                data_entrevista_realizada TIMESTAMP,
+                data_visto_aprovado TIMESTAMP,
+                data_passaporte_retornado TIMESTAMP,
+                data_visto_recusado TIMESTAMP,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS formularios_ds160 (
+                id SERIAL PRIMARY KEY,
+                telefone VARCHAR(20) UNIQUE NOT NULL,
+                full_name TEXT,
+                email TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                data JSONB
+            );
+        `;
+
+        return res.json({
+            sucesso: true,
+            mensagem: 'Tabelas criadas/verificadas com sucesso (ou SQL fornecido para criação manual).',
+            sql_para_executar_manualmente: sql,
+            observacao: 'Por segurança, o Supabase geralmente não permite DDL via API. Execute o SQL acima no editor SQL do Supabase se as tabelas não existirem.'
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            sucesso: false,
+            erro: error.message
+        });
+    }
+});
+
+app.post('/api/debug/testar-webhook', async (req, res) => {
+    console.log('🔍 ===== TESTE MANUAL DO WEBHOOK =====');
+
+    try {
+        const { telefone, mensagem } = req.body;
+
+        if (!telefone) {
+            return res.status(400).json({ erro: 'Telefone é obrigatório' });
+        }
+
+        const cleanPhone = telefone.toString().replace(/\D/g, '').replace(/^55/, '');
+        const msg = mensagem || 'oi, quero meu visto';
+
+        console.log('📱 Telefone:', cleanPhone);
+        console.log('💬 Mensagem:', msg);
+
+        console.log('🔄 Tentando criar cliente...');
+        const telefoneLimpo = cleanPhone;
+
+        const { data: cliente, error } = await supabase
+            .from('clientes')
+            .upsert({
+                telefone: telefoneLimpo,
+                data_contato: new Date().toISOString(),
+                status: 'novo',
+                onboarding_completo: false,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'telefone' })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ Erro ao criar:', error);
+            return res.json({
+                sucesso: false,
+                etapa: 'criar_cliente',
+                erro: error,
+                mensagem: 'Falha ao criar cliente'
+            });
+        }
+
+        console.log('✅ Cliente criado:', cliente);
+
+        console.log('🔄 Simulando processamento...');
+
+        const saudacao = '👋 Olá! Seja muito bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸\n\nSomos especialistas em vistos americanos e estamos aqui para realizar seu sonho de viajar para os EUA! ✈️\n\nPara começarmos seu atendimento de forma personalizada, preciso saber:\n\n📝 **Qual é o seu nome completo?**\n\nEx: Maria Silva';
+
+        console.log('📨 Enviando WhatsApp de teste...');
+        const enviado = await enviarWhatsApp(cleanPhone, saudacao);
+
+        return res.json({
+            sucesso: true,
+            cliente_criado: cliente,
+            mensagem_enviada: enviado,
+            mensagem: saudacao,
+            observacao: 'Verifique se recebeu a mensagem no WhatsApp'
+        });
+
+    } catch (error) {
+        console.error('❌ Erro:', error);
+        return res.status(500).json({
+            sucesso: false,
+            erro: error.message,
+            stack: error.stack
+        });
+    }
+});
+
+app.post('/api/admin/notificar-cliente', async function(req, res) {
+    try {
+        const adminKey = req.headers['x-admin-key'];
+        if (adminKey !== ADMIN_API_KEY) {
+            return res.status(401).json({ error: 'Não autorizado' });
+        }
+
+        const { telefone, mensagem } = req.body;
+
+        if (!telefone) {
+            return res.status(400).json({ error: 'Telefone é obrigatório' });
+        }
+
+        console.log(`📨 Enviando notificação para: ${telefone}`);
+
+        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+
+        let cliente = null;
+        const { data: clienteAtivo } = await supabase
+            .from('clientes_ativos')
+            .select('*')
+            .eq('telefone', telefone)
+            .maybeSingle();
+
+        if (clienteAtivo) {
+            cliente = clienteAtivo;
+        } else {
+            const { data: clienteLimpo } = await supabase
+                .from('clientes_ativos')
+                .select('*')
+                .eq('telefone', telefoneLimpo)
+                .maybeSingle();
+            cliente = clienteLimpo;
+        }
+
+        if (!cliente) {
+            return res.status(404).json({
+                error: 'Cliente não encontrado em clientes_ativos',
+                telefone_buscado: telefone,
+                telefone_limpo: telefoneLimpo
+            });
+        }
+
+        const nomeCliente = cliente.nome && !cliente.nome.startsWith('Cliente_')
+            ? cliente.nome.split(' ')[0]
+            : 'Cliente';
+
+        const texto = mensagem || `🎉 Olá ${nomeCliente}!\n\n` +
+                     `Seu processo foi iniciado com sucesso na GetVisa Assessoria!\n\n` +
+                     `📋 Status: Em andamento\n` +
+                     `📍 Etapa atual: Formulário recebido\n\n` +
+                     `Em breve nossa equipe entrará em contato com os próximos passos.\n\n` +
+                     `📱 Dúvidas? Fale conosco pelo WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+                     `🌟 Estamos aqui para ajudar você a realizar seu sonho de viajar!`;
+
+        const enviado = await enviarWhatsApp(telefone, texto);
+
+        res.json({
+            success: true,
+            telefone: telefone,
+            cliente: {
+                nome: cliente.nome,
+                criado_em: cliente.criado_em
+            },
+            notificacao_enviada: enviado,
+            mensagem: texto
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao notificar cliente:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -4715,7 +4809,62 @@ app.post('/api/etapas/notificar-por-tipo', async function(req, res) {
     }
 });
 
-app.get('/api/clientes/listar', auth.verificarApiKey, async function(req, res) {
+app.get('/api/etapas/estatisticas', async function(req, res) {
+    try {
+        var result = await supabase.from('etapas_processo').select('etapa_atual');
+        if (result.error) throw result.error;
+
+        var estatisticas = {};
+        var total = result.data.length;
+        result.data.forEach(function(item) {
+            if (!estatisticas[item.etapa_atual]) estatisticas[item.etapa_atual] = 0;
+            estatisticas[item.etapa_atual]++;
+        });
+
+        var resultado = Object.keys(estatisticas).map(function(etapa) {
+            return {
+                etapa: etapa,
+                label: ETAPAS[etapa] && ETAPAS[etapa].label || etapa,
+                quantidade: estatisticas[etapa],
+                porcentagem: total > 0 ? ((estatisticas[etapa] / total) * 100).toFixed(2) : 0
+            };
+        });
+
+        res.json({
+            total_clientes_ativos: total,
+            distribuicao: resultado,
+            ultima_atualizacao: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Erro ao buscar estatísticas:', error);
+        res.status(500).json({ erro: 'Erro ao buscar estatisticas' });
+    }
+});
+
+app.get('/api/clientes/ativos', async function(req, res) {
+    try {
+        var result = await supabase
+            .from('clientes_ativos')
+            .select('telefone, nome')
+            .order('criado_em', { ascending: false });
+
+        if (result.error) {
+            console.error('Erro ao buscar ativos:', result.error);
+            return res.status(500).json({ success: false, message: result.error.message });
+        }
+
+        res.json({
+            success: true,
+            ativos: result.data || []
+        });
+
+    } catch (error) {
+        console.error('Erro ao buscar ativos:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.get('/api/clientes/listar', async function(req, res) {
     try {
         var result = await supabase
             .from('clientes')
@@ -4738,112 +4887,317 @@ app.get('/api/clientes/listar', auth.verificarApiKey, async function(req, res) {
     }
 });
 
-app.post('/api/debug/criar-tabela', async (req, res) => {
-    console.log('🔍 ===== CRIANDO TABELAS =====');
+app.post('/api/test/webhook-manual', async function(req, res) {
+    console.log('TESTE MANUAL');
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+
+    var phone = req.body.phone;
+    var message = req.body.message || 'Teste';
+
+    if (!phone) {
+        return res.status(400).json({ error: 'Phone e obrigatorio' });
+    }
 
     try {
-        const sql = `
-            CREATE TABLE IF NOT EXISTS clientes (
-                id SERIAL PRIMARY KEY,
-                telefone VARCHAR(20) UNIQUE NOT NULL,
-                nome VARCHAR(100),
-                email VARCHAR(100),
-                data_contato TIMESTAMP DEFAULT NOW(),
-                status VARCHAR(20) DEFAULT 'novo',
-                onboarding_completo BOOLEAN DEFAULT FALSE,
-                data_onboarding TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT NOW()
-            );
+        var cleanPhone = phone.toString().replace(/\D/g, '');
+        console.log('Telefone limpo: ' + cleanPhone);
+        console.log('Mensagem: "' + message + '"');
 
-            CREATE INDEX IF NOT EXISTS idx_clientes_telefone ON clientes(telefone);
-            CREATE INDEX IF NOT EXISTS idx_clientes_status ON clientes(status);
+        var resultado = await sendReply(cleanPhone, 'TESTE MANUAL\n\nSe voce esta vendo esta mensagem, o sistema esta funcionando!\n\nDigite 0 para o menu principal');
 
-            CREATE TABLE IF NOT EXISTS clientes_ativos (
-                id SERIAL PRIMARY KEY,
-                telefone VARCHAR(20) UNIQUE NOT NULL,
-                nome VARCHAR(100),
-                email VARCHAR(100),
-                criado_em TIMESTAMP DEFAULT NOW(),
-                atualizado_em TIMESTAMP DEFAULT NOW(),
-                status VARCHAR(50) DEFAULT 'em_processo'
-            );
+        res.json({
+            success: resultado,
+            phone: cleanPhone,
+            message_sent: resultado,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Erro no teste manual:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
-            CREATE TABLE IF NOT EXISTS clientes_finalizados (
-                id SERIAL PRIMARY KEY,
-                telefone VARCHAR(20) UNIQUE NOT NULL,
-                nome VARCHAR(100),
-                email VARCHAR(100),
-                servico VARCHAR(100),
-                data_inicio TIMESTAMP,
-                data_finalizacao TIMESTAMP DEFAULT NOW(),
-                observacoes TEXT,
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW()
-            );
+app.get('/api/test/zapi', async function(req, res) {
+    try {
+        const adminKey = req.headers['x-admin-key'];
+        if (adminKey !== ADMIN_API_KEY) {
+            return res.status(401).json({ error: 'Não autorizado' });
+        }
 
-            CREATE TABLE IF NOT EXISTS contatos_amigos (
-                id SERIAL PRIMARY KEY,
-                telefone VARCHAR(20) UNIQUE NOT NULL,
-                nome VARCHAR(100),
-                created_at TIMESTAMP DEFAULT NOW()
-            );
+        const testPhone = process.env.ADMIN_PHONE || '5521974601812';
+        const testMessage = '🧪 Teste de conexão Z-API - ' + new Date().toLocaleString('pt-BR');
 
-            CREATE TABLE IF NOT EXISTS etapas_processo (
-                id SERIAL PRIMARY KEY,
-                cliente_telefone VARCHAR(20) UNIQUE NOT NULL,
-                etapa_atual VARCHAR(50) NOT NULL,
-                data_atualizacao TIMESTAMP DEFAULT NOW(),
-                historico JSONB DEFAULT '[]',
-                data_formulario_enviado TIMESTAMP,
-                data_analise_correcoes TIMESTAMP,
-                data_abertura_processo TIMESTAMP,
-                data_boleto_emitido TIMESTAMP,
-                data_boleto_pago TIMESTAMP,
-                data_agendamento_realizado TIMESTAMP,
-                data_treinamento_realizado TIMESTAMP,
-                data_entrevista_realizada TIMESTAMP,
-                data_visto_aprovado TIMESTAMP,
-                data_passaporte_retornado TIMESTAMP,
-                data_visto_recusado TIMESTAMP,
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW()
-            );
+        console.log(`📨 Testando Z-API para: ${testPhone}`);
+        const result = await enviarWhatsApp(testPhone, testMessage);
 
-            CREATE TABLE IF NOT EXISTS formularios_ds160 (
-                id SERIAL PRIMARY KEY,
-                telefone VARCHAR(20) UNIQUE NOT NULL,
-                full_name TEXT,
-                email TEXT,
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW(),
-                data JSONB
-            );
-        `;
+        res.json({
+            success: result,
+            message: result ? '✅ Mensagem enviada com sucesso!' : '❌ Falha ao enviar mensagem',
+            phone: testPhone,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Erro no teste Z-API:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
 
-        return res.json({
-            sucesso: true,
-            mensagem: 'Tabelas criadas/verificadas com sucesso (ou SQL fornecido para criação manual).',
-            sql_para_executar_manualmente: sql,
-            observacao: 'Por segurança, o Supabase geralmente não permite DDL via API. Execute o SQL acima no editor SQL do Supabase se as tabelas não existirem.'
+app.get('/api/admin/verificar-cliente/:telefone', async function(req, res) {
+    try {
+        const adminKey = req.headers['x-admin-key'];
+        if (adminKey !== ADMIN_API_KEY) {
+            return res.status(401).json({ error: 'Não autorizado' });
+        }
+
+        const telefone = req.params.telefone;
+        console.log(`🔍 Verificando cliente: ${telefone}`);
+
+        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+
+        const tables = ['clientes', 'clientes_ativos', 'clientes_finalizados', 'contatos_amigos'];
+        const results = {};
+
+        for (const table of tables) {
+            const { data, error } = await supabase
+                .from(table)
+                .select('*')
+                .eq('telefone', telefone)
+                .maybeSingle();
+
+            if (!error && data) {
+                results[table] = data;
+            }
+
+            if (!results[table]) {
+                const { data: dataLimpo } = await supabase
+                    .from(table)
+                    .select('*')
+                    .eq('telefone', telefoneLimpo)
+                    .maybeSingle();
+
+                if (dataLimpo) {
+                    results[table] = dataLimpo;
+                }
+            }
+        }
+
+        let etapa = null;
+        if (results['clientes_ativos']) {
+            const { data } = await supabase
+                .from('etapas_processo')
+                .select('*')
+                .eq('cliente_telefone', telefone)
+                .maybeSingle();
+
+            if (!data) {
+                const { data: dataLimpo } = await supabase
+                    .from('etapas_processo')
+                    .select('*')
+                    .eq('cliente_telefone', telefoneLimpo)
+                    .maybeSingle();
+                etapa = dataLimpo;
+            } else {
+                etapa = data;
+            }
+        }
+
+        res.json({
+            success: true,
+            telefone_buscado: telefone,
+            telefone_limpo: telefoneLimpo,
+            encontrado_em: Object.keys(results).filter(k => results[k]),
+            dados: results,
+            etapa: etapa
         });
 
     } catch (error) {
-        return res.status(500).json({
-            sucesso: false,
-            erro: error.message
+        console.error('❌ Erro ao verificar cliente:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
 
 // ============================================================
-// 22. CRON JOB
+// 21. ROTA DE DASHBOARD (PAINEL)
 // ============================================================
 
+app.get('/api/dashboard-data', async (req, res) => {
+    try {
+        // Buscar clientes
+        const { data: clientes, error: clientesError } = await supabase
+            .from('clientes')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (clientesError) {
+            console.error('❌ Erro ao buscar clientes:', clientesError);
+            return res.status(500).json({ error: clientesError.message });
+        }
+
+        // Buscar etapas dos clientes
+        const { data: etapas, error: etapasError } = await supabase
+            .from('etapas_processo')
+            .select('cliente_id, etapa_atual, data_atualizacao');
+
+        if (etapasError) {
+            console.error('❌ Erro ao buscar etapas:', etapasError);
+            return res.status(500).json({ error: etapasError.message });
+        }
+
+        // Mapear etapas por telefone
+        const etapasMap = {};
+        if (etapas) {
+            etapas.forEach(etapa => {
+                etapasMap[etapa.cliente_id] = {
+                    etapa_atual: etapa.etapa_atual,
+                    data_atualizacao: etapa.data_atualizacao
+                };
+            });
+        }
+
+        // Combinar dados
+        const clientesComEtapas = clientes.map(cliente => ({
+            ...cliente,
+            etapa_atual: etapasMap[cliente.telefone]?.etapa_atual || 'Não definida',
+            data_atualizacao: etapasMap[cliente.telefone]?.data_atualizacao || cliente.created_at
+        }));
+
+        // Estatísticas
+        const hoje = new Date().toISOString().split('T')[0];
+        const novosHoje = clientes.filter(c => c.created_at?.startsWith(hoje)).length;
+        const onboardingCompletos = clientes.filter(c => c.onboarding_completo === true).length;
+
+        res.json({
+            totalClientes: clientes.length,
+            novosHoje: novosHoje,
+            onboardingCompletos: onboardingCompletos,
+            clientes: clientesComEtapas
+        });
+
+    } catch (error) {
+        console.error('❌ Erro no dashboard:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================================
+// DASHBOARD CENTRAL (APÓS LOGIN)
+// ============================================================
+app.get('/dashboard', auth.verificarAdmin, (req, res) => {
+    const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
+    if (fs.existsSync(dashboardPath)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.sendFile(dashboardPath);
+    } else {
+        // Fallback: redireciona para o painel de clientes
+        res.redirect('/painel');
+    }
+});
+
+// ============================================================
+// 22. AGENDAR TREINAMENTO (via página)
+// ============================================================
+
+app.post('/api/agendar-treinamento', async (req, res) => {
+    try {
+        const { cliente_id, entrevista_id, tipo, data, horario } = req.body;
+
+        if (!cliente_id || !data || !horario) {
+            return res.status(400).json({ success: false, message: 'Dados incompletos' });
+        }
+
+        const { data: cliente, error: clienteError } = await supabase
+            .from('clientes')
+            .select('id')
+            .eq('id', cliente_id)
+            .single();
+
+        if (clienteError || !cliente) {
+            return res.status(404).json({ success: false, message: 'Cliente não encontrado' });
+        }
+
+        const novoAgendamento = {
+            cliente_id: cliente_id,
+            atividade: 'Treinamento',
+            data_agendamento: data,
+            hora_agendamento: horario,
+            local_agendamento: tipo,
+            observacoes: `Treinamento para entrevista. Tipo: ${tipo}. Entrevista ID: ${entrevista_id || 'N/A'}`,
+            concluido: false
+        };
+
+        const { data: agendamento, error } = await supabase
+            .from('agendamentos')
+            .insert([novoAgendamento])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ Erro ao criar treinamento:', error);
+            return res.status(500).json({ success: false, message: error.message });
+        }
+
+        try {
+            await lembretesService.generateRemindersForCompromisso(agendamento);
+        } catch (e) {
+            console.log('⚠️ Erro ao gerar lembretes para treinamento:', e.message);
+        }
+
+        try {
+            const { enviarWhatsApp } = require('./utils/whatsappClient');
+            const { data: clienteCompleto } = await supabase
+                .from('clientes')
+                .select('nome, telefone')
+                .eq('id', cliente_id)
+                .single();
+
+            if (clienteCompleto?.telefone) {
+                const mensagem = 
+                    `✅ *TREINAMENTO AGENDADO - GETVISA*\n\n` +
+                    `Olá *${clienteCompleto.nome}*!\n\n` +
+                    `Seu treinamento para a entrevista foi agendado com sucesso!\n\n` +
+                    `📅 Data: ${new Date(data).toLocaleDateString('pt-BR')}\n` +
+                    `⏰ Hora: ${horario}\n` +
+                    `📍 Tipo: ${tipo}\n\n` +
+                    `📌 Em breve nossa equipe entrará em contato para confirmar.\n\n` +
+                    `🌟 Equipe GetVisa`;
+                
+                await enviarWhatsApp(clienteCompleto.telefone, mensagem);
+            }
+        } catch (e) {
+            console.log('⚠️ Erro ao enviar confirmação do treinamento:', e.message);
+        }
+
+        res.json({ success: true, message: 'Treinamento agendado com sucesso!', data: agendamento });
+
+    } catch (error) {
+        console.error('❌ Erro ao agendar treinamento:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============================================================
+// 23. HEALTH CHECKS E CRON JOB
+// ============================================================
+
+app.get('/health', (req, res) => { res.status(200).send('OK'); });
+app.get('/ping', (req, res) => { res.status(200).send('ok'); });
+
+// ============================================================
+// CRON JOB
+// ============================================================
 cron.schedule('*/5 * * * *', async () => {
     console.log('⏰ Executando cron job: processPendingReminders');
     try {
-        const lembretesService = require('./services/lembretes.service');
-        await lembretesService.processPendingReminders();
+        // const lembretesService = require('./services/lembretes.service');
+        // await lembretesService.processPendingReminders();
         console.log('✅ Cron job de lembretes concluído com sucesso.');
     } catch (err) {
         console.error('❌ Erro no cron job de lembretes:', err);
@@ -4851,26 +5205,398 @@ cron.schedule('*/5 * * * *', async () => {
 });
 
 // ============================================================
-// 23. INICIALIZAÇÃO DO SERVIDOR
+// 24. FUNÇÕES DE WHATSAPP (Z-API)
+// ============================================================
+
+// ============================================================
+// FUNÇÕES DE WHATSAPP (Z-API)
+// ============================================================
+
+async function enviarWhatsApp(telefone, mensagem) {
+    try {
+        const instance = process.env.ZAPI_INSTANCE;
+        const token = process.env.ZAPI_TOKEN;
+        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
+
+        if (!instance || !token) {
+            console.error('❌ Z-API não configurada. Faltam ZAPI_INSTANCE ou ZAPI_TOKEN.');
+            console.log('📨 Mensagem que seria enviada:', mensagem);
+            return false;
+        }
+
+        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+        const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
+
+        console.log(`📨 enviarWhatsApp INICIADA para ${telefoneFormatado}`);
+
+        const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-text`;
+
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        if (clientToken) {
+            headers['Client-Token'] = clientToken;
+            console.log('🔐 Client-Token adicionado ao header');
+        }
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                phone: telefoneFormatado,
+                message: mensagem
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ Erro Z-API (${response.status}):`, errorText);
+            return false;
+        }
+
+        const data = await response.json();
+        console.log('✅ Mensagem enviada com sucesso:', data);
+        return true;
+
+    } catch (error) {
+        console.error('❌ Erro ao enviar WhatsApp:', error);
+        return false;
+    }
+}
+
+async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
+    try {
+        const instance = process.env.ZAPI_INSTANCE;
+        const token = process.env.ZAPI_TOKEN;
+        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
+
+        if (!instance || !token) {
+            console.error('❌ Z-API não configurada para envio de PDF.');
+            return false;
+        }
+
+        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+        const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
+
+        const base64PDF = pdfBuffer.toString('base64');
+
+        const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-document`;
+
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        if (clientToken) {
+            headers['Client-Token'] = clientToken;
+            console.log('🔐 Client-Token adicionado ao header do PDF');
+        }
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                phone: telefoneFormatado,
+                document: base64PDF,
+                fileName: `DS160_${nomeCliente || 'cliente'}.pdf`,
+                mimeType: 'application/pdf'
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ Erro Z-API PDF (${response.status}):`, errorText);
+            return false;
+        }
+
+        console.log('✅ PDF enviado por WhatsApp com sucesso');
+        return true;
+
+    } catch (error) {
+        console.error('❌ Erro ao enviar PDF por WhatsApp:', error);
+        return false;
+    }
+}
+
+// ============================================================
+// ROTA PARA ATUALIZAR STATUS DO CLIENTE (ADMIN)
+// ============================================================
+app.post('/api/admin/atualizar-status', async (req, res) => {
+    try {
+        const adminKey = req.headers['x-admin-key'];
+        if (adminKey !== ADMIN_API_KEY) {
+            return res.status(401).json({ error: 'Não autorizado' });
+        }
+
+        const { telefone, status, observacao } = req.body;
+
+        if (!telefone || !status) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Telefone e status são obrigatórios' 
+            });
+        }
+
+        // Buscar cliente
+        const { data: cliente, error: buscaError } = await supabase
+            .from('clientes')
+            .select('*')
+            .eq('telefone', telefone)
+            .maybeSingle();
+
+        if (buscaError || !cliente) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Cliente não encontrado' 
+            });
+        }
+        /// Atualizar status
+            const resultado = await atualizarStatusCliente(telefone, status, { 
+                // observacoes_finalizacao: observacao || null,
+                
+                updated_at: new Date().toISOString()
+            });
+        if (resultado.success) {
+            res.json({
+                success: true,
+                message: `Status atualizado para "${status}"`,
+                cliente: resultado.data
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: 'Erro ao atualizar status',
+                error: resultado.error
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Erro ao atualizar status:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+});
+
+// ============================================================
+// ROTA PARA ATUALIZAR TREINAMENTO (EDITÁVEL PELA EQUIPE)
+// ============================================================
+app.post('/api/admin/atualizar-treinamento', async (req, res) => {
+    try {
+        const adminKey = req.headers['x-admin-key'];
+        if (adminKey !== ADMIN_API_KEY) {
+            return res.status(401).json({ error: 'Não autorizado' });
+        }
+
+        const { 
+            telefone, 
+            treinamento_data, 
+            treinamento_hora, 
+            treinamento_local, 
+            treinamento_modalidade, 
+            treinamento_link 
+        } = req.body;
+
+        if (!telefone) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Telefone é obrigatório' 
+            });
+        }
+
+        // Buscar nome do cliente para notificação
+        const { data: cliente } = await supabase
+            .from('clientes')
+            .select('nome')
+            .eq('telefone', telefone)
+            .maybeSingle();
+
+        const treinamento = {
+            data: treinamento_data,
+            hora: treinamento_hora,
+            local: treinamento_local,
+            modalidade: treinamento_modalidade || 'presencial',
+            link: treinamento_link || null
+        };
+
+        // Salvar na tabela etapas_processo
+        const resultado = await salvarTreinamento(telefone, treinamento);
+
+        if (!resultado.success) {
+            return res.status(500).json({ 
+                success: false, 
+                error: resultado.error 
+            });
+        }
+
+        // Enviar notificação WhatsApp
+        const nome = cliente?.nome || 'Cliente';
+        await enviarNotificacaoEtapa(telefone, 'treinamento_agendado', { nome });
+
+        res.json({
+            success: true,
+            message: 'Treinamento atualizado com sucesso!',
+            data: resultado.data
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao atualizar treinamento:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+
+// ============================================================
+// PROCESSADOR DA FILA DE MENSAGENS
+// ============================================================
+// setInterval(async () => {
+    //if (messageQueue.length === 0) return;
+    
+   // console.log(`🔄 Processando fila (${messageQueue.length} mensagens)...`);
+    
+    //while (messageQueue.length > 0) {
+      //  const item = messageQueue.shift();
+        //try {
+          //  console.log(`📨 Processando mensagem de ${item.phone}: "${item.message}"`);
+            //await processarMensagem(item.phone, item.message);
+            //console.log(`✅ Mensagem processada para ${item.phone}`);
+       // } catch (err) {
+         //   console.error(`❌ Erro ao processar mensagem:`, err.message);
+           // messageQueue.push(item);
+           // break;
+        //}
+   // }
+// }, 3000);
+
+// ============================================================
+// ROTA PARA RECEBER DADOS DO SIMULADOR
+// ============================================================
+app.post('/api/submit-simulador', async (req, res) => {
+    try {
+        const dados = req.body;
+        console.log('📊 Nova avaliação recebida:', dados);
+
+        const { nome, telefone, email, situacao_profissional, renda, historico_viagens, proposito_viagem, score, classificacao } = dados;
+
+        // 1. Salvar no Supabase (tabela: avaliacoes)
+        const { data: avaliacao, error } = await supabase
+            .from('avaliacoes')
+            .insert({
+                nome,
+                telefone,
+                email,
+                situacao_profissional,
+                renda,
+                historico_viagens,
+                proposito_viagem,
+                score,
+                classificacao,
+                created_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ Erro ao salvar avaliação:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        // 2. Atualizar cliente (se já existir)
+        const cleanPhone = limparTelefone(telefone);
+        if (cleanPhone) {
+            await supabase
+                .from('clientes')
+                .upsert({
+                    telefone: cleanPhone,
+                    nome: nome || 'Cliente',
+                    email: email || '',
+                    status: 'avaliado',
+                    classificacao: classificacao,
+                    score: score,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'telefone' });
+        }
+
+        // 3. Enviar mensagem automática para o lead com base na classificação
+        const mensagens = {
+            'Perfil Forte': `🌟 *Ótimo perfil, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\n✅ Você está muito bem preparado! Já pode iniciar o processo do visto.\n\n📋 Vou te enviar o link do formulário DS-160 para começar agora mesmo.\n\n🔗 [Clique aqui para preencher o formulário](https://app.getvisa.com.br/formulario-ds160)\n\nVamos em frente! 🚀`,
+            'Perfil Moderado': `📊 *Perfil moderado, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nSeu perfil é bom, mas uma análise com especialista pode aumentar suas chances.\n\n🧑‍💼 Quer agendar uma consultoria gratuita agora?\n\nResponda *SIM* e já te encaminho.`,
+            'Perfil Regular': `📉 *Perfil regular, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nAlguns pontos precisam ser ajustados para melhorar suas chances.\n\n🧑‍💼 Recomendo agendar uma consultoria com um especialista.\n\nResponda *SIM* para falar com um especialista.`,
+            'Requer Atenção': `⚠️ *Perfil requer atenção, ${nome.split(' ')[0]}!*\n\nSua avaliação foi *${classificacao}* com *${score}* pontos.\n\nÉ importante revisar seu perfil antes de iniciar o processo.\n\n🧑‍💼 Vou encaminhar seu caso para um especialista. Ele entrará em contato em breve.\n\n📱 Enquanto isso, fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)`
+        };
+
+        const msg = mensagens[classificacao] || `Olá ${nome.split(' ')[0]}! Sua avaliação foi *${classificacao}* com *${score}* pontos. Entre em contato para mais informações.`;
+        
+        if (cleanPhone) {
+            await enviarWhatsApp(cleanPhone, msg);
+            console.log('📱 Mensagem automática enviada para', cleanPhone);
+        }
+
+        // 4. Notificar especialista
+        const notificacao = `🔔 *Nova avaliação recebida!*\n\n` +
+            `👤 Nome: ${nome}\n` +
+            `📱 Telefone: ${telefone}\n` +
+            `📧 Email: ${email || 'Não informado'}\n` +
+            `📊 Classificação: ${classificacao}\n` +
+            `🎯 Score: ${score}/100\n` +
+            `📈 Situação: ${situacao_profissional}\n` +
+            `💵 Renda: ${renda}\n` +
+            `✈️ Histórico: ${historico_viagens}\n` +
+            `🎯 Propósito: ${proposito_viagem}\n\n` +
+            `Acesse o painel para ver mais detalhes.`;
+
+        await enviarWhatsApp(process.env.ADMIN_PHONE, notificacao);
+        console.log('📨 Notificação enviada para o especialista.');
+
+        res.json({ success: true, message: 'Avaliação recebida com sucesso!' });
+
+    } catch (error) {
+        console.error('❌ Erro ao processar avaliação:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================================
+// ROTAS DE PÁGINAS ESTÁTICAS
+// ============================================================
+
+// Rota para o simulador
+app.get('/simulador-visto-americano', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'simulador-visto-americano.html'));
+});
+app.get('/simulador-visto-americano/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'simulador-visto-americano.html'));
+});
+
+// Dashboard Central (novo nome)
+app.get('/dashboard', (req, res) => {
+    const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
+    console.log(`📊 Servindo dashboard: ${dashboardPath}`);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(dashboardPath);
+});
+
+// ============================================================
+// INICIALIZAÇÃO DO SERVIDOR (ÚLTIMA COISA NO ARQUIVO)
 // ============================================================
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log('\n' + '='.repeat(50));
-    console.log('🚀 SERVIDOR INICIADO COM SUCESSO!');
-    console.log('='.repeat(50));
-    console.log(`📡 Porta: ${PORT}`);
-    console.log(`🔗 Formulário: http://localhost:${PORT}/`);
-    console.log(`🔗 Submit: http://localhost:${PORT}/api/submit-ds160`);
+    console.log(`\n🚀 Servidor rodando na porta ${PORT}`);
     console.log(`🔗 Webhook: http://localhost:${PORT}/api/webhook/zapi`);
-    console.log(`🔗 Agendamentos: http://localhost:${PORT}/api/agendamentos`);
-    console.log(`🔗 Upload PDF: http://localhost:${PORT}/api/agendamentos/upload-pdf`);
-    console.log(`🔗 Health: http://localhost:${PORT}/health`);
-    console.log('='.repeat(50));
-    console.log(`📱 Z-API: ${process.env.ZAPI_TOKEN ? '✅' : '❌'}`);
-    console.log(`🗄️ Supabase: ${supabase ? '✅' : '❌'}`);
-    console.log(`📧 Resend: ${process.env.RESEND_API_KEY ? '✅' : '❌'}`);
-    console.log(`🔑 ADMIN_API_KEY: ${process.env.ADMIN_API_KEY ? '✅' : '❌'}`);
-    console.log('='.repeat(50) + '\n');
+    console.log(`📱 Z-API configurada: ${
+        process.env.ZAPI_TOKEN &&
+        (process.env.ZAPI_INSTANCE || process.env.ZAPI_CLIENT_TOKEN)
+            ? '✅ Sim'
+            : '❌ Não'
+    }`);
+    console.log(`🔑 ADMIN_API_KEY configurada: ${process.env.ADMIN_API_KEY ? '✅ Sim' : '❌ Não'}`);
+    console.log(`📧 ADMIN_EMAIL configurado: ${process.env.ADMIN_EMAIL ? '✅ Sim' : '❌ Não'}`);
+    console.log(`📞 ADMIN_PHONE configurado: ${process.env.ADMIN_PHONE ? '✅ Sim' : '❌ Não'}`);
+    console.log('⏰ Cron job de lembretes agendado para rodar a cada 5 minutos.');
 });
 
 // ============================================================

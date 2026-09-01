@@ -1,0 +1,823 @@
+cat > public/visto-negado.html << 'EOF'
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visto Americano Negado - Avaliação Estratégica | GetVisa</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <style>
+        /* ============================================
+           GETVISA - PÁGINA VISTO NEGADO
+           VERSÃO OTIMIZADA COM CAPTURA INICIAL
+           ============================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9eef3 100%);
+            padding: 40px 20px;
+            color: #1a2a3a;
+        }
+
+        .gv-visto-negado-page {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Rating banner */
+        .gv-rating-banner {
+            background: linear-gradient(135deg, #fef3e8 0%, #ffe4cc 100%);
+            padding: 12px 24px;
+            border-radius: 60px;
+            display: inline-block;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #ff6b35;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        /* Hero section */
+        .gv-hero-section {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border-radius: 32px;
+            padding: 40px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        }
+
+        .gv-hero-section h1 {
+            font-size: 2.5rem;
+            color: #0a2540;
+            margin-bottom: 20px;
+            line-height: 1.2;
+            font-weight: 800;
+        }
+
+        .gv-hero-section p {
+            font-size: 1.05rem;
+            color: #475569;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        /* Botão CTA */
+        .gv-cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+            color: white !important;
+            padding: 14px 32px;
+            border-radius: 60px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1rem;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,102,204,0.3);
+        }
+
+        .gv-cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,102,204,0.4);
+        }
+
+        /* Seções */
+        .gv-section {
+            background: white;
+            border-radius: 28px;
+            padding: 32px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+
+        .gv-section-title {
+            font-size: 1.8rem;
+            color: #0a2540;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        /* Grid de Motivos */
+        .gv-motivos-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .gv-motivo-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 20px;
+            transition: all 0.3s;
+            border: 1px solid #eef2f6;
+        }
+
+        .gv-motivo-card:hover {
+            transform: translateY(-5px);
+            border-color: #0066cc;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+        }
+
+        .gv-motivo-card h3 {
+            color: #0a2540;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .gv-motivo-card p {
+            color: #475569;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        /* Grid de Passos */
+        .gv-passos-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        .gv-passo-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .gv-passo-card:hover {
+            transform: translateY(-5px);
+            background: #f0f7ff;
+        }
+
+        .gv-passo-number {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.3rem;
+            margin: 0 auto 15px;
+        }
+
+        .gv-passo-card h3 {
+            color: #0a2540;
+            margin-bottom: 10px;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .gv-passo-card p {
+            color: #475569;
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+
+        /* Modal de Captura */
+        .gv-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .gv-modal.active {
+            display: flex;
+        }
+
+        .gv-modal-content {
+            background: white;
+            border-radius: 28px;
+            max-width: 500px;
+            width: 90%;
+            padding: 32px;
+            text-align: center;
+            animation: modalFadeIn 0.3s ease;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .gv-modal h3 {
+            font-size: 1.5rem;
+            color: #0a2540;
+            margin-bottom: 10px;
+        }
+
+        .gv-modal p {
+            color: #64748b;
+            margin-bottom: 25px;
+            font-size: 0.9rem;
+        }
+
+        .gv-modal-input {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .gv-modal-input label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #0a2540;
+            font-size: 0.85rem;
+        }
+
+        .gv-modal-input input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #eef2f6;
+            border-radius: 14px;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            background: #f8f9fa;
+            box-sizing: border-box;
+        }
+
+        .gv-modal-input input:focus {
+            outline: none;
+            border-color: #0066cc;
+            background: white;
+        }
+
+        .gv-modal-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .gv-modal-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 60px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .gv-modal-btn-primary {
+            background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+            color: white;
+        }
+
+        .gv-modal-btn-primary:hover {
+            transform: translateY(-2px);
+        }
+
+        .gv-modal-btn-secondary {
+            background: #eef2f6;
+            color: #334155;
+        }
+
+        .gv-modal-btn-secondary:hover {
+            background: #e2e8f0;
+        }
+
+        /* Banner de boas-vindas personalizado */
+        .gv-welcome-banner {
+            display: none;
+            background: linear-gradient(135deg, #e8f4fd 0%, #d4eaf7 100%);
+            border-radius: 20px;
+            padding: 20px 24px;
+            margin-bottom: 25px;
+            border-left: 5px solid #0066cc;
+        }
+
+        .gv-welcome-banner.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .gv-welcome-banner h3 {
+            color: #0066cc;
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+        }
+
+        .gv-welcome-banner p {
+            color: #334155;
+            font-size: 0.9rem;
+        }
+
+        /* Simulador (inicialmente escondido) */
+        .gv-simulator-wrapper {
+            display: none;
+        }
+
+        .gv-simulator-wrapper.active {
+            display: block;
+        }
+
+        /* Simulador */
+        .gv-simulator-card {
+            background: white;
+            border-radius: 28px;
+            padding: 32px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            margin-top: 20px;
+        }
+
+        .gv-progress-container {
+            margin: 25px 0;
+        }
+
+        .gv-progress-bar {
+            background: #e5e7eb;
+            height: 8px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .gv-progress {
+            background: linear-gradient(90deg, #0066cc, #00a3ff);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 10px;
+        }
+
+        .gv-progress-text {
+            text-align: right;
+            font-size: 0.8rem;
+            color: #0066cc;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+
+        .gv-form-section {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .gv-form-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .gv-question-title {
+            font-size: 1.3rem;
+            color: #0a2540;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .gv-question-intent {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-bottom: 20px;
+            font-style: italic;
+        }
+
+        .gv-options-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .gv-option {
+            background: #f8f9fa;
+            border: 2px solid #eef2f6;
+            border-radius: 14px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+        }
+
+        .gv-option:hover {
+            border-color: #0066cc;
+            background: #f0f7ff;
+        }
+
+        .gv-option.selected {
+            border-color: #0066cc;
+            background: #f0f7ff;
+        }
+
+        .gv-option input {
+            margin-right: 12px;
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+            accent-color: #0066cc;
+        }
+
+        .gv-option label {
+            cursor: pointer;
+            font-weight: 500;
+            color: #1a2a3a;
+            font-size: 0.9rem;
+            flex: 1;
+        }
+
+        .gv-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .gv-btn {
+            padding: 12px 28px;
+            border-radius: 60px;
+            border: none;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .gv-btn-primary {
+            background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+            color: white;
+        }
+
+        .gv-btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,102,204,0.3);
+        }
+
+        .gv-btn-secondary {
+            background: #eef2f6;
+            color: #334155;
+        }
+
+        .gv-btn-secondary:hover:not(:disabled) {
+            background: #e2e8f0;
+        }
+
+        .gv-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Loading */
+        .gv-loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid white;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 0.6s linear infinite;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* FAQ */
+        .gv-faq-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .gv-faq-item {
+            background: #f8f9fa;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid #eef2f6;
+        }
+
+        .gv-faq-question {
+            padding: 18px 22px;
+            font-weight: 700;
+            color: #0a2540;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+        }
+
+        .gv-faq-question:after {
+            content: '+';
+            font-size: 1.3rem;
+            color: #0066cc;
+            font-weight: 600;
+        }
+
+        .gv-faq-item.active .gv-faq-question:after {
+            content: '-';
+        }
+
+        .gv-faq-answer {
+            display: none;
+            padding: 18px 22px;
+            color: #475569;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            border-top: 1px solid #eef2f6;
+            background: #f8f9fa;
+        }
+
+        .gv-faq-item.active .gv-faq-answer {
+            display: block;
+        }
+
+        /* Footer */
+        .gv-footer-note {
+            margin-top: 20px;
+            font-size: 0.75rem;
+            color: #64748b;
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #eef2f6;
+        }
+
+        /* Links */
+        .gv-links-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .gv-links-grid a {
+            color: #0066cc;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .gv-links-grid a:hover {
+            color: #004499;
+            text-decoration: underline;
+        }
+
+        /* Responsivo */
+        @media (max-width: 1024px) {
+            .gv-motivos-grid,
+            .gv-passos-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .gv-hero-section { padding: 25px; }
+            .gv-hero-section h1 { font-size: 1.8rem; }
+            .gv-section { padding: 20px; }
+            .gv-section-title { font-size: 1.4rem; }
+            .gv-simulator-card { padding: 20px; }
+            .gv-motivos-grid,
+            .gv-passos-grid {
+                grid-template-columns: 1fr;
+            }
+            .gv-buttons {
+                flex-direction: column;
+            }
+            .gv-btn {
+                width: 100%;
+                text-align: center;
+            }
+            .gv-modal-content {
+                padding: 24px;
+            }
+            .gv-modal-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="gv-visto-negado-page">
+        <!-- RATING BANNER -->
+        <div class="gv-rating-banner">
+            ⭐ 4,9/5 NO GOOGLE · MILHARES DE CLIENTES ATENDIDOS
+        </div>
+
+        <!-- HERO SECTION -->
+        <div class="gv-hero-section">
+            <h1>Visto Americano Negado? <span style="color: #0066cc;">Não Desista!</span></h1>
+            <p>Se você teve o <strong>visto americano negado</strong>, sabemos que pode ser frustrante. Mas isso não significa o fim do seu sonho! Com a orientação certa e uma preparação estratégica, é totalmente possível reverter a situação.</p>
+            <p>Na GetVisa, somos especialistas em processos consulares e estamos aqui para te ajudar a entender os motivos da negativa, corrigir seu perfil e aumentar significativamente suas chances de aprovação na próxima tentativa.</p>
+            <button class="gv-cta-button" id="openCaptureBtn">🚀 QUERO MINHA AVALIAÇÃO GRATUITA →</button>
+        </div>
+
+        <!-- MOTIVOS -->
+        <div class="gv-section">
+            <h2 class="gv-section-title">Principais Motivos do Visto Americano Negado</h2>
+            <div class="gv-motivos-grid">
+                <div class="gv-motivo-card">
+                    <h3>1. Falta de Vínculos Sólidos</h3>
+                    <p>O oficial consular busca evidências de que você tem fortes razões para retornar ao Brasil.</p>
+                </div>
+                <div class="gv-motivo-card">
+                    <h3>2. Informações Inconsistentes</h3>
+                    <p>Divergências entre o formulário DS-160 e a entrevista podem levar à negativa.</p>
+                </div>
+                <div class="gv-motivo-card">
+                    <h3>3. Perfil Financeiro Insuficiente</h3>
+                    <p>É crucial demonstrar recursos para cobrir suas despesas durante a viagem.</p>
+                </div>
+                <div class="gv-motivo-card">
+                    <h3>4. Falha na Entrevista</h3>
+                    <p>Nervosismo ou respostas contraditórias podem ser determinantes para a negativa.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL DE CAPTURA -->
+        <div class="gv-modal" id="captureModal">
+            <div class="gv-modal-content">
+                <h3>📋 Avaliação de Visto Negado</h3>
+                <p>Preencha seus dados para começar a análise do seu caso. Você receberá uma avaliação personalizada no WhatsApp.</p>
+                <form id="captureForm">
+                    <div class="gv-modal-input">
+                        <label>Nome completo *</label>
+                        <input type="text" id="captureNome" placeholder="Digite seu nome completo" required>
+                    </div>
+                    <div class="gv-modal-input">
+                        <label>Telefone/WhatsApp (com DDD) *</label>
+                        <input type="tel" id="captureTelefone" placeholder="(21) 98765-4321" required>
+                    </div>
+                    <div class="gv-modal-input">
+                        <label>E-mail</label>
+                        <input type="email" id="captureEmail" placeholder="seuemail@exemplo.com">
+                    </div>
+                    <div class="gv-modal-buttons">
+                        <button type="button" class="gv-modal-btn gv-modal-btn-secondary" id="closeModalBtn">Cancelar</button>
+                        <button type="submit" class="gv-modal-btn gv-modal-btn-primary" id="startSimulatorBtn">Iniciar Avaliação →</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- SIMULADOR (inicialmente escondido) -->
+        <div class="gv-simulator-wrapper" id="simulatorWrapper">
+            <!-- Banner de boas-vindas personalizado -->
+            <div class="gv-welcome-banner" id="welcomeBanner">
+                <h3>👋 Olá, <span id="clienteNome"></span>! Seja bem-vindo(a)!</h3>
+                <p>Vamos analisar seu caso de visto negado. Responda às perguntas abaixo para uma avaliação completa e estratégica.</p>
+            </div>
+
+            <div class="gv-simulator-card">
+                <h2 class="gv-section-title" style="margin-top: 0;">🎯 Avaliação Estratégica para Reversão de Visto Negado</h2>
+                <p>Suas respostas nos ajudarão a entender melhor seu perfil e oferecer a melhor orientação.</p>
+                
+                <div class="gv-progress-container">
+                    <div class="gv-progress-bar">
+                        <div class="gv-progress" id="progress"></div>
+                    </div>
+                    <div class="gv-progress-text" id="progressText">Etapa 1 de 7</div>
+                </div>
+
+                <form id="simulatorForm">
+                    <!-- Pergunta 1 -->
+                    <div class="gv-form-section active" data-step="1">
+                        <h3 class="gv-question-title">1. Quando seu visto americano foi negado pela última vez?</h3>
+                        <div class="gv-question-intent">📌 Entender o tempo decorrido desde a negativa.</div>
+                        <div class="gv-options-container">
+                            <div class="gv-option"><input type="radio" name="quando" value="Menos de 3 meses"><label>Menos de 3 meses</label></div>
+                            <div class="gv-option"><input type="radio" name="quando" value="Entre 3 e 6 meses"><label>Entre 3 e 6 meses</label></div>
+                            <div class="gv-option"><input type="radio" name="quando" value="Entre 6 meses e 1 ano"><label>Entre 6 meses e 1 ano</label></div>
+                            <div class="gv-option"><input type="radio" name="quando" value="Mais de 1 ano"><label>Mais de 1 ano</label></div>
+                            <div class="gv-option"><input type="radio" name="quando" value="Nunca solicitei"><label>Nunca solicitei (primeira vez)</label></div>
+                        </div>
+                    </div>
+
+                    <!-- Pergunta 2 -->
+                    <div class="gv-form-section" data-step="2">
+                        <h3 class="gv-question-title">2. Qual o motivo da negativa informado pelo oficial consular?</h3>
+                        <div class="gv-question-intent">📌 Direcionar a análise para a causa raiz da negativa.</div>
+                        <div class="gv-options-container">
+                            <div class="gv-option"><input type="radio" name="motivo" value="Seção 214(b)"><label>Seção 214(b) - Falta de vínculos com o Brasil</label></div>
+                            <div class="gv-option"><input type="radio" name="motivo" value="Informações inconsistentes"><label>Informações inconsistentes no DS-160</label></div>
+                            <div class="gv-option"><input type="radio" name="motivo" value="Problemas imigração anterior"><label>Problemas com imigração anterior</label></div>
+                            <div class="gv-option"><input type="radio" name="motivo" value="Não soube informar"><label>Não soube informar o motivo</label></div>
+                            <div class="gv-option"><input type="radio" name="motivo" value="Outro motivo"><label>Outro motivo</label></div>
+                        </div>
+                    </div>
+
+                    <!-- Pergunta 3 -->
+                    <div class="gv-form-section" data-step="3">
+                        <h3 class="gv-question-title">3. Desde a última negativa, houve mudança na sua situação profissional/financeira?</h3>
+                        <div class="gv-question-intent">📌 Identificar melhorias nos vínculos empregatícios e financeiros.</div>
+                        <div class="gv-options-container">
+                            <div class="gv-option"><input type="radio" name="mudanca_profissional" value="Mudei de emprego"><label>Mudei de emprego (posição mais estável)</label></div>
+                            <div class="gv-option"><input type="radio" name="mudanca_profissional" value="Fui promovido"><label>Fui promovido ou tive aumento</label></div>
+                            <div class="gv-option"><input type="radio" name="mudanca_profissional" value="Abri empresa"><label>Abri minha própria empresa</label></div>
+                            <div class="gv-option"><input type="radio" name="mudanca_profissional" value="Renda aumentou"><label>Renda aumentou ou adquiri bens</label></div>
+                            <div class="gv-option"><input type="radio" name="mudanca_profissional" value="Permaneceu igual"><label>Permaneceu igual</label></div>
+                            <div class="gv-option"><input type="radio" name="mudanca_profissional" value="Não se aplica"><label>Não se aplica</label></div>
+                        </div>
+                    </div>
+
+                    <!-- Pergunta 4 -->
+                    <div class="gv-form-section" data-step="4">
+                        <h3 class="gv-question-title">4. Você fortaleceu seus vínculos com o Brasil de outras formas?</h3>
+                        <div class="gv-question-intent">📌 Buscar outras formas de demonstrar laços fortes com o país.</div>
+                        <div class="gv-options-container">
+                            <div class="gv-option"><input type="radio" name="fortaleceu_vinculos" value="Iniciei estudos"><label>Iniciei faculdade/pós-graduação</label></div>
+                            <div class="gv-option"><input type="radio" name="fortaleceu_vinculos" value="Adquiri bens"><label>Adquiri imóvel/veículo/investimentos</label></div>
+                            <div class="gv-option"><input type="radio" name="fortaleceu_vinculos" value="Família consolidada"><label>Minha família está mais consolidada no Brasil</label></div>
+                            <div class="gv-option"><input type="radio" name="fortaleceu_vinculos" value="Permaneceu igual"><label>Permaneceu igual</label></div>
+                            <div class="gv-option"><input type="radio" name="fortaleceu_vinculos" value="Não se aplica"><label>Não se aplica</label></div>
+                        </div>
+                    </div>
+
+                    <!-- Pergunta 5 -->
+                    <div class="gv-form-section" data-step="5">
+                        <h3 class="gv-question-title">5. Você acredita que houve falha no preenchimento do DS-160?</h3>
+                        <div class="gv-question-intent">📌 Aborda diretamente um dos motivos comuns de negativa.</div>
+                        <div class="gv-options-container">
+                            <div class="gv-option"><input type="radio" name="falha_ds160" value="Sim, houve erros"><label>Sim, houve erros ou informações faltando</label></div>
+                            <div class="gv-option"><input type="radio" name="falha_ds160" value="Não tenho certeza"><label>Não tenho certeza, mas desconfio</label></div>
+                            <div class="gv-option"><input type="radio" name="falha_ds160" value="Não, estava correto"><label>Não, revisei e estava correto</label></div>
+                            <div class="gv-option"><input type="radio" name="falha_ds160" value="Não se aplica"><label>Não se aplica</label></div>
+                        </div>
+                    </div>
+
+                    <!-- Pergunta 6 -->
+                    <div class="gv-form-section" data-step="6">
+                        <h3 class="gv-question-title">6. Você já teve problemas com imigração nos EUA ou em outros países?</h3>
+                        <div class="gv-question-intent">📌 Identificar históricos que geram um "red flag" automático.</div>
+                        <div class="gv-options-container">
+                            <div class="gv-option"><input type="radio" name="problemas_imigracao" value="Não"><label>Não, nunca tive problemas</label></div>
+                            <div class="gv-option"><input type="radio" name="problemas_imigracao" value="Overstay"><label>Overstay (permaneci além do permitido)</label></div>
+                            <div class="gv-option"><input type="radio" name="problemas_imigracao" value="Problemas menores"><label>Problemas menores (multa, questionamento)</label></div>
+                            <div class="gv-option"><input type="radio" name="problemas_imigracao" value="Deportação"><label>Deportação ou entrada recusada</label></div>
+                        </div>
+                    </div>
+
+                    <!-- Pergunta 7 - Observações -->
+                    <div class="gv-form-section" data-step="7">
+                        <h3 class="gv-question-title">7. Informações adicionais (opcional)</h3>
+                        <div class="gv-question-intent">📌 Caso queira acrescentar algo importante sobre seu caso.</div>
+                        <div class="gv-input-group">
+                            <label>Observações:</label>
+                            <textarea id="observacoes" name="observacoes" rows="4" style="width:100%; padding:12px; border:2px solid #eef2f6; border-radius:14px; font-family:inherit; resize:vertical;" placeholder="Detalhes adicionais sobre seu caso..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="gv-buttons">
+                        <button type="button" class="gv-btn gv-btn-secondary" id="prevBtn" disabled>← Voltar</button>
+                        <button type="button" class="gv-btn gv-btn-primary" id="nextBtn">Próximo →</button>
+                        <button type="submit" class="gv-btn gv-btn-primary" id="submitBtn" style="display: none;">Enviar Avaliação</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- PASSOS PARA RECURSAR -->
+        <div class="gv-section">
+            <h2 class="gv-section-title">Como se preparar para uma nova tentativa</h2>
+            <div class="gv-passos-grid">
+                <div class="gv-passo-card">
+                    <div class="gv-passo-number">1</div>
+                    <h3>Entenda o Motivo</h3>
+                    <p>Analise a carta de recusa. A maioria é baseada na Seção 214(b).</p>
+                </div>
+                <div class="gv-passo-card">
+                    <div class="gv-passo-number">2</div>
+                    <h3>Fortaleça Vínculos</h3>
+                    <p>Emprego estável, estudos, família e bens no Brasil.</p>
+                </div>
+                <div class="gv-passo-card">
+                    <div class="gv-passo-number">3</div>
+                    <h3>Corrija o DS-160</h3>
+                    <p>Preencha com atenção. Erros são uma das principais causas de negativa.</p>
+                </div>
+                <div class="gv-passo-card">
+                    <div class="gv-passo-number">4</div>
+                    <h3>Prepare-se para Entrevista</
