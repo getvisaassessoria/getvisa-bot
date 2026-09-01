@@ -999,6 +999,9 @@ try {
 // ============================================================
 // 9. ROTA PARA VISTO NEGADO - SALVAR NO SUPABASE
 // ============================================================
+// ============================================================
+// ROTA PARA VISTO NEGADO - SALVAR NO SUPABASE
+// ============================================================
 app.post('/api/visto-negado', async (req, res) => {
     try {
         const dados = req.body;
@@ -1006,12 +1009,33 @@ app.post('/api/visto-negado', async (req, res) => {
 
         const { nome, email, telefone, quando_negado, motivo_negativa, 
                 mudanca_profissional, fortaleceu_vinculos, falha_ds160, 
-                problemas_imigracao, observacoes, score, classificacao_tipo,
-                classificacao_titulo, classificacao_mensagem } = dados;
+                problemas_imigracao, observacoes, score } = dados;
 
-        // 1. Salvar no Supabase
+        // 🔥 CLASSIFICAÇÃO EM PORTUGUÊS
+        let classificacao = {};
+        if (score < 35) {
+            classificacao = {
+                tipo: 'urgente',
+                titulo: '⚠️ Seu caso requer atenção urgente!',
+                mensagem: 'Seu perfil apresenta pontos críticos que precisam ser analisados. Nossos especialistas estão prontos para te ajudar.'
+            };
+        } else if (score < 65) {
+            classificacao = {
+                tipo: 'moderado',
+                titulo: '💡 Potencial Moderado de Sucesso!',
+                mensagem: 'Seu perfil tem pontos positivos, mas ainda precisa de ajustes para aumentar suas chances.'
+            };
+        } else {
+            classificacao = {
+                tipo: 'forte',
+                titulo: '✅ Forte Potencial de Reversão!',
+                mensagem: 'Parabéns! Seu perfil demonstra um forte potencial para reverter o visto negado.'
+            };
+        }
+
+        // 1. Salvar no Supabase (tabela: form_visto_negado)
         const { data: avaliacao, error } = await supabase
-            .from('avaliacoes_visto_negado')
+            .from('form_visto_negado')
             .insert({
                 nome,
                 email,
@@ -1024,9 +1048,9 @@ app.post('/api/visto-negado', async (req, res) => {
                 problemas_imigracao,
                 observacoes,
                 score,
-                classificacao_tipo,
-                classificacao_titulo,
-                classificacao_mensagem,
+                classificacao_tipo: classificacao.tipo,
+                classificacao_titulo: classificacao.titulo,
+                classificacao_mensagem: classificacao.mensagem,
                 created_at: new Date().toISOString()
             })
             .select()
@@ -1081,15 +1105,14 @@ app.post('/api/visto-negado', async (req, res) => {
             }
         }
 
-        // 3. Enviar notificação para o admin
+        // 3. Enviar notificação para o admin (com classificação em português)
         try {
             const mensagemAdmin = `🔔 *NOVA AVALIAÇÃO DE VISTO NEGADO!*\n\n` +
                 `👤 Nome: ${nome || 'Não informado'}\n` +
                 `📱 Telefone: ${telefone || 'Não informado'}\n` +
                 `📧 Email: ${email || 'Não informado'}\n` +
                 `📊 Score: ${score || 0}/100\n` +
-                `🏷️ Classificação: ${classificacao_tipo || 'N/A'}\n` +
-                `📝 Título: ${classificacao_titulo || 'N/A'}\n\n` +
+                `🏷️ Classificação: ${classificacao.titulo}\n\n` +
                 `🔗 Acesse o painel para mais detalhes.`;
 
             await enviarWhatsApp(process.env.ADMIN_PHONE, mensagemAdmin);
@@ -1098,28 +1121,31 @@ app.post('/api/visto-negado', async (req, res) => {
             console.error('❌ Erro ao enviar notificação:', err);
         }
 
-        // 4. Enviar mensagem automática para o cliente
+        // 4. Enviar mensagem automática para o cliente (com classificação em português)
         try {
             if (telefoneLimpo) {
                 const primeiroNome = nome ? nome.split(' ')[0] : 'Cliente';
                 let mensagemCliente = '';
 
-                if (classificacao_tipo === 'urgent') {
+                if (classificacao.tipo === 'urgente') {
                     mensagemCliente = `⚠️ *Olá ${primeiroNome}!* ⚠️\n\n` +
                         `Recebemos sua avaliação de visto negado.\n\n` +
-                        `Seu caso apresenta pontos críticos que precisam de atenção urgente.\n\n` +
+                        `${classificacao.titulo}\n\n` +
+                        `${classificacao.mensagem}\n\n` +
                         `📌 Nossa equipe já foi notificada e entrará em contato em até 24h.\n\n` +
                         `📱 Enquanto isso, fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)`;
-                } else if (classificacao_tipo === 'moderate') {
+                } else if (classificacao.tipo === 'moderado') {
                     mensagemCliente = `💡 *Olá ${primeiroNome}!* 💡\n\n` +
                         `Recebemos sua avaliação de visto negado.\n\n` +
-                        `Seu perfil tem potencial, mas precisa de alguns ajustes para aumentar as chances.\n\n` +
+                        `${classificacao.titulo}\n\n` +
+                        `${classificacao.mensagem}\n\n` +
                         `📌 Nossa equipe fará uma análise detalhada e entrará em contato em breve.\n\n` +
                         `📱 Fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)`;
                 } else {
                     mensagemCliente = `✅ *Olá ${primeiroNome}!* ✅\n\n` +
                         `Recebemos sua avaliação de visto negado.\n\n` +
-                        `Seu perfil demonstra um forte potencial para reverter o visto negado!\n\n` +
+                        `${classificacao.titulo}\n\n` +
+                        `${classificacao.mensagem}\n\n` +
                         `📌 Nossa equipe fará uma análise completa e entrará em contato.\n\n` +
                         `📱 Continue acompanhando: [Fale com nosso especialista](https://wa.me/5521974601812)`;
                 }

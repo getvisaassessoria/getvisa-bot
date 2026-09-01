@@ -996,50 +996,52 @@
         }
         
         async function enviarParaBackend(score, classificationType) {
-            let titulo = '';
-            let mensagem = '';
-            if (classificationType === 'urgent') {
-                titulo = '⚠️ Seu caso requer atenção urgente!';
-                mensagem = 'Seu perfil apresenta pontos críticos que precisam ser analisados. Nossos especialistas estão prontos para te ajudar.';
-            } else if (classificationType === 'moderate') {
-                titulo = '💡 Potencial Moderado de Sucesso!';
-                mensagem = 'Seu perfil tem pontos positivos, mas ainda precisa de ajustes para aumentar suas chances.';
-            } else {
-                titulo = '✅ Forte Potencial de Reversão!';
-                mensagem = 'Parabéns! Seu perfil demonstra um forte potencial para reverter o visto negado.';
-            }
-            
-            const dados = {
-                nome: clienteData.nome || '',
-                email: clienteData.email || '',
-                telefone: clienteData.telefone || '',
-                quando_negado: answers.quando || '',
-                motivo_negativa: answers.motivo || '',
-                mudanca_profissional: answers.mudanca_profissional || '',
-                fortaleceu_vinculos: answers.fortaleceu_vinculos || '',
-                falha_ds160: answers.falha_ds160 || '',
-                problemas_imigracao: answers.problemas_imigracao || '',
-                observacoes: answers.observacoes || '',
-                score: score,
-                classificacao_tipo: classificationType,
-                classificacao_titulo: titulo,
-                classificacao_mensagem: mensagem
-            };
-            
-            try {
-                const response = await fetch('/api/visto-negado', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(dados)
-                });
-                if (!response.ok) console.error('Erro no envio para backend:', response.status);
-                else console.log('✅ Dados enviados com sucesso');
-                return response.ok;
-            } catch (error) {
-                console.error('Erro ao enviar:', error);
-                return false;
-            }
-        }
+    // 🔥 CLASSIFICAÇÕES EM PORTUGUÊS
+    let titulo = '';
+    let mensagem = '';
+    
+    if (classificationType === 'urgent') {
+        titulo = '⚠️ Seu caso requer atenção urgente!';
+        mensagem = 'Seu perfil apresenta pontos críticos que precisam ser analisados. Nossos especialistas estão prontos para te ajudar.';
+    } else if (classificationType === 'moderate') {
+        titulo = '💡 Potencial Moderado de Sucesso!';
+        mensagem = 'Seu perfil tem pontos positivos, mas ainda precisa de ajustes para aumentar suas chances.';
+    } else {
+        titulo = '✅ Forte Potencial de Reversão!';
+        mensagem = 'Parabéns! Seu perfil demonstra um forte potencial para reverter o visto negado.';
+    }
+    
+    const dados = {
+        nome: clienteData.nome || '',
+        email: clienteData.email || '',
+        telefone: clienteData.telefone || '',
+        quando_negado: answers.quando || '',
+        motivo_negativa: answers.motivo || '',
+        mudanca_profissional: answers.mudanca_profissional || '',
+        fortaleceu_vinculos: answers.fortaleceu_vinculos || '',
+        falha_ds160: answers.falha_ds160 || '',
+        problemas_imigracao: answers.problemas_imigracao || '',
+        observacoes: answers.observacoes || '',
+        score: score,
+        classificacao_tipo: classificationType,
+        classificacao_titulo: titulo,
+        classificacao_mensagem: mensagem
+    };
+    
+    try {
+        const response = await fetch('/api/visto-negado', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dados)
+        });
+        if (!response.ok) console.error('Erro no envio para backend:', response.status);
+        else console.log('✅ Dados enviados com sucesso');
+        return response.ok;
+    } catch (error) {
+        console.error('Erro ao enviar:', error);
+        return false;
+    }
+}
         
         async function enviarAvaliacao() {
             if (isSubmitting) return;
