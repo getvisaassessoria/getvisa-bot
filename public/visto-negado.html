@@ -1,4 +1,3 @@
-cat > public/visto-negado.html << 'EOF'
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -8,10 +7,6 @@ cat > public/visto-negado.html << 'EOF'
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <style>
-        /* ============================================
-           GETVISA - PÁGINA VISTO NEGADO
-           VERSÃO OTIMIZADA COM CAPTURA INICIAL
-           ============================================ */
         * {
             margin: 0;
             padding: 0;
@@ -30,7 +25,6 @@ cat > public/visto-negado.html << 'EOF'
             margin: 0 auto;
         }
 
-        /* Rating banner */
         .gv-rating-banner {
             background: linear-gradient(135deg, #fef3e8 0%, #ffe4cc 100%);
             padding: 12px 24px;
@@ -43,7 +37,6 @@ cat > public/visto-negado.html << 'EOF'
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
 
-        /* Hero section */
         .gv-hero-section {
             background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
             border-radius: 32px;
@@ -67,7 +60,6 @@ cat > public/visto-negado.html << 'EOF'
             line-height: 1.6;
         }
 
-        /* Botão CTA */
         .gv-cta-button {
             display: inline-block;
             background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
@@ -88,7 +80,6 @@ cat > public/visto-negado.html << 'EOF'
             box-shadow: 0 8px 20px rgba(0,102,204,0.4);
         }
 
-        /* Seções */
         .gv-section {
             background: white;
             border-radius: 28px;
@@ -104,7 +95,6 @@ cat > public/visto-negado.html << 'EOF'
             font-weight: 700;
         }
 
-        /* Grid de Motivos */
         .gv-motivos-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -139,7 +129,6 @@ cat > public/visto-negado.html << 'EOF'
             line-height: 1.5;
         }
 
-        /* Grid de Passos */
         .gv-passos-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -186,7 +175,6 @@ cat > public/visto-negado.html << 'EOF'
             line-height: 1.5;
         }
 
-        /* Modal de Captura */
         .gv-modal {
             display: none;
             position: fixed;
@@ -217,14 +205,8 @@ cat > public/visto-negado.html << 'EOF'
         }
 
         @keyframes modalFadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .gv-modal h3 {
@@ -304,7 +286,6 @@ cat > public/visto-negado.html << 'EOF'
             background: #e2e8f0;
         }
 
-        /* Banner de boas-vindas personalizado */
         .gv-welcome-banner {
             display: none;
             background: linear-gradient(135deg, #e8f4fd 0%, #d4eaf7 100%);
@@ -330,7 +311,6 @@ cat > public/visto-negado.html << 'EOF'
             font-size: 0.9rem;
         }
 
-        /* Simulador (inicialmente escondido) */
         .gv-simulator-wrapper {
             display: none;
         }
@@ -339,7 +319,6 @@ cat > public/visto-negado.html << 'EOF'
             display: block;
         }
 
-        /* Simulador */
         .gv-simulator-card {
             background: white;
             border-radius: 28px;
@@ -487,7 +466,6 @@ cat > public/visto-negado.html << 'EOF'
             cursor: not-allowed;
         }
 
-        /* Loading */
         .gv-loading {
             display: inline-block;
             width: 16px;
@@ -504,7 +482,6 @@ cat > public/visto-negado.html << 'EOF'
             to { transform: rotate(360deg); }
         }
 
-        /* FAQ */
         .gv-faq-list {
             display: flex;
             flex-direction: column;
@@ -555,7 +532,6 @@ cat > public/visto-negado.html << 'EOF'
             display: block;
         }
 
-        /* Footer */
         .gv-footer-note {
             margin-top: 20px;
             font-size: 0.75rem;
@@ -565,7 +541,6 @@ cat > public/visto-negado.html << 'EOF'
             border-top: 1px solid #eef2f6;
         }
 
-        /* Links */
         .gv-links-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -584,7 +559,6 @@ cat > public/visto-negado.html << 'EOF'
             text-decoration: underline;
         }
 
-        /* Responsivo */
         @media (max-width: 1024px) {
             .gv-motivos-grid,
             .gv-passos-grid {
@@ -621,12 +595,10 @@ cat > public/visto-negado.html << 'EOF'
 </head>
 <body>
     <div class="gv-visto-negado-page">
-        <!-- RATING BANNER -->
         <div class="gv-rating-banner">
             ⭐ 4,9/5 NO GOOGLE · MILHARES DE CLIENTES ATENDIDOS
         </div>
 
-        <!-- HERO SECTION -->
         <div class="gv-hero-section">
             <h1>Visto Americano Negado? <span style="color: #0066cc;">Não Desista!</span></h1>
             <p>Se você teve o <strong>visto americano negado</strong>, sabemos que pode ser frustrante. Mas isso não significa o fim do seu sonho! Com a orientação certa e uma preparação estratégica, é totalmente possível reverter a situação.</p>
@@ -634,7 +606,6 @@ cat > public/visto-negado.html << 'EOF'
             <button class="gv-cta-button" id="openCaptureBtn">🚀 QUERO MINHA AVALIAÇÃO GRATUITA →</button>
         </div>
 
-        <!-- MOTIVOS -->
         <div class="gv-section">
             <h2 class="gv-section-title">Principais Motivos do Visto Americano Negado</h2>
             <div class="gv-motivos-grid">
@@ -657,7 +628,6 @@ cat > public/visto-negado.html << 'EOF'
             </div>
         </div>
 
-        <!-- MODAL DE CAPTURA -->
         <div class="gv-modal" id="captureModal">
             <div class="gv-modal-content">
                 <h3>📋 Avaliação de Visto Negado</h3>
@@ -683,9 +653,7 @@ cat > public/visto-negado.html << 'EOF'
             </div>
         </div>
 
-        <!-- SIMULADOR (inicialmente escondido) -->
         <div class="gv-simulator-wrapper" id="simulatorWrapper">
-            <!-- Banner de boas-vindas personalizado -->
             <div class="gv-welcome-banner" id="welcomeBanner">
                 <h3>👋 Olá, <span id="clienteNome"></span>! Seja bem-vindo(a)!</h3>
                 <p>Vamos analisar seu caso de visto negado. Responda às perguntas abaixo para uma avaliação completa e estratégica.</p>
@@ -703,7 +671,6 @@ cat > public/visto-negado.html << 'EOF'
                 </div>
 
                 <form id="simulatorForm">
-                    <!-- Pergunta 1 -->
                     <div class="gv-form-section active" data-step="1">
                         <h3 class="gv-question-title">1. Quando seu visto americano foi negado pela última vez?</h3>
                         <div class="gv-question-intent">📌 Entender o tempo decorrido desde a negativa.</div>
@@ -716,7 +683,6 @@ cat > public/visto-negado.html << 'EOF'
                         </div>
                     </div>
 
-                    <!-- Pergunta 2 -->
                     <div class="gv-form-section" data-step="2">
                         <h3 class="gv-question-title">2. Qual o motivo da negativa informado pelo oficial consular?</h3>
                         <div class="gv-question-intent">📌 Direcionar a análise para a causa raiz da negativa.</div>
@@ -729,7 +695,6 @@ cat > public/visto-negado.html << 'EOF'
                         </div>
                     </div>
 
-                    <!-- Pergunta 3 -->
                     <div class="gv-form-section" data-step="3">
                         <h3 class="gv-question-title">3. Desde a última negativa, houve mudança na sua situação profissional/financeira?</h3>
                         <div class="gv-question-intent">📌 Identificar melhorias nos vínculos empregatícios e financeiros.</div>
@@ -743,7 +708,6 @@ cat > public/visto-negado.html << 'EOF'
                         </div>
                     </div>
 
-                    <!-- Pergunta 4 -->
                     <div class="gv-form-section" data-step="4">
                         <h3 class="gv-question-title">4. Você fortaleceu seus vínculos com o Brasil de outras formas?</h3>
                         <div class="gv-question-intent">📌 Buscar outras formas de demonstrar laços fortes com o país.</div>
@@ -756,7 +720,6 @@ cat > public/visto-negado.html << 'EOF'
                         </div>
                     </div>
 
-                    <!-- Pergunta 5 -->
                     <div class="gv-form-section" data-step="5">
                         <h3 class="gv-question-title">5. Você acredita que houve falha no preenchimento do DS-160?</h3>
                         <div class="gv-question-intent">📌 Aborda diretamente um dos motivos comuns de negativa.</div>
@@ -768,7 +731,6 @@ cat > public/visto-negado.html << 'EOF'
                         </div>
                     </div>
 
-                    <!-- Pergunta 6 -->
                     <div class="gv-form-section" data-step="6">
                         <h3 class="gv-question-title">6. Você já teve problemas com imigração nos EUA ou em outros países?</h3>
                         <div class="gv-question-intent">📌 Identificar históricos que geram um "red flag" automático.</div>
@@ -780,7 +742,6 @@ cat > public/visto-negado.html << 'EOF'
                         </div>
                     </div>
 
-                    <!-- Pergunta 7 - Observações -->
                     <div class="gv-form-section" data-step="7">
                         <h3 class="gv-question-title">7. Informações adicionais (opcional)</h3>
                         <div class="gv-question-intent">📌 Caso queira acrescentar algo importante sobre seu caso.</div>
@@ -799,7 +760,6 @@ cat > public/visto-negado.html << 'EOF'
             </div>
         </div>
 
-        <!-- PASSOS PARA RECURSAR -->
         <div class="gv-section">
             <h2 class="gv-section-title">Como se preparar para uma nova tentativa</h2>
             <div class="gv-passos-grid">
@@ -820,4 +780,330 @@ cat > public/visto-negado.html << 'EOF'
                 </div>
                 <div class="gv-passo-card">
                     <div class="gv-passo-number">4</div>
-                    <h3>Prepare-se para Entrevista</
+                    <h3>Prepare-se para Entrevista</h3>
+                    <p>Pratique respostas claras e objetivas.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="gv-section" style="background: linear-gradient(135deg, #f0f7ff 0%, #e6f0fa 100%);">
+            <h3 style="color: #0a2540; margin-bottom: 20px;">📚 Conteúdos Relacionados</h3>
+            <div class="gv-links-grid">
+                <a href="https://getvisa.com.br/como-tirar-o-visto-americano-2/">→ Guia completo do visto americano</a>
+                <a href="https://www.getvisa.com.br/ds-160">→ Como preencher o DS-160</a>
+                <a href="https://www.getvisa.com.br/entrevista-visto">→ Dicas para a entrevista consular</a>
+                <a href="https://www.getvisa.com.br/documentacao-visto">→ Documentação necessária</a>
+            </div>
+        </div>
+
+        <div class="gv-section">
+            <h2 class="gv-section-title">Perguntas Frequentes</h2>
+            <div class="gv-faq-list">
+                <div class="gv-faq-item">
+                    <div class="gv-faq-question">Posso solicitar o visto novamente após uma negativa?</div>
+                    <div class="gv-faq-answer">Sim! Você pode solicitar novamente a qualquer momento. Recomendamos esperar até que tenha fortalecido seus vínculos com o Brasil.</div>
+                </div>
+                <div class="gv-faq-item">
+                    <div class="gv-faq-question">Qual o principal motivo para o visto ser negado?</div>
+                    <div class="gv-faq-answer">O motivo mais comum é a Seção 214(b) - falta de vínculos sólidos com o Brasil.</div>
+                </div>
+                <div class="gv-faq-item">
+                    <div class="gv-faq-question">Com a assessoria GetVisa, a aprovação é garantida?</div>
+                    <div class="gv-faq-answer">Nenhuma assessoria pode garantir aprovação, pois a decisão é do oficial consular. Mas maximizamos suas chances!</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gv-footer-note">
+            <p>Esta avaliação fornece uma prévia baseada nas respostas fornecidas. Para uma análise completa, nossa equipe entrará em contato.</p>
+        </div>
+    </div>
+
+    <script>
+        const REDIRECT_URL = 'https://getvisa.com.br/obrigado/';
+        
+        const modal = document.getElementById('captureModal');
+        const openBtn = document.getElementById('openCaptureBtn');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const captureForm = document.getElementById('captureForm');
+        const simulatorWrapper = document.getElementById('simulatorWrapper');
+        const welcomeBanner = document.getElementById('welcomeBanner');
+        const clienteNomeSpan = document.getElementById('clienteNome');
+        
+        let clienteData = {};
+        
+        const steps = document.querySelectorAll('#simulatorForm .gv-form-section');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const progress = document.getElementById('progress');
+        const progressText = document.getElementById('progressText');
+        const simulatorForm = document.getElementById('simulatorForm');
+        
+        let currentStep = 0;
+        let answers = {};
+        let isSubmitting = false;
+        
+        const captureTelefone = document.getElementById('captureTelefone');
+        if (captureTelefone) {
+            captureTelefone.addEventListener('input', function(e) {
+                let v = e.target.value.replace(/\D/g, '');
+                if (v.length <= 10) {
+                    v = v.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+                } else if (v.length <= 11) {
+                    v = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+                }
+                e.target.value = v;
+            });
+        }
+        
+        openBtn.onclick = () => {
+            modal.classList.add('active');
+        };
+        
+        closeModalBtn.onclick = () => {
+            modal.classList.remove('active');
+        };
+        
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+            }
+        };
+        
+        captureForm.onsubmit = (e) => {
+            e.preventDefault();
+            
+            const nome = document.getElementById('captureNome').value.trim();
+            const telefone = document.getElementById('captureTelefone').value.trim();
+            const email = document.getElementById('captureEmail').value.trim();
+            
+            if (!nome) {
+                alert('Por favor, informe seu nome completo.');
+                return;
+            }
+            if (!telefone || telefone.replace(/\D/g, '').length < 10) {
+                alert('Por favor, informe um telefone válido com DDD.');
+                return;
+            }
+            
+            clienteData = { nome, telefone, email };
+            
+            const primeiroNome = nome.split(' ')[0];
+            clienteNomeSpan.textContent = primeiroNome;
+            
+            modal.classList.remove('active');
+            
+            simulatorWrapper.classList.add('active');
+            welcomeBanner.classList.add('active');
+            
+            setTimeout(() => {
+                simulatorWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        };
+        
+        function updateProgress() {
+            let percent = ((currentStep + 1) / steps.length) * 100;
+            if (progress) progress.style.width = percent + '%';
+            if (progressText) progressText.textContent = `Etapa ${currentStep + 1} de ${steps.length}`;
+        }
+        
+        function showStep(index) {
+            steps.forEach((step, i) => step.classList.toggle('active', i === index));
+            updateProgress();
+            if (index === steps.length - 1) {
+                nextBtn.style.display = 'none';
+                submitBtn.style.display = 'inline-block';
+            } else {
+                nextBtn.style.display = 'inline-block';
+                submitBtn.style.display = 'none';
+            }
+            prevBtn.disabled = index === 0;
+        }
+        
+        function validateStep() {
+            let current = steps[currentStep];
+            let radios = current.querySelectorAll('input[type="radio"]');
+            
+            if (radios.length && !Array.from(radios).some(r => r.checked)) {
+                alert('Por favor, selecione uma opção antes de continuar.');
+                return false;
+            }
+            return true;
+        }
+        
+        function saveAnswers() {
+            let current = steps[currentStep];
+            current.querySelectorAll('input[type="radio"]:checked').forEach(r => {
+                answers[r.name] = r.value;
+            });
+            current.querySelectorAll('textarea').forEach(t => {
+                if (t.value.trim()) answers[t.id] = t.value.trim();
+            });
+        }
+        
+        function calcularScore() {
+            let score = 0;
+            
+            const quando = answers.quando;
+            if (quando === 'Menos de 3 meses') score += 5;
+            else if (quando === 'Entre 3 e 6 meses') score += 8;
+            else if (quando === 'Entre 6 meses e 1 ano') score += 12;
+            else if (quando === 'Mais de 1 ano') score += 15;
+            else if (quando === 'Nunca solicitei') score += 10;
+            
+            const motivo = answers.motivo;
+            if (motivo === 'Seção 214(b)') score += 10;
+            else if (motivo === 'Informações inconsistentes') score += 12;
+            else if (motivo === 'Problemas imigração anterior') score += 5;
+            else if (motivo === 'Não soube informar') score += 15;
+            else if (motivo === 'Outro motivo') score += 18;
+            
+            const mudanca = answers.mudanca_profissional;
+            if (mudanca === 'Mudei de emprego') score += 16;
+            else if (mudanca === 'Fui promovido') score += 18;
+            else if (mudanca === 'Abri empresa') score += 20;
+            else if (mudanca === 'Renda aumentou') score += 20;
+            else if (mudanca === 'Permaneceu igual') score += 8;
+            else if (mudanca === 'Não se aplica') score += 12;
+            
+            const vinculos = answers.fortaleceu_vinculos;
+            if (vinculos === 'Iniciei estudos') score += 16;
+            else if (vinculos === 'Adquiri bens') score += 20;
+            else if (vinculos === 'Família consolidada') score += 14;
+            else if (vinculos === 'Permaneceu igual') score += 6;
+            else if (vinculos === 'Não se aplica') score += 10;
+            
+            const ds160 = answers.falha_ds160;
+            if (ds160 === 'Sim, houve erros') score += 8;
+            else if (ds160 === 'Não tenho certeza') score += 12;
+            else if (ds160 === 'Não, estava correto') score += 15;
+            else if (ds160 === 'Não se aplica') score += 10;
+            
+            const imigracao = answers.problemas_imigracao;
+            if (imigracao === 'Não') score += 10;
+            else if (imigracao === 'Problemas menores') score += 6;
+            else if (imigracao === 'Overstay') score += 3;
+            else if (imigracao === 'Deportação') score += 0;
+            
+            return Math.min(Math.max(score, 0), 100);
+        }
+        
+        function getClassification(score) {
+            if (score < 35) return 'urgent';
+            if (score < 65) return 'moderate';
+            return 'strong';
+        }
+        
+        async function enviarParaBackend(score, classificationType) {
+            let titulo = '';
+            let mensagem = '';
+            if (classificationType === 'urgent') {
+                titulo = '⚠️ Seu caso requer atenção urgente!';
+                mensagem = 'Seu perfil apresenta pontos críticos que precisam ser analisados. Nossos especialistas estão prontos para te ajudar.';
+            } else if (classificationType === 'moderate') {
+                titulo = '💡 Potencial Moderado de Sucesso!';
+                mensagem = 'Seu perfil tem pontos positivos, mas ainda precisa de ajustes para aumentar suas chances.';
+            } else {
+                titulo = '✅ Forte Potencial de Reversão!';
+                mensagem = 'Parabéns! Seu perfil demonstra um forte potencial para reverter o visto negado.';
+            }
+            
+            const dados = {
+                nome: clienteData.nome || '',
+                email: clienteData.email || '',
+                telefone: clienteData.telefone || '',
+                quando_negado: answers.quando || '',
+                motivo_negativa: answers.motivo || '',
+                mudanca_profissional: answers.mudanca_profissional || '',
+                fortaleceu_vinculos: answers.fortaleceu_vinculos || '',
+                falha_ds160: answers.falha_ds160 || '',
+                problemas_imigracao: answers.problemas_imigracao || '',
+                observacoes: answers.observacoes || '',
+                score: score,
+                classificacao_tipo: classificationType,
+                classificacao_titulo: titulo,
+                classificacao_mensagem: mensagem
+            };
+            
+            try {
+                const response = await fetch('/api/visto-negado', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dados)
+                });
+                if (!response.ok) console.error('Erro no envio para backend:', response.status);
+                else console.log('✅ Dados enviados com sucesso');
+                return response.ok;
+            } catch (error) {
+                console.error('Erro ao enviar:', error);
+                return false;
+            }
+        }
+        
+        async function enviarAvaliacao() {
+            if (isSubmitting) return;
+            isSubmitting = true;
+            
+            if (!clienteData.telefone || clienteData.telefone.replace(/\D/g, '').length < 10) {
+                alert('Dados de contato inválidos. Por favor, recarregue a página e tente novamente.');
+                isSubmitting = false;
+                return;
+            }
+            
+            const score = calcularScore();
+            const classificationType = getClassification(score);
+            
+            submitBtn.innerHTML = 'Enviando... <span class="gv-loading"></span>';
+            submitBtn.disabled = true;
+            
+            await enviarParaBackend(score, classificationType);
+            
+            window.location.href = REDIRECT_URL;
+        }
+        
+        nextBtn.onclick = () => {
+            if (validateStep()) {
+                saveAnswers();
+                if (currentStep < steps.length - 1) {
+                    currentStep++;
+                    showStep(currentStep);
+                }
+            }
+        };
+        
+        prevBtn.onclick = () => {
+            if (currentStep > 0) {
+                currentStep--;
+                showStep(currentStep);
+            }
+        };
+        
+        simulatorForm.onsubmit = (e) => {
+            e.preventDefault();
+            if (validateStep()) {
+                saveAnswers();
+                enviarAvaliacao();
+            }
+        };
+        
+        document.querySelectorAll('.gv-option').forEach(opt => {
+            opt.onclick = function(e) {
+                const radio = this.querySelector('input[type="radio"]');
+                if (radio && !radio.checked) {
+                    radio.checked = true;
+                    this.parentElement.querySelectorAll('.gv-option').forEach(o => o.classList.remove('selected'));
+                    this.classList.add('selected');
+                }
+            };
+        });
+        
+        showStep(0);
+        
+        document.querySelectorAll('.gv-faq-item').forEach(item => {
+            const question = item.querySelector('.gv-faq-question');
+            question.addEventListener('click', () => item.classList.toggle('active'));
+        });
+    </script>
+</body>
+</html>
