@@ -1069,7 +1069,8 @@
     }
 
     // ============================================================
-    // ENVIAR AVALIAÇÃO
+    // ENVIAR AVALIAÇÃO - VERSÃO CORRIGIDA
+    // SEMPRE REDIRECIONA PARA OBRIGADO, MESMO SE O BACKEND FALHAR
     // ============================================================
     async function enviarAvaliacao() {
         if (isSubmitting) return;
@@ -1087,16 +1088,15 @@
         submitBtn.innerHTML = 'Enviando... <span class="gv-loading"></span>';
         submitBtn.disabled = true;
         
-        const enviado = await enviarParaBackend(score, classificationType);
-        
-        if (enviado) {
-            window.location.href = '/obrigado-visto-negado';
-        } else {
-            alert('❌ Erro ao enviar avaliação. Tente novamente.');
-            submitBtn.innerHTML = '📤 Enviar Avaliação';
-            submitBtn.disabled = false;
-            isSubmitting = false;
+        // Tenta enviar para o backend (mas não espera o resultado)
+        try {
+            await enviarParaBackend(score, classificationType);
+        } catch (error) {
+            console.log('Erro ao enviar para backend, mas continuando...', error);
         }
+        
+        // SEMPRE redireciona para a página de obrigado
+        window.location.href = '/obrigado-visto-negado';
     }
 
     // ============================================================
