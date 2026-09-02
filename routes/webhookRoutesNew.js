@@ -1,9 +1,9 @@
-// routes/webhookRoutesNew.js - VERSÃO QUE USA O SERVER.JS
+// routes/webhookRoutesNew.js - VERSÃO COMPLETA E INDEPENDENTE
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
-console.log('🚀 webhookRoutesNew CARREGADO (USANDO SERVER.JS)');
+console.log('🚀 webhookRoutesNew CARREGADO (VERSÃO COMPLETA)');
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -21,81 +21,170 @@ function limparTelefone(phone) {
 
 const messageQueue = [];
 
-// CARREGA A FUNÇÃO DO SERVER.JS
-let processarMensagemOriginal = null;
-
-try {
-    // Importa o server.js
-    const server = require('../server.js');
-    
-    // Tenta pegar a função processarMensagem
-    if (server && typeof server.processarMensagem === 'function') {
-        processarMensagemOriginal = server.processarMensagem;
-        console.log('✅ processarMensagem carregada do server.js');
-    } else {
-        console.log('⚠️ processarMensagem não encontrada no server.js');
-    }
-} catch (error) {
-    console.error('❌ Erro ao carregar server.js:', error.message);
-}
-
-// FUNÇÃO FALLBACK (se não conseguir carregar do server.js)
-async function fallbackProcessarMensagem(phone, message) {
-    console.log(`📨 [FALLBACK] ${phone}: ${message}`);
-    
-    // Função simples de resposta
-    async function enviarWhatsAppSimples(telefone, mensagem) {
-        try {
-            const instance = process.env.ZAPI_INSTANCE;
-            const token = process.env.ZAPI_TOKEN;
-            
-            if (!instance || !token) return false;
-            
-            const telefoneLimpo = telefone.toString().replace(/\D/g, '');
-            const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
-            
-            const response = await fetch(
-                `https://api.z-api.io/instances/${instance}/token/${token}/send-text`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        phone: telefoneFormatado,
-                        message: mensagem
-                    })
-                }
-            );
-            
-            return response.ok;
-        } catch (error) {
-            console.error('❌ Erro:', error);
+// ============================================================
+// FUNÇÃO PARA ENVIAR WHATSAPP
+// ============================================================
+async function enviarWhatsApp(telefone, mensagem) {
+    try {
+        const instance = process.env.ZAPI_INSTANCE;
+        const token = process.env.ZAPI_TOKEN;
+        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
+        
+        if (!instance || !token) {
+            console.error('❌ Z-API não configurada');
             return false;
         }
+
+        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+        const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
+
+        const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-text`;
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (clientToken) {
+            headers['Client-Token'] = clientToken;
+        }
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                phone: telefoneFormatado,
+                message: mensagem
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ Erro Z-API (${response.status}):`, errorText);
+            return false;
+        }
+
+        console.log('✅ Mensagem enviada com sucesso');
+        return true;
+    } catch (error) {
+        console.error('❌ Erro ao enviar WhatsApp:', error);
+        return false;
     }
-    
-    const mensagem = `👋 Olá! Seja bem-vindo(a) à GetVisa Assessoria! 🇺🇸
-
-Para atendimento completo, por favor, entre em contato com nosso especialista:
-
-📱 wa.me/5521974601812
-
-Ou acesse nosso site: getvisa.com.br`;
-    
-    await enviarWhatsAppSimples(phone, mensagem);
 }
 
-// FUNÇÃO PRINCIPAL - USA A ORIGINAL OU FALLBACK
-async function processarMensagem(phone, message, body) {
-    if (typeof processarMensagemOriginal === 'function') {
-        console.log(`📨 Usando processarMensagem do server.js para ${phone}`);
-        return processarMensagemOriginal(phone, message, body || {});
-    } else {
-        console.log(`📨 Usando fallback para ${phone}`);
-        return fallbackProcessarMensagem(phone, message);
+// ============================================================
+// ESTADO DOS USUÁRIOS
+// ============================================================
+const userState = new Map();
+
+// ============================================================
+// PROCESSAR MENSAGEM - LÓGICA COMPLETA DO BOT
+// ============================================================
+async function processarMensagem(phone, message) {
+    console.log(`📨 Processando mensagem de ${phone}: ${message}`);
+    
+    try {
+        let state = userState.get(phone);
+        
+        if (!state) {
+            state = {
+                onboardingStep: 'saudacao',
+                onboardingCompleto: false,
+                nome: null,
+                email: null,
+                nivel: 'onboarding',
+                lastActivity: Date.now()
+            };
+            userState.set(phone, state);
+        }
+        
+        // ONBOARDING - PASSO 1: PEDIR NOME
+        if (!state.onboardingCompleto && state.onboardingStep === 'saudacao') {
+            const mensagem = `👋 Olá! Seja bem-vindo(a) à GetVisa Assessoria! 🇺🇸
+
+Somos especialistas em vistos americanos e estamos aqui para realizar seu sonho de viajar para os EUA! ✈️
+
+Para começarmos, preciso saber:
+
+📝 **Qual é o seu nome completo?**
+
+Ex: Maria Silva
+
+Digite 0 a qualquer momento para ver o menu principal.`;
+            await enviarWhatsApp(phone, mensagem);
+            state.onboardingStep = 'aguardando_nome';
+            userState.set(phone, state);
+            return;
+        }
+        
+        // ONBOARDING - PASSO 2: RECEBER NOME
+        if (!state.onboardingCompleto && state.onboardingStep === 'aguardando_nome') {
+            if (message && message.length > 2 && !message.match(/^\d+$/)) {
+                state.nome = message.trim();
+                state.onboardingStep = 'aguardando_email';
+                userState.set(phone, state);
+                
+                const mensagem = `😊 Prazer, ${state.nome}! Agora me diga:\n\n📧 **Qual é o seu e-mail?**\n\nEx: maria@email.com`;
+                await enviarWhatsApp(phone, mensagem);
+                return;
+            } else {
+                const mensagem = `❌ Por favor, digite um nome válido.\n\n📝 Ex: Maria Silva`;
+                await enviarWhatsApp(phone, mensagem);
+                return;
+            }
+        }
+        
+        // ONBOARDING - PASSO 3: RECEBER EMAIL
+        if (!state.onboardingCompleto && state.onboardingStep === 'aguardando_email') {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (emailRegex.test(message)) {
+                state.email = message.trim();
+                state.onboardingCompleto = true;
+                state.nivel = 'principal';
+                userState.set(phone, state);
+                
+                const mensagem = `✅ Perfeito, ${state.nome}! Seus dados foram salvos com sucesso!\n\nAgora escolha o serviço desejado:\n\n🌟 **GETVISA - ASSESSORIA EM VISTOS**\n\n1️⃣ - 🇺🇸 VISTO AMERICANO\n2️⃣ - 🇨🇦 VISTO CANADENSE\n3️⃣ - 🇦🇺 VISTO AUSTRALIANO\n4️⃣ - 🇬🇧 eTA UK (REINO UNIDO)\n5️⃣ - 🇨🇦 eTA CANADENSE\n6️⃣ - 🛂 PASSAPORTE\n7️⃣ - 📞 AJUDA / CONTATO\n\nDigite o número da opção (1-7)`;
+                await enviarWhatsApp(phone, mensagem);
+                return;
+            } else {
+                const mensagem = `❌ E-mail inválido! Digite um e-mail válido.\n\n📧 Ex: maria@email.com`;
+                await enviarWhatsApp(phone, mensagem);
+                return;
+            }
+        }
+        
+        // MENU PRINCIPAL
+        if (state.onboardingCompleto) {
+            if (message === '0') {
+                const mensagem = `🌟 **GETVISA - ASSESSORIA EM VISTOS**\n\n1️⃣ - 🇺🇸 VISTO AMERICANO\n2️⃣ - 🇨🇦 VISTO CANADENSE\n3️⃣ - 🇦🇺 VISTO AUSTRALIANO\n4️⃣ - 🇬🇧 eTA UK (REINO UNIDO)\n5️⃣ - 🇨🇦 eTA CANADENSE\n6️⃣ - 🛂 PASSAPORTE\n7️⃣ - 📞 AJUDA / CONTATO\n\nDigite o número da opção (1-7)`;
+                await enviarWhatsApp(phone, mensagem);
+                return;
+            }
+            
+            const opcoes = {
+                '1': '🇺🇸 VISTO AMERICANO\n\n💰 Preço: R$ 350,00\n📋 Inclui: Preenchimento DS-160, agendamento, preparação para entrevista.\n\nDigite 0 para voltar ao menu.',
+                '2': '🇨🇦 VISTO CANADENSE\n\n💰 Preço: R$ 400,00\n📋 Inclui: Aplicação online, biometria, preparação de documentos.\n\nDigite 0 para voltar ao menu.',
+                '3': '🇦🇺 VISTO AUSTRALIANO\n\n💰 Preço: R$ 450,00\n📋 Inclui: Análise de perfil, aplicação online, documentação.\n\nDigite 0 para voltar ao menu.',
+                '4': '🇬🇧 eTA UK\n\n💰 Preço: R$ 150,00\n📋 Inclui: Aplicação online, validação, acompanhamento.\n\nDigite 0 para voltar ao menu.',
+                '5': '🇨🇦 eTA CANADENSE\n\n💰 Preço: R$ 100,00\n📋 Inclui: Aplicação online rápida, validação.\n\nDigite 0 para voltar ao menu.',
+                '6': '🛂 PASSAPORTE\n\n💰 Preço: R$ 150,00\n📋 Inclui: Agendamento, orientação, acompanhamento.\n\nDigite 0 para voltar ao menu.',
+                '7': '📞 AJUDA / CONTATO\n\n📱 WhatsApp: wa.me/5521974601812\n📧 E-mail: contato@getvisa.com.br\n\nDigite 0 para voltar ao menu.'
+            };
+            
+            if (opcoes[message]) {
+                await enviarWhatsApp(phone, opcoes[message]);
+                return;
+            }
+            
+            const mensagem = `🤔 Não entendi. Digite 0 para o menu principal.`;
+            await enviarWhatsApp(phone, mensagem);
+        }
+        
+    } catch (error) {
+        console.error('❌ Erro ao processar mensagem:', error);
+        await enviarWhatsApp(phone, '❌ Ocorreu um erro. Digite 0 para o menu principal.');
     }
 }
 
+// ============================================================
 // PROCESSADOR DE FILA
+// ============================================================
 setInterval(async () => {
     if (messageQueue.length === 0) return;
     
@@ -105,7 +194,7 @@ setInterval(async () => {
         const item = messageQueue.shift();
         try {
             console.log(`📨 Processando mensagem de ${item.phone}: ${item.message}`);
-            await processarMensagem(item.phone, item.message, {});
+            await processarMensagem(item.phone, item.message);
             console.log('✅ Mensagem processada para', item.phone);
         } catch (error) {
             console.error(`❌ Erro ao processar mensagem:`, error.message);
@@ -113,7 +202,9 @@ setInterval(async () => {
     }
 }, 3000);
 
+// ============================================================
 // ROTA POST
+// ============================================================
 router.post('/zapi', async (req, res) => {
     try {
         console.log('📨 Webhook Z-API recebido!');
@@ -131,7 +222,6 @@ router.post('/zapi', async (req, res) => {
         const telefoneLimpo = limparTelefone(phone);
         console.log(`📱 Telefone limpo: ${telefoneLimpo}`);
         
-        // Salvar cliente no Supabase
         try {
             const { data: clienteExistente } = await supabase
                 .from('clientes')
@@ -174,7 +264,9 @@ router.post('/zapi', async (req, res) => {
     }
 });
 
+// ============================================================
 // ROTA GET
+// ============================================================
 router.get('/zapi', (req, res) => {
     res.status(200).json({ 
         status: 'online', 
