@@ -5503,6 +5503,7 @@ app.listen(PORT, '0.0.0.0', () => {
 // EXPORTAR FUNÇÕES PARA OUTROS ARQUIVOS
 // ============================================================
 module.exports = {
+    processarMensagem,
     userState,
     getMenuPrincipal,
     processarOnboarding,
