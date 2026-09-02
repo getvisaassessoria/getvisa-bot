@@ -1,4 +1,4 @@
-// server.js - VERSÃO DEFINITIVA E SEGURA (COM ROTAS DUPLICADAS REMOVIDAS)
+// server.js - INÍCIO CORRIGIDO
 console.log('--- 🚀 SERVER.JS INICIADO (VERSÃO DEFINITIVA) ---');
 
 // 1. DEPENDÊNCIAS E CONFIGURAÇÕES INICIAIS
@@ -14,9 +14,26 @@ const cron = require('node-cron');
 const multer = require('multer');
 const auth = require('./middleware/auth');
 
-const app = express();
-const resend = new Resend(process.env.RESEND_API_KEY || '');
-const PORT = process.env.PORT || 10000;
+// 🔥 IMPORTA DO botService
+const { 
+    processarMensagem,    // <-- AGORA IMPORTADA
+    userState,            // <-- MESMO ESTADO COMPARTILHADO
+    limparTelefone,
+    enviarWhatsApp
+} = require('./services/botService');
+
+// 🔥 MANTÉM AS CONSTANTES DO SEU ARQUIVO ORIGINAL
+const { 
+    ONBOARDING_STEPS,
+    BOAS_VINDAS_MESSAGES,
+    ETAPAS,
+    RADIO_MAPPING,
+    DATE_FIELDS,
+    SPAM_DOMAINS,
+    FEATURES
+} = require('./constants/botConstants'); // <-- CRIE ESTE ARQUIVO
+
+// OU SE NÃO TIVER O ARQUIVO DE CONSTANTES, COPIE AS CONSTANTES DO SEU SERVER.JS ORIGINAL AQUI
 
 // 2. CONFIGURAÇÃO DO SUPABASE
 let supabaseUrl = process.env.SUPABASE_URL || '';
@@ -2918,40 +2935,13 @@ Digite 0 para o menu principal`;
     }
 } // <-- FECHA A FUNÇÃO processarOpcaoNoMenuPrincipal
 
-// 17. WEBHOOK PRINCIPAL (Z-API)
+// 17. WEBHOOK PRINCIPAL (Z-API) - USANDO botService
 
-// WEBHOOK PRINCIPAL (Z-API) - PROCESSAMENTO DIRETO
-app.post('/api/webhook/zapi', async (req, res) => {
-    console.log('📨 Webhook Z-API recebido!');
-    
-    // Responde imediatamente para a Z-API
-    res.status(200).send('OK');
+// 🔥 REMOVA A IMPLEMENTAÇÃO ANTIGA E USE O ROUTER
+const webhookRoutes = require('./routes/webhookRoutesNew');
+app.use('/api/webhook', webhookRoutes);
 
-    // Processa a mensagem em background
-    (async () => {
-        try {
-            const body = req.body;
-            const telefone = body.phone || body.from || '';
-            const mensagem = body.text?.message || body.message || body.text || '';
-            
-            console.log(`📱 Telefone: ${telefone}`);
-            console.log(`💬 Mensagem: ${mensagem}`);
-            
-            if (!telefone || !mensagem) {
-                console.log('⚠️ Dados incompletos, ignorando.');
-                return;
-            }
-
-            const telefoneLimpo = limparTelefone(telefone);
-            console.log(`📱 Telefone limpo: ${telefoneLimpo}`);
-
-            // Processa diretamente
-
-        } catch (erro) {
-            console.error('❌ Erro no webhook:', erro);
-        }
-    })();
-});
+console.log('✅ Rotas Webhook montadas em /api/webhook');
 
 // 18. FUNÇÕES DE GERAÇÃO DE PDF (DS-160)
 
@@ -5503,15 +5493,20 @@ app.listen(PORT, '0.0.0.0', () => {
 // EXPORTAR FUNÇÕES PARA OUTROS ARQUIVOS
 // ============================================================
 module.exports = {
+    // AGORA VEM DO botService
     processarMensagem,
     userState,
-    getMenuPrincipal,
-    processarOnboarding,
-    processarOpcaoNoSubmenu,
-    processarOpcaoNoMenuPrincipal,
-    enviarWhatsApp,
     limparTelefone,
-    supabase
+    enviarWhatsApp,
+    
+    // FUNÇÕES ESPECÍFICAS DO SERVER.JS
+    supabase,
+    gerarPDF_DS160,
+    atualizarStatusCliente,
+    enviarNotificacaoStatus,
+    buscarEtapasCliente,
+    salvarAgendamentos,
+    salvarTreinamento
 };
 
 // ============================================================
