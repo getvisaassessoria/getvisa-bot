@@ -1,9 +1,10 @@
-// routes/webhookRoutesNew.js - VERSÃO COMPLETA E INDEPENDENTE
+cat > routes/webhookRoutesNew.js << 'EOF'
+// routes/webhookRoutesNew.js - VERSÃO CORRIGIDA (INTENÇÕES)
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
-console.log('🚀 webhookRoutesNew CARREGADO (VERSÃO COMPLETA)');
+console.log('🚀 webhookRoutesNew CARREGADO (VERSÃO CORRIGIDA)');
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -21,9 +22,6 @@ function limparTelefone(phone) {
 
 const messageQueue = [];
 
-// ============================================================
-// FUNÇÃO PARA ENVIAR WHATSAPP
-// ============================================================
 async function enviarWhatsApp(telefone, mensagem) {
     try {
         const instance = process.env.ZAPI_INSTANCE;
@@ -68,16 +66,18 @@ async function enviarWhatsApp(telefone, mensagem) {
     }
 }
 
-// ============================================================
-// ESTADO DOS USUÁRIOS
-// ============================================================
 const userState = new Map();
 
-// ============================================================
-// PROCESSAR MENSAGEM - LÓGICA COMPLETA DO BOT
-// ============================================================
 async function processarMensagem(phone, message) {
     console.log(`📨 Processando mensagem de ${phone}: ${message}`);
+    
+    // 🔥 LIMPA A MENSAGEM (remove espaços, converte para número se for opção)
+    const msgLimpa = message.trim();
+    const msgNumero = parseInt(msgLimpa);
+    const isNumero = !isNaN(msgNumero) && msgNumero >= 0 && msgNumero <= 9;
+    
+    console.log(`📝 Mensagem limpa: "${msgLimpa}"`);
+    console.log(`🔢 É número? ${isNumero}, Valor: ${msgNumero}`);
     
     try {
         let state = userState.get(phone);
@@ -115,8 +115,18 @@ Digite 0 a qualquer momento para ver o menu principal.`;
         
         // ONBOARDING - PASSO 2: RECEBER NOME
         if (!state.onboardingCompleto && state.onboardingStep === 'aguardando_nome') {
-            if (message && message.length > 2 && !message.match(/^\d+$/)) {
-                state.nome = message.trim();
+            // 🔥 SE FOR NÚMERO, TRATA COMO COMANDO
+            if (isNumero && msgNumero === 0) {
+                state.onboardingCompleto = true;
+                state.nivel = 'principal';
+                userState.set(phone, state);
+                const mensagem = `🌟 **GETVISA - ASSESSORIA EM VISTOS**\n\n1️⃣ - 🇺🇸 VISTO AMERICANO\n2️⃣ - 🇨🇦 VISTO CANADENSE\n3️⃣ - 🇦🇺 VISTO AUSTRALIANO\n4️⃣ - 🇬🇧 eTA UK (REINO UNIDO)\n5️⃣ - 🇨🇦 eTA CANADENSE\n6️⃣ - 🛂 PASSAPORTE\n7️⃣ - 📞 AJUDA / CONTATO\n\nDigite o número da opção (1-7)`;
+                await enviarWhatsApp(phone, mensagem);
+                return;
+            }
+            
+            if (msgLimpa && msgLimpa.length > 2 && !isNumero) {
+                state.nome = msgLimpa;
                 state.onboardingStep = 'aguardando_email';
                 userState.set(phone, state);
                 
@@ -132,9 +142,19 @@ Digite 0 a qualquer momento para ver o menu principal.`;
         
         // ONBOARDING - PASSO 3: RECEBER EMAIL
         if (!state.onboardingCompleto && state.onboardingStep === 'aguardando_email') {
+            // 🔥 SE FOR NÚMERO, TRATA COMO COMANDO
+            if (isNumero && msgNumero === 0) {
+                state.onboardingCompleto = true;
+                state.nivel = 'principal';
+                userState.set(phone, state);
+                const mensagem = `🌟 **GETVISA - ASSESSORIA EM VISTOS**\n\n1️⃣ - 🇺🇸 VISTO AMERICANO\n2️⃣ - 🇨🇦 VISTO CANADENSE\n3️⃣ - 🇦🇺 VISTO AUSTRALIANO\n4️⃣ - 🇬🇧 eTA UK (REINO UNIDO)\n5️⃣ - 🇨🇦 eTA CANADENSE\n6️⃣ - 🛂 PASSAPORTE\n7️⃣ - 📞 AJUDA / CONTATO\n\nDigite o número da opção (1-7)`;
+                await enviarWhatsApp(phone, mensagem);
+                return;
+            }
+            
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (emailRegex.test(message)) {
-                state.email = message.trim();
+            if (emailRegex.test(msgLimpa)) {
+                state.email = msgLimpa;
                 state.onboardingCompleto = true;
                 state.nivel = 'principal';
                 userState.set(phone, state);
@@ -149,30 +169,92 @@ Digite 0 a qualquer momento para ver o menu principal.`;
             }
         }
         
-        // MENU PRINCIPAL
+        // ============================================================
+        // MENU PRINCIPAL (ONBOARDING COMPLETO)
+        // ============================================================
         if (state.onboardingCompleto) {
-            if (message === '0') {
+            
+            // 🔥 COMANDO 0 - VOLTAR AO MENU
+            if (isNumero && msgNumero === 0) {
                 const mensagem = `🌟 **GETVISA - ASSESSORIA EM VISTOS**\n\n1️⃣ - 🇺🇸 VISTO AMERICANO\n2️⃣ - 🇨🇦 VISTO CANADENSE\n3️⃣ - 🇦🇺 VISTO AUSTRALIANO\n4️⃣ - 🇬🇧 eTA UK (REINO UNIDO)\n5️⃣ - 🇨🇦 eTA CANADENSE\n6️⃣ - 🛂 PASSAPORTE\n7️⃣ - 📞 AJUDA / CONTATO\n\nDigite o número da opção (1-7)`;
                 await enviarWhatsApp(phone, mensagem);
                 return;
             }
             
+            // 🔥 OPÇÕES DO MENU (1 a 7)
             const opcoes = {
-                '1': '🇺🇸 VISTO AMERICANO\n\n💰 Preço: R$ 350,00\n📋 Inclui: Preenchimento DS-160, agendamento, preparação para entrevista.\n\nDigite 0 para voltar ao menu.',
-                '2': '🇨🇦 VISTO CANADENSE\n\n💰 Preço: R$ 400,00\n📋 Inclui: Aplicação online, biometria, preparação de documentos.\n\nDigite 0 para voltar ao menu.',
-                '3': '🇦🇺 VISTO AUSTRALIANO\n\n💰 Preço: R$ 450,00\n📋 Inclui: Análise de perfil, aplicação online, documentação.\n\nDigite 0 para voltar ao menu.',
-                '4': '🇬🇧 eTA UK\n\n💰 Preço: R$ 150,00\n📋 Inclui: Aplicação online, validação, acompanhamento.\n\nDigite 0 para voltar ao menu.',
-                '5': '🇨🇦 eTA CANADENSE\n\n💰 Preço: R$ 100,00\n📋 Inclui: Aplicação online rápida, validação.\n\nDigite 0 para voltar ao menu.',
-                '6': '🛂 PASSAPORTE\n\n💰 Preço: R$ 150,00\n📋 Inclui: Agendamento, orientação, acompanhamento.\n\nDigite 0 para voltar ao menu.',
-                '7': '📞 AJUDA / CONTATO\n\n📱 WhatsApp: wa.me/5521974601812\n📧 E-mail: contato@getvisa.com.br\n\nDigite 0 para voltar ao menu.'
+                '1': '🇺🇸 VISTO AMERICANO\n\n💰 Preço: R$ 350,00\n📋 Inclui: Preenchimento DS-160, agendamento, preparação para entrevista.\n📱 Pagamento: PIX ou cartão de crédito.\n\nDigite 0 para voltar ao menu.',
+                '2': '🇨🇦 VISTO CANADENSE\n\n💰 Preço: R$ 400,00\n📋 Inclui: Aplicação online, biometria, preparação de documentos.\n📱 Pagamento: PIX ou cartão de crédito.\n\nDigite 0 para voltar ao menu.',
+                '3': '🇦🇺 VISTO AUSTRALIANO\n\n💰 Preço: R$ 450,00\n📋 Inclui: Análise de perfil, aplicação online, documentação.\n📱 Pagamento: PIX ou cartão de crédito.\n\nDigite 0 para voltar ao menu.',
+                '4': '🇬🇧 eTA UK\n\n💰 Preço: R$ 150,00\n📋 Inclui: Aplicação online, validação, acompanhamento.\n📱 Pagamento: PIX ou cartão de crédito.\n\nDigite 0 para voltar ao menu.',
+                '5': '🇨🇦 eTA CANADENSE\n\n💰 Preço: R$ 100,00\n📋 Inclui: Aplicação online rápida, validação.\n📱 Pagamento: PIX ou cartão de crédito.\n\nDigite 0 para voltar ao menu.',
+                '6': '🛂 PASSAPORTE\n\n💰 Preço: R$ 150,00\n📋 Inclui: Agendamento, orientação, acompanhamento.\n📱 Pagamento: PIX ou cartão de crédito.\n\nDigite 0 para voltar ao menu.',
+                '7': '📞 AJUDA / CONTATO\n\n📱 WhatsApp: wa.me/5521974601812\n📧 E-mail: contato@getvisa.com.br\n🌐 Site: getvisa.com.br\n\nDigite 0 para voltar ao menu.'
             };
             
-            if (opcoes[message]) {
-                await enviarWhatsApp(phone, opcoes[message]);
+            // 🔥 VERIFICA SE É UMA OPÇÃO VÁLIDA (1 a 7)
+            const opcaoKey = msgLimpa;
+            if (opcoes[opcaoKey]) {
+                await enviarWhatsApp(phone, opcoes[opcaoKey]);
                 return;
             }
             
-            const mensagem = `🤔 Não entendi. Digite 0 para o menu principal.`;
+            // 🔥 SE FOR NÚMERO MAS NÃO FOR OPÇÃO VÁLIDA
+            if (isNumero) {
+                const mensagem = `❌ Opção inválida! Digite um número de 1 a 7.\n\nDigite 0 para o menu principal.`;
+                await enviarWhatsApp(phone, mensagem);
+                return;
+            }
+            
+            // 🔥 INTENÇÕES POR PALAVRAS-CHAVE
+            const msgLower = msgLimpa.toLowerCase();
+            
+            if (msgLower.includes('visto americano') || msgLower.includes('eua') || msgLower.includes('usa')) {
+                await enviarWhatsApp(phone, opcoes['1']);
+                return;
+            }
+            
+            if (msgLower.includes('visto canadense') || msgLower.includes('canada')) {
+                await enviarWhatsApp(phone, opcoes['2']);
+                return;
+            }
+            
+            if (msgLower.includes('visto australiano') || msgLower.includes('australia')) {
+                await enviarWhatsApp(phone, opcoes['3']);
+                return;
+            }
+            
+            if (msgLower.includes('eta uk') || msgLower.includes('reino unido') || msgLower.includes('inglaterra')) {
+                await enviarWhatsApp(phone, opcoes['4']);
+                return;
+            }
+            
+            if (msgLower.includes('eta canadense')) {
+                await enviarWhatsApp(phone, opcoes['5']);
+                return;
+            }
+            
+            if (msgLower.includes('passaporte')) {
+                await enviarWhatsApp(phone, opcoes['6']);
+                return;
+            }
+            
+            if (msgLower.includes('ajuda') || msgLower.includes('contato') || msgLower.includes('especialista') || msgLower.includes('duvida')) {
+                await enviarWhatsApp(phone, opcoes['7']);
+                return;
+            }
+            
+            // 🔥 RESPOSTA PADRÃO
+            const mensagem = `🤔 Não entendi. Digite 0 para o menu principal.
+
+Opções disponíveis:
+1️⃣ - VISTO AMERICANO
+2️⃣ - VISTO CANADENSE
+3️⃣ - VISTO AUSTRALIANO
+4️⃣ - eTA UK
+5️⃣ - eTA CANADENSE
+6️⃣ - PASSAPORTE
+7️⃣ - AJUDA / CONTATO`;
             await enviarWhatsApp(phone, mensagem);
         }
         
@@ -182,9 +264,7 @@ Digite 0 a qualquer momento para ver o menu principal.`;
     }
 }
 
-// ============================================================
 // PROCESSADOR DE FILA
-// ============================================================
 setInterval(async () => {
     if (messageQueue.length === 0) return;
     
@@ -202,9 +282,7 @@ setInterval(async () => {
     }
 }, 3000);
 
-// ============================================================
 // ROTA POST
-// ============================================================
 router.post('/zapi', async (req, res) => {
     try {
         console.log('📨 Webhook Z-API recebido!');
@@ -264,9 +342,7 @@ router.post('/zapi', async (req, res) => {
     }
 });
 
-// ============================================================
 // ROTA GET
-// ============================================================
 router.get('/zapi', (req, res) => {
     res.status(200).json({ 
         status: 'online', 
@@ -284,3 +360,4 @@ router.get('/fila-status', (req, res) => {
 });
 
 module.exports = router;
+EOF
