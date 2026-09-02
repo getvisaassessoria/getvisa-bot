@@ -103,71 +103,207 @@ async function enviarWhatsApp(telefone, mensagem) {
 }
 
 // ============================================================
-// FUNÇÃO: DETECTAR INTENÇÃO
+// FUNÇÃO: NORMALIZAR TEXTO
+// ============================================================
+function normalizarTexto(texto) {
+  return String(texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[!?.,;:()[\]$|{}]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// ============================================================
+// FUNÇÃO: DETECTAR INTENÇÃO (VERSÃO COMPLETA)
 // ============================================================
 function detectarIntencao(mensagem) {
-    const texto = (mensagem || '').toLowerCase().trim();
-    
-    if (!texto) return 'desconhecida';
-    
-    const saudacoes = ['oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'opa', 'e ai', 'tudo bem', 'hello', 'hi'];
-    if (saudacoes.some(item => texto === item || texto.startsWith(item + ' '))) {
-        return 'saudacao';
-    }
-    
-    if (texto.includes('ds160') || texto.includes('formulario') || texto.includes('formulário')) {
-        return 'solicitar_ds160';
-    }
-    
-    if (['status', 'andamento', 'situacao', 'etapa', 'fase', 'progresso'].some(item => texto.includes(item))) {
-        return 'andamento';
-    }
-    
-    if (['documento', 'documentos', 'documentacao', 'requisito'].some(item => texto.includes(item))) {
-        return 'documentos';
-    }
-    
-    if (['prazo', 'quanto tempo', 'demora', 'dias', 'semanas'].some(item => texto.includes(item))) {
-        return 'prazo';
-    }
-    
-    if (['pagamento', 'pagar', 'preco', 'valor', 'custo', 'investimento', 'taxa'].some(item => texto.includes(item))) {
-        return 'pagamento';
-    }
-    
-    if (['ajuda', 'atendente', 'especialista', 'falar com alguem', 'contato'].some(item => texto.includes(item))) {
-        return 'ajuda';
-    }
-    
-    if (['visto americano', 'visto eua', 'visto usa', 'b1', 'b2'].some(item => texto.includes(item))) {
-        return 'visto_americano';
-    }
-    
-    if (['visto canadense', 'visto canada'].some(item => texto.includes(item))) {
-        return 'visto_canadense';
-    }
-    
-    if (['visto australiano', 'visto australia'].some(item => texto.includes(item))) {
-        return 'visto_australiano';
-    }
-    
-    if (['eta uk', 'reino unido', 'inglaterra'].some(item => texto.includes(item))) {
-        return 'eta_uk';
-    }
-    
-    if (['passaporte'].some(item => texto.includes(item))) {
-        return 'passaporte';
-    }
-    
-    if (['negado', 'negativa', 'recusado', 'recusaram', 'deportado', 'visto negado'].some(item => texto.includes(item))) {
-        return 'visto_negado';
-    }
-    
-    if (['indicar', 'recomendar', 'amigo', 'conhecido', 'indicacao'].some(item => texto.includes(item))) {
-        return 'indicar_amigo';
-    }
-    
+  const texto = normalizarTexto(mensagem);
+
+  if (!texto) {
+    console.log('DEBUG detectarIntencao: Texto vazio, retornando desconhecida.');
     return 'desconhecida';
+  }
+
+  const saudacoes = [
+    'oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'opa', 'e ai', 'tudo bem', 'hello', 'hi'
+  ];
+  if (saudacoes.some((item) => texto === item || texto.startsWith(`${item} `))) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: saudacao');
+    return 'saudacao';
+  }
+
+  if (
+    ['ds160', 'formulario ds160', 'quero preencher ds160', 'preciso do ds160',
+     'formulario visto americano', 'preencher visto americano', 'quero o formulario', 'link do formulario'].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: solicitar_ds160');
+    return 'solicitar_ds160';
+  }
+
+  if (
+    [
+      'status', 'andamento', 'situacao', 'etapa', 'fase', 'progresso',
+      'como esta meu processo', 'como esta o meu processo', 'qual o andamento', 'qual a situacao'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: andamento');
+    return 'andamento';
+  }
+
+  if (
+    [
+      'documento', 'documentos', 'documentacao', 'requisito', 'requisitos',
+      'papel', 'papeis'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: documentos');
+    return 'documentos';
+  }
+
+  if (
+    [
+      'prazo', 'quanto tempo', 'quanto demora', 'demora', 'dias', 'semanas',
+      'agendamento', 'processamento'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: prazo');
+    return 'prazo';
+  }
+
+  if (
+    [
+      'pagamento', 'pagar', 'preco', 'valor', 'valores', 'quanto custa',
+      'custo', 'investimento', 'taxa'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: pagamento');
+    return 'pagamento';
+  }
+
+  if (
+    [
+      'ajuda', 'atendente', 'especialista', 'falar com alguem',
+      'contato', 'humano'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: ajuda');
+    return 'ajuda';
+  }
+
+  if (
+    [
+      'negado', 'negativa', 'recusado', 'recusaram', 'deportado', 'visto negado'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: visto_negado');
+    return 'visto_negado';
+  }
+
+  if (
+    texto.includes('visto americano') ||
+    texto.includes('visto eua') ||
+    texto.includes('visto estados unidos') ||
+    texto.includes('visto usa') ||
+    texto.includes('b1') ||
+    texto.includes('b2')
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: visto_americano');
+    return 'visto_americano';
+  }
+
+  if (
+    texto.includes('visto canadense') ||
+    texto.includes('visto canada')
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: visto_canadense');
+    return 'visto_canadense';
+  }
+
+  if (
+    texto.includes('visto australiano') ||
+    texto.includes('visto australia')
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: visto_australiano');
+    return 'visto_australiano';
+  }
+
+  if (
+    texto.includes('eta uk') ||
+    texto.includes('reino unido') ||
+    texto.includes('inglaterra')
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: eta_uk');
+    return 'eta_uk';
+  }
+
+  if (texto.includes('passaporte')) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: passaporte');
+    return 'passaporte';
+  }
+
+  if (
+    [
+      'quero fazer o visto', 'quero meu visto', 'iniciar processo', 'comecar processo',
+      'quero contratar', 'quero iniciar', 'vou contratar', 'quero informação', 'quero saber', 'me ajuda'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: iniciar_processo');
+    return 'iniciar_processo';
+  }
+
+  // ============================================================
+  // NOVAS INTENÇÕES
+  // ============================================================
+
+  // Indicar amigo/contato
+  if (
+    [
+      'indicar', 'recomendar', 'amigo', 'conhecido', 'contato de amigo',
+      'posso indicar', 'quero indicar', 'indicacao', 'recomendacao'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: indicar_amigo');
+    return 'indicar_amigo';
+  }
+
+  // Falar com especialista
+  if (
+    [
+      'falar com especialista', 'falar com atendente', 'falar com humano',
+      'quero falar com alguem', 'preciso de ajuda especializada',
+      'duvida nao contemplada', 'caso especifico', 'situacao diferente'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: falar_especialista');
+    return 'falar_especialista';
+  }
+
+  // Dúvida geral
+  if (
+    [
+      'duvida', 'pergunta', 'esclarecimento', 'informacao adicional',
+      'nao entendi', 'pode me explicar', 'gostaria de saber'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: duvida_geral');
+    return 'duvida_geral';
+  }
+
+  // Elogio ou feedback
+  if (
+    [
+      'otimo', 'excelente', 'muito bom', 'gostei', 'parabens',
+      'feedback', 'avaliacao'
+    ].some((item) => texto.includes(item))
+  ) {
+    console.log('DEBUG detectarIntencao: Intenção detectada: feedback');
+    return 'feedback';
+  }
+
+  console.log('DEBUG detectarIntencao: Nenhuma intenção específica detectada, retornando desconhecida.');
+  return 'desconhecida';
 }
 
 // ============================================================
