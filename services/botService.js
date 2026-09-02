@@ -1,11 +1,11 @@
-// services/botService.js - VERSÃO COMPLETA COM SUBMENU
+// services/botService.js - VERSÃO FINAL COMPLETA
 
 const { createClient } = require('@supabase/supabase-js');
 
 // ============================================================
 // CONFIGURAÇÃO INICIAL
 // ============================================================
-console.log('🤖 botService CARREGADO (VERSÃO COMPLETA COM SUBMENU)');
+console.log('🤖 botService CARREGADO (VERSÃO FINAL COMPLETA)');
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -253,11 +253,7 @@ function detectarIntencao(mensagem) {
     return 'iniciar_processo';
   }
 
-  // ============================================================
   // NOVAS INTENÇÕES
-  // ============================================================
-
-  // Indicar amigo/contato
   if (
     [
       'indicar', 'recomendar', 'amigo', 'conhecido', 'contato de amigo',
@@ -268,7 +264,6 @@ function detectarIntencao(mensagem) {
     return 'indicar_amigo';
   }
 
-  // Falar com especialista
   if (
     [
       'falar com especialista', 'falar com atendente', 'falar com humano',
@@ -280,7 +275,6 @@ function detectarIntencao(mensagem) {
     return 'falar_especialista';
   }
 
-  // Dúvida geral
   if (
     [
       'duvida', 'pergunta', 'esclarecimento', 'informacao adicional',
@@ -291,7 +285,6 @@ function detectarIntencao(mensagem) {
     return 'duvida_geral';
   }
 
-  // Elogio ou feedback
   if (
     [
       'otimo', 'excelente', 'muito bom', 'gostei', 'parabens',
@@ -319,7 +312,7 @@ function gerarRespostaBot(intencao, nome) {
         documentos: `📄 Para qual serviço você precisa de documentos?`,
         prazo: `⏱️ Para qual serviço você quer saber o prazo?`,
         pagamento: `💰 Qual serviço você quer saber sobre pagamento?`,
-        ajuda: `📱 Fale com nosso especialista: wa.me/5521974601812`,
+        ajuda: `📱 Fale com nossa equipe: wa.me/5521974601812`,
         visto_negado: `🔄 Visto negado? Acesse: https://app.getvisa.com.br/visto-negado.html/`,
         indicar_amigo: `👥 Que legal! Compartilhe: wa.me/5521974601812\n🌐 getvisa.com.br`,
         desconhecida: `🤔 Não entendi. Digite "menu" para ver as opções.`
@@ -405,28 +398,16 @@ function getRespostaSubmenu(service, opcao) {
     }
     return resposta;
 }
-
 // ============================================================
-// FUNÇÃO: PROCESSAR OPÇÃO NO SUBMENU
+// FUNÇÃO: PROCESSAR OPÇÃO NO SUBMENU (COM INTENÇÕES)
 // ============================================================
 async function processarOpcaoNoSubmenu(phone, message, state) {
     const service = state.service;
     const nomeCliente = state.nome ? `, ${state.nome.split(' ')[0]}` : '';
     
-    console.log(`📌 Submenu ${service} - opção: ${message}`);
+    console.log(`📌 Submenu ${service} - opção/mensagem: "${message}"`);
     
-    // Opções do submenu
-    const opcoes = {
-        '1': 'preco',
-        '2': 'prazo',
-        '3': 'documentos',
-        '4': 'processo',
-        '5': 'especial',
-        '6': 'avaliacao',
-        '7': 'especialista'
-    };
-    
-    // Se digitar 0, volta ao menu principal
+    // 1. COMANDO DE VOLTA (0 ou menu)
     if (message === '0' || message.toLowerCase() === 'menu') {
         state.nivel = 'principal';
         state.service = null;
@@ -446,7 +427,17 @@ Digite o número da opção (1-7)`;
         return;
     }
     
-    // Se for opção válida (1-7)
+    // 2. OPÇÃO NUMÉRICA DO SUBMENU (1-7)
+    const opcoes = {
+        '1': 'preco',
+        '2': 'prazo',
+        '3': 'documentos',
+        '4': 'processo',
+        '5': 'especial',
+        '6': 'avaliacao',
+        '7': 'especialista'
+    };
+    
     if (opcoes[message]) {
         const opcao = opcoes[message];
         const nomeServico = service.replace('_', ' ').toUpperCase();
@@ -490,14 +481,87 @@ Digite o número da opção (1-7)`;
                 await enviarWhatsApp(phone, `📋 AVALIAÇÃO GRATUITA\n\n🔗 Acesse: ${link}\n\n⏱️ Leva menos de 2 minutos!\n\nDigite 0 para voltar ao menu.`);
                 break;
             case '7':
-                await enviarWhatsApp(phone, `👨‍💼 FALAR COM ESPECIALISTA\n\n📱 WhatsApp: wa.me/5521974601812\n📧 E-mail: contato@getvisa.com.br\n\nDigite 0 para voltar ao menu.`);
+                await enviarWhatsApp(phone, `👨‍💼 FALAR COM ESPECIALISTA\n\n📱 WhatsApp: wa.me/5521974601812\n📧 E-mail: contato@getvisa.com.br\n⏰ Seg-Sex, 9h-18h\n\nDigite 0 para voltar ao menu.`);
                 break;
         }
         return;
     }
     
-    // Fallback
-    await enviarWhatsApp(phone, `❌ Opção inválida!\n\nDigite 0 para voltar ao menu principal.`);
+    // 3. DETECTAR INTENÇÃO
+    const intent = detectarIntencao(message);
+    console.log(`🔍 Intenção detectada no submenu: "${intent}"`);
+    
+    if (intent !== 'desconhecida') {
+        const primeiroNome = state.nome?.split(' ')[0] || 'Cliente';
+        
+        switch(intent) {
+            case 'solicitar_ds160':
+                await enviarWhatsApp(phone, `📋 Para preencher o formulário DS-160, acesse:\n\n🔗 https://app.getvisa.com.br/formulario-ds160\n\n📌 Preencha com atenção e revise todos os dados antes de enviar.\n\nDigite 0 para voltar ao menu.`);
+                return;
+                
+            case 'documentos':
+                const respostaDocs2 = getRespostaSubmenu(service, 'documentos');
+                await enviarWhatsApp(phone, `📄 *Olá ${primeiroNome}!*\n\n${respostaDocs2}`);
+                return;
+                
+            case 'prazo':
+                const respostaPrazo2 = getRespostaSubmenu(service, 'prazo');
+                await enviarWhatsApp(phone, `⏱️ *Olá ${primeiroNome}!*\n\n${respostaPrazo2}`);
+                return;
+                
+            case 'pagamento':
+                const respostaPreco2 = getRespostaSubmenu(service, 'preco');
+                await enviarWhatsApp(phone, `💰 *Olá ${primeiroNome}!*\n\n${respostaPreco2}`);
+                return;
+                
+            case 'processo':
+                const respostaProcesso2 = getRespostaSubmenu(service, 'processo');
+                await enviarWhatsApp(phone, `🔄 *Olá ${primeiroNome}!*\n\n${respostaProcesso2}`);
+                return;
+                
+            case 'visto_negado':
+                await enviarWhatsApp(phone, `🔄 *Olá ${primeiroNome}!*\n\nTeve o visto negado? Não desanime!\n\n🔗 Análise gratuita: https://getvisa.com.br/visto-americano-negado/\n\n✅ *Oferecemos:*\n• Análise do motivo da negativa\n• Correção do formulário\n• Documentação reforçada\n• Preparação para entrevista\n\n💰 Investimento: R$ 380\n\n📱 Fale com nossa equipe: wa.me/5521974601812\n\nDigite 0 para voltar ao menu.`);
+                return;
+                
+            case 'ajuda':
+            case 'falar_especialista':
+                await enviarWhatsApp(phone, `👨‍💼 *Olá ${primeiroNome}!*\n\n📱 Fale com nossa equipe: wa.me/5521974601812\n📧 contato@getvisa.com.br\n⏰ Seg-Sex, 9h-18h\n\nDigite 0 para voltar ao menu.`);
+                return;
+                
+            case 'indicar_amigo':
+                await enviarWhatsApp(phone, `👥 *Olá ${primeiroNome}!* Que legal! 🌟\n\n📱 Compartilhe: wa.me/5521974601812\n🌐 getvisa.com.br\n📋 https://app.getvisa.com.br/formulario-ds160\n\n🎁 *Bônus:* Indique um amigo que feche o processo e ganhe 10% de desconto!\n\nDigite 0 para o menu principal`);
+                return;
+                
+            case 'andamento':
+                await enviarWhatsApp(phone, `🔍 *Olá ${primeiroNome}!*\n\nPara verificar o andamento do seu processo, me informe seu número de protocolo ou CPF.\n\n📌 Se não tiver o protocolo, entre em contato com nosso suporte.\n\nDigite 0 para voltar ao menu.`);
+                return;
+                
+            case 'feedback':
+                await enviarWhatsApp(phone, `⭐ *Olá ${primeiroNome}!* Obrigado pelo feedback! 🌟\n\n📱 wa.me/5521974601812\n📧 contato@getvisa.com.br\n\n⭐ *Avalie:* Excelente | Bom | Regular\n\nDigite 0 para voltar ao menu.`);
+                return;
+                
+            default:
+                const resposta = gerarRespostaBot(intent, state.nome);
+                await enviarWhatsApp(phone, `${resposta}\n\nDigite 0 para voltar ao menu.`);
+                return;
+        }
+    }
+    
+    // 4. FALLBACK - MENSAGEM PADRONIZADA
+    const primeiroNomeFallback = state.nome?.split(' ')[0] || 'Cliente';
+    await enviarWhatsApp(phone, `🤔 *Olá ${primeiroNomeFallback}!*
+
+Não entendi sua pergunta. 😅
+
+📱 *Fale com nossa equipe:* wa.me/5521974601812
+
+💡 *Dica:* Use:
+• "documentos" - Lista de documentos
+• "prazo" - Prazos do processo
+• "status" - Andamento do seu caso
+• "valores" - Investimento
+
+Digite 0 para o menu principal`);
 }
 
 // ============================================================
@@ -550,7 +614,6 @@ Ex: maria@email.com`;
             state.nivel = 'principal';
             userState.set(phone, state);
             
-            // Salva no Supabase
             try {
                 await supabase
                     .from('clientes')
@@ -591,7 +654,7 @@ Digite o número da opção (1-7) ou "menu" para ver novamente.`;
 }
 
 // ============================================================
-// FUNÇÃO: PROCESSAR OPÇÃO NO MENU PRINCIPAL (VERSÃO COMPLETA)
+// FUNÇÃO: PROCESSAR OPÇÃO NO MENU PRINCIPAL
 // ============================================================
 async function processarOpcaoNoMenuPrincipal(phone, message, state) {
     console.log('📌 Menu principal - opção:', message);
@@ -605,9 +668,7 @@ async function processarOpcaoNoMenuPrincipal(phone, message, state) {
         '6': 'passaporte'
     };
     
-    // ============================================================
     // 1. SERVIÇOS NUMÉRICOS (1-6)
-    // ============================================================
     if (servicoMap[message]) {
         const serviceKey = servicoMap[message];
         state.nivel = 'submenu';
@@ -617,9 +678,7 @@ async function processarOpcaoNoMenuPrincipal(phone, message, state) {
         return;
     }
     
-    // ============================================================
-    // 2. OPÇÃO 7 - AJUDA / CONTATO
-    // ============================================================
+    // 2. OPÇÃO 7 - AJUDA
     if (message === '7') {
         const nome = state.nome || 'Cliente';
         await enviarWhatsApp(phone, `📞 *Olá ${nome.split(' ')[0]}!* Precisa de ajuda? 👇
@@ -633,15 +692,11 @@ Digite 0 para o MENU principal`);
         return;
     }
     
-    // ============================================================
     // 3. DETECTAR INTENÇÃO
-    // ============================================================
     const intent = detectarIntencao(message);
     console.log('Intenção detectada:', intent);
     
-    // ============================================================
     // 4. BUSCAR CLIENTE NO SUPABASE
-    // ============================================================
     let clienteDB = null;
     try {
         const { data } = await supabase
@@ -655,17 +710,12 @@ Digite 0 para o MENU principal`);
     const nomeCliente = clienteDB?.nome || state?.nome || 'Cliente';
     const primeiroNome = nomeCliente.split(' ')[0];
     
-    // ============================================================
     // 5. TRATAMENTO DAS INTENÇÕES
-    // ============================================================
-    
-    // 5.1 INICIAR PROCESSO / SOLICITAR DS-160
     if (intent === 'iniciar_processo' || intent === 'solicitar_ds160') {
         await enviarWhatsApp(phone, `📋 Para iniciar seu processo, preencha o formulário: https://app.getvisa.com.br/formulario-ds160`);
         return;
     }
     
-    // 5.2 ANDAMENTO DO PROCESSO
     if (intent === 'andamento') {
         if (!clienteDB) {
             await enviarWhatsApp(phone, '❌ Ainda não encontrei seu cadastro. Digite 0 para o menu principal.');
@@ -701,35 +751,30 @@ Digite 0 para o menu principal`);
         return;
     }
     
-    // 5.3 DOCUMENTOS
     if (intent === 'documentos') {
         const resposta = getRespostaSubmenu('visto_americano', 'documentos');
         await enviarWhatsApp(phone, `📋 *Olá ${primeiroNome}!*\n\n${resposta}`);
         return;
     }
     
-    // 5.4 PRAZO
     if (intent === 'prazo') {
         const resposta = getRespostaSubmenu('visto_americano', 'prazo');
         await enviarWhatsApp(phone, `⏱️ *Olá ${primeiroNome}!*\n\n${resposta}`);
         return;
     }
     
-    // 5.5 PAGAMENTO
     if (intent === 'pagamento') {
         const resposta = getRespostaSubmenu('visto_americano', 'preco');
         await enviarWhatsApp(phone, `💰 *Olá ${primeiroNome}!*\n\n${resposta}`);
         return;
     }
     
-    // 5.6 PROCESSO
     if (intent === 'processo') {
         const resposta = getRespostaSubmenu('visto_americano', 'processo');
         await enviarWhatsApp(phone, `🔄 *Olá ${primeiroNome}!*\n\n${resposta}`);
         return;
     }
     
-    // 5.7 INDICAR AMIGO
     if (intent === 'indicar_amigo') {
         await enviarWhatsApp(phone, `👥 *Olá ${primeiroNome}!* Que legal! 🌟
 
@@ -743,7 +788,6 @@ Digite 0 para o menu principal`);
         return;
     }
     
-    // 5.8 FALAR COM ESPECIALISTA
     if (intent === 'falar_especialista' || intent === 'ajuda') {
         await enviarWhatsApp(phone, `👨‍💼 *Olá ${primeiroNome}!*
 
@@ -755,7 +799,6 @@ Digite 0 para o menu principal`);
         return;
     }
     
-    // 5.9 VISTO NEGADO
     if (intent === 'visto_negado') {
         await enviarWhatsApp(phone, `🔄 *Olá ${primeiroNome}!*
 
@@ -777,9 +820,7 @@ Digite 0 para o menu principal`);
         return;
     }
     
-    // ============================================================
-    // 6. FALLBACK
-    // ============================================================
+    // 6. FALLBACK - MENSAGEM PADRONIZADA
     await enviarWhatsApp(phone, `🤔 *Olá ${primeiroNome}!*
 
 Não entendi sua pergunta. 😅
@@ -807,7 +848,6 @@ async function processarMensagem(phone, message) {
         return;
     }
     
-    // Busca ou cria estado
     let state = userState.get(telefoneLimpo);
     if (!state) {
         state = {
@@ -828,7 +868,6 @@ async function processarMensagem(phone, message) {
     const msg = message.trim();
     const msgLower = msg.toLowerCase();
     
-    // Comando: menu ou 0
     if (msgLower === 'menu' || msg === '0') {
         if (state.onboardingCompleto) {
             state.nivel = 'principal';
@@ -854,19 +893,16 @@ Digite o número da opção (1-7)`;
         return;
     }
     
-    // Se não completou onboarding
     if (!state.onboardingCompleto) {
         await processarOnboarding(telefoneLimpo, msg, state);
         return;
     }
     
-    // Se está em um submenu
     if (state.nivel === 'submenu' && state.service) {
         await processarOpcaoNoSubmenu(telefoneLimpo, msg, state);
         return;
     }
     
-    // Menu principal
     await processarOpcaoNoMenuPrincipal(telefoneLimpo, msg, state);
 }
 
