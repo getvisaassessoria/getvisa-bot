@@ -1,16 +1,16 @@
-// routes/webhookRoutesNew.js - VERSÃO COM botService
+// routes/webhookRoutesNew.js - VERSÃO DEFINITIVA
 const express = require('express');
 const router = express.Router();
 
-// 🔥 IMPORTA DO botService (NÃO CRIA NOVO ESTADO)
+// 🔥 IMPORTA DIRETAMENTE DO SERVER.JS
 const { 
     processarMensagem,
     limparTelefone,
     enviarWhatsApp,
     userState
-} = require('../services/botService');
+} = require('../server.js');
 
-console.log('🚀 webhookRoutesNew CARREGADO (USANDO botService)');
+console.log('🚀 webhookRoutesNew CARREGADO (IMPORTANDO DO SERVER.JS)');
 
 // ============================================================
 // ROTA: Webhook Z-API
@@ -18,7 +18,6 @@ console.log('🚀 webhookRoutesNew CARREGADO (USANDO botService)');
 router.post('/zapi', async (req, res) => {
     try {
         console.log('📨 Webhook Z-API recebido!');
-        console.log('📨 Headers:', req.headers);
         console.log('📨 Body:', JSON.stringify(req.body, null, 2));
         
         // 🔥 SUPORTE A MÚLTIPLOS FORMATOS
@@ -37,7 +36,7 @@ router.post('/zapi', async (req, res) => {
         console.log(`💬 Mensagem: ${messageText}`);
         
         if (!phone || !messageText) {
-            console.log('⚠️ Dados incompletos, respondendo OK para não bloquear o webhook');
+            console.log('⚠️ Dados incompletos, respondendo OK');
             return res.status(200).send('OK');
         }
         
@@ -49,17 +48,15 @@ router.post('/zapi', async (req, res) => {
             return res.status(200).send('OK');
         }
         
-        // 🔥 PROCESSAR A MENSAGEM (USANDO O botService)
+        // 🔥 CHAMA A FUNÇÃO DO SERVER.JS
         await processarMensagem(telefoneLimpo, messageText.trim());
         console.log(`✅ Mensagem processada com sucesso para ${telefoneLimpo}`);
         
-        // Responde OK para a Z-API
         res.status(200).send('OK');
         
     } catch (error) {
         console.error(`❌ ERRO: ${error.message}`);
         console.error('❌ Stack:', error.stack);
-        // SEMPRE responde 200 para a Z-API não reenviar
         res.status(200).send('OK');
     }
 });
@@ -70,20 +67,20 @@ router.post('/zapi', async (req, res) => {
 router.get('/zapi', (req, res) => {
     res.status(200).json({ 
         status: 'online', 
-        message: 'Webhook ZAPI ativo (com botService)',
-        userStateSize: userState.size,
+        message: 'Webhook ZAPI ativo (importando do server.js)',
+        userStateSize: userState ? userState.size : 0,
         timestamp: new Date().toISOString()
     });
 });
 
 // ============================================================
-// ROTA: Status da Fila (Debug)
+// ROTA: Status (Debug)
 // ============================================================
 router.get('/fila-status', (req, res) => {
     res.json({
         status: 'online',
-        userStateSize: userState.size,
-        users: Array.from(userState.keys()),
+        userStateSize: userState ? userState.size : 0,
+        users: userState ? Array.from(userState.keys()) : [],
         timestamp: new Date().toISOString()
     });
 });
