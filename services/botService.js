@@ -320,7 +320,7 @@ function gerarRespostaBot(intencao, nome) {
         prazo: `⏱️ Para qual serviço você quer saber o prazo?`,
         pagamento: `💰 Qual serviço você quer saber sobre pagamento?`,
         ajuda: `📱 Fale com nosso especialista: wa.me/5521974601812`,
-        visto_negado: `🔄 Visto negado? Acesse: https://getvisa.com.br/visto-americano-negado/`,
+        visto_negado: `🔄 Visto negado? Acesse: https://app.getvisa.com.br/visto-negado.html/`,
         indicar_amigo: `👥 Que legal! Compartilhe: wa.me/5521974601812\n🌐 getvisa.com.br`,
         desconhecida: `🤔 Não entendi. Digite "menu" para ver as opções.`
     };
@@ -624,7 +624,7 @@ async function processarOpcaoNoMenuPrincipal(phone, message, state) {
         const nome = state.nome || 'Cliente';
         await enviarWhatsApp(phone, `📞 *Olá ${nome.split(' ')[0]}!* Precisa de ajuda? 👇
 
-👨‍💼 *Fale com Moisés:* wa.me/5521974601812
+👨‍💼 *Fale com nossa equipe:* wa.me/5521974601812
 📧 contato@getvisa.com.br
 🌐 getvisa.com.br
 📋 https://app.getvisa.com.br/formulario-ds160
@@ -747,7 +747,7 @@ Digite 0 para o menu principal`);
     if (intent === 'falar_especialista' || intent === 'ajuda') {
         await enviarWhatsApp(phone, `👨‍💼 *Olá ${primeiroNome}!*
 
-📱 Fale com Moisés: wa.me/5521974601812
+📱 Fale com nossa equipe: wa.me/5521974601812
 📧 contato@getvisa.com.br
 ⏰ Seg-Sex, 9h-18h
 
@@ -784,7 +784,7 @@ Digite 0 para o menu principal`);
 
 Não entendi sua pergunta. 😅
 
-📱 *Fale com Moisés:* wa.me/5521974601812
+📱 *Fale com nossa equipe:* wa.me/5521974601812
 
 💡 *Dica:* Use:
 • "documentos" - Lista de documentos

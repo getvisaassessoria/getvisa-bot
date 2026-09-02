@@ -2192,7 +2192,7 @@ function gerarRespostaBot(intencao, nome, etapaAtual) {
       `👥 *Olá ${primeiroNome}!*\n\nQue legal você indicar a GetVisa! 🌟\n\n📱 *Compartilhe:* wa.me/5521974601812\n🌐 *Site:* getvisa.com.br\n📋 *Formulário:* https://app.getvisa.com.br/formulario-ds160\n\n🎁 *Bônus para você:*\nIndique um amigo que feche o processo e ganhe 10% de desconto!`,
 
     falar_especialista:
-      `👨‍💼 *Olá ${primeiroNome}!*\n\nEntendi que você tem uma situação específica.\n\n📱 *Fale com Moisés diretamente:*\n[Clique aqui](https://wa.me/5521974601812)\n\n📧 *Ou por e-mail:* contato@getvisa.com.br\n\n⏰ *Atendimento:* Seg-Sex, 9h às 18h\n📌 *Resposta:* até 2 horas`,
+      `👨‍💼 *Olá ${primeiroNome}!*\n\nEntendi que você tem uma situação específica.\n\n📱 *Fale com nossa equipe diretamente:*\n[Clique aqui](https://wa.me/5521974601812)\n\n📧 *Ou por e-mail:* contato@getvisa.com.br\n\n⏰ *Atendimento:* Seg-Sex, 9h às 18h\n📌 *Resposta:* até 2 horas`,
 
     duvida_geral:
       `🤔 *Olá ${primeiroNome}!*\n\nPosso ajudar com:\n\n1️⃣ *Documentos* - Quais levar\n2️⃣ *Prazo* - Quanto tempo demora\n3️⃣ *Status* - Andamento do seu processo\n4️⃣ *Valores* - Quanto custa\n\n💡 *Seja específico(a)*, ex: "documentos para visto"`,
@@ -2604,7 +2604,7 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
 
             case '7':
                 const msgEsp = '👨‍💼 FALAR COM ESPECIALISTA - ' + getServiceName(service).toUpperCase() + '\n\n' +
-                              'Meu nome é Moisés e estou aqui para ajudar' + nomeCliente + '!\n\n' +
+                              'Nossa equipe está pronta e estou aqui para ajudar' + nomeCliente + '!\n\n' +
                               '📱 WhatsApp: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n' +
                               '📧 E-mail: contato@getvisa.com.br\n\n' +
                               '📌 ' + nomeCliente + ' - Você está em: ' + getServiceName(service).toUpperCase() + '\n' +
@@ -2730,7 +2730,7 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
                 const { data } = await supabase.from('clientes').select('nome').eq('telefone', cleanPhone).maybeSingle();
                 if (data?.nome) nome = data.nome;
             } catch (e) {}
-            await sendReply(cleanPhone, `📞 *Olá ${nome.split(' ')[0]}!* Precisa de ajuda? 👇\n\n👨‍💼 *Fale com Moisés:* wa.me/5521974601812\n📧 contato@getvisa.com.br\n🌐 getvisa.com.br\n📋 https://app.getvisa.com.br/formulario-ds160\n\nDigite 0 para o MENU principal`);
+            await sendReply(cleanPhone, `📞 *Olá ${nome.split(' ')[0]}!* Precisa de ajuda? 👇\n\n👨‍💼 *Fale com nossa equipe:* wa.me/5521974601812\n📧 contato@getvisa.com.br\n🌐 getvisa.com.br\n📋 https://app.getvisa.com.br/formulario-ds160\n\nDigite 0 para o MENU principal`);
             return;
         }
 
@@ -2855,7 +2855,7 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
 
         // 6.8 FALAR COM ESPECIALISTA
         if (intent === 'falar_especialista') {
-            await sendReply(cleanPhone, `👨‍💼 *Olá ${primeiroNome}!*\n\n📱 Fale com Moisés: wa.me/5521974601812\n📧 contato@getvisa.com.br\n⏰ Seg-Sex, 9h-18h\n💡 *Dica:* Tenha seu número de protocolo em mãos!\n\nDigite 0 para o menu principal`);
+            await sendReply(cleanPhone, `👨‍💼 *Olá ${primeiroNome}!*\n\n📱 Fale com nossa equipe: wa.me/5521974601812\n📧 contato@getvisa.com.br\n⏰ Seg-Sex, 9h-18h\n💡 *Dica:* Tenha seu número de protocolo em mãos!\n\nDigite 0 para o menu principal`);
             return;
         }
 
