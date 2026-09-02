@@ -1,9 +1,9 @@
-// routes/webhookRoutesNew.js - VERSÃO INDEPENDENTE
+// routes/webhookRoutesNew.js - VERSÃO QUE USA O SERVER.JS
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
-console.log('🚀 webhookRoutesNew CARREGADO (VERSÃO INDEPENDENTE)');
+console.log('🚀 webhookRoutesNew CARREGADO (USANDO SERVER.JS)');
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -21,73 +21,77 @@ function limparTelefone(phone) {
 
 const messageQueue = [];
 
-// FUNÇÃO PARA ENVIAR WHATSAPP
-async function enviarWhatsApp(telefone, mensagem) {
-    try {
-        const instance = process.env.ZAPI_INSTANCE;
-        const token = process.env.ZAPI_TOKEN;
-        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
-        
-        if (!instance || !token) {
-            console.error('❌ Z-API não configurada');
-            return false;
-        }
+// CARREGA A FUNÇÃO DO SERVER.JS
+let processarMensagemOriginal = null;
 
-        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
-        const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
-
-        const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-text`;
-
-        const headers = { 'Content-Type': 'application/json' };
-        if (clientToken) {
-            headers['Client-Token'] = clientToken;
-        }
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({
-                phone: telefoneFormatado,
-                message: mensagem
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`❌ Erro Z-API (${response.status}):`, errorText);
-            return false;
-        }
-
-        console.log('✅ Mensagem enviada com sucesso');
-        return true;
-    } catch (error) {
-        console.error('❌ Erro ao enviar WhatsApp:', error);
-        return false;
+try {
+    // Importa o server.js
+    const server = require('../server.js');
+    
+    // Tenta pegar a função processarMensagem
+    if (server && typeof server.processarMensagem === 'function') {
+        processarMensagemOriginal = server.processarMensagem;
+        console.log('✅ processarMensagem carregada do server.js');
+    } else {
+        console.log('⚠️ processarMensagem não encontrada no server.js');
     }
+} catch (error) {
+    console.error('❌ Erro ao carregar server.js:', error.message);
 }
 
-// LÓGICA DO BOT
-async function processarMensagem(phone, message) {
-    console.log(`📨 Processando mensagem de ${phone}: ${message}`);
+// FUNÇÃO FALLBACK (se não conseguir carregar do server.js)
+async function fallbackProcessarMensagem(phone, message) {
+    console.log(`📨 [FALLBACK] ${phone}: ${message}`);
     
-    try {
-        const mensagemBoasVindas = `👋 Olá! Seja bem-vindo(a) à GetVisa Assessoria! 🇺🇸
+    // Função simples de resposta
+    async function enviarWhatsAppSimples(telefone, mensagem) {
+        try {
+            const instance = process.env.ZAPI_INSTANCE;
+            const token = process.env.ZAPI_TOKEN;
+            
+            if (!instance || !token) return false;
+            
+            const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+            const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
+            
+            const response = await fetch(
+                `https://api.z-api.io/instances/${instance}/token/${token}/send-text`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phone: telefoneFormatado,
+                        message: mensagem
+                    })
+                }
+            );
+            
+            return response.ok;
+        } catch (error) {
+            console.error('❌ Erro:', error);
+            return false;
+        }
+    }
+    
+    const mensagem = `👋 Olá! Seja bem-vindo(a) à GetVisa Assessoria! 🇺🇸
 
-Somos especialistas em vistos americanos e estamos aqui para realizar seu sonho de viajar para os EUA! ✈️
+Para atendimento completo, por favor, entre em contato com nosso especialista:
 
-Para começarmos, preciso saber:
+📱 wa.me/5521974601812
 
-📝 **Qual é o seu nome completo?**
+Ou acesse nosso site: getvisa.com.br`;
+    
+    await enviarWhatsAppSimples(phone, mensagem);
+}
 
-Ex: Maria Silva
-
-Digite 0 a qualquer momento para ver o menu principal.`;
-
-        await enviarWhatsApp(phone, mensagemBoasVindas);
-        console.log(`✅ Mensagem de boas-vindas enviada para ${phone}`);
-
-    } catch (error) {
-        console.error('❌ Erro ao processar mensagem:', error);
+// FUNÇÃO PRINCIPAL - USA A ORIGINAL OU FALLBACK
+async function processarMensagem(phone, message, body) {
+    if (typeof processarMensagemOriginal === 'function') {
+        console.log(`📨 Usando processarMensagem do server.js para ${phone}`);
+        return processarMensagemOriginal(phone, message, body || {});
+    } else {
+        console.log(`📨 Usando fallback para ${phone}`);
+        return fallbackProcessarMensagem(phone, message);
     }
 }
 
@@ -101,7 +105,7 @@ setInterval(async () => {
         const item = messageQueue.shift();
         try {
             console.log(`📨 Processando mensagem de ${item.phone}: ${item.message}`);
-            await processarMensagem(item.phone, item.message);
+            await processarMensagem(item.phone, item.message, {});
             console.log('✅ Mensagem processada para', item.phone);
         } catch (error) {
             console.error(`❌ Erro ao processar mensagem:`, error.message);
@@ -127,6 +131,7 @@ router.post('/zapi', async (req, res) => {
         const telefoneLimpo = limparTelefone(phone);
         console.log(`📱 Telefone limpo: ${telefoneLimpo}`);
         
+        // Salvar cliente no Supabase
         try {
             const { data: clienteExistente } = await supabase
                 .from('clientes')
