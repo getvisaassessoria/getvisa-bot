@@ -1,0 +1,108 @@
+cat > public/obrigado-visto-negado.html << 'EOF'
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avaliação Enviada - GetVisa</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9eef3 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 700px;
+            background: white;
+            border-radius: 28px;
+            padding: 50px 40px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+        }
+        .emoji { font-size: 4.5rem; display: block; margin-bottom: 20px; }
+        h1 { color: #0a2540; font-size: 2rem; margin-bottom: 15px; }
+        .subtitle { color: #475569; font-size: 1.1rem; margin-bottom: 30px; line-height: 1.6; }
+        .card { background: #f8f9fa; border-radius: 16px; padding: 20px; margin-bottom: 20px; }
+        .card h3 { color: #0066cc; margin-bottom: 8px; }
+        .card p { color: #475569; font-size: 0.95rem; line-height: 1.5; }
+        .btn {
+            display: inline-block;
+            padding: 14px 32px;
+            border-radius: 60px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1rem;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,102,204,0.4); }
+        .btn-secondary {
+            background: #eef2f6;
+            color: #334155;
+        }
+        .btn-secondary:hover { background: #e2e8f0; }
+        .links { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 20px; }
+        .links a { color: #0066cc; text-decoration: none; font-weight: 500; }
+        .links a:hover { text-decoration: underline; }
+        .badge {
+            display: inline-block;
+            background: #ff6b35;
+            color: white;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        .footer { margin-top: 30px; font-size: 0.75rem; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <span class="emoji">🎉</span>
+        <h1>Avaliação Enviada com Sucesso!</h1>
+        <p class="subtitle">Sua análise foi recebida pela nossa equipe. Em breve você receberá um retorno personalizado.</p>
+        
+        <span class="badge">⭐ 4,9/5 no Google</span>
+
+        <div class="card">
+            <h3>📋 Próximos Passos</h3>
+            <p><strong>1.</strong> Nossa equipe analisará seu caso com atenção</p>
+            <p><strong>2.</strong> Você receberá uma análise detalhada no WhatsApp</p>
+            <p><strong>3.</strong> Iniciaremos seu processo de visto com segurança</p>
+        </div>
+
+        <div class="card">
+            <h3>🌟 O que você pode fazer agora?</h3>
+            <p>💪 <strong>Não desista do seu sonho!</strong> Milhares de pessoas já reverteram a negativa com a GetVisa.</p>
+        </div>
+
+        <div class="links">
+            <a href="/formulario-ds160" class="btn btn-primary">📋 Preencher DS-160</a>
+            <a href="/dashboard" class="btn btn-secondary">🏠 Voltar ao Início</a>
+        </div>
+
+        <div class="links" style="margin-top:15px; font-size:0.9rem;">
+            <a href="/simulador-visto-americano">📊 Simulador de Perfil</a>
+            <a href="https://wa.me/5521974601812">📱 Fale com Especialista</a>
+        </div>
+
+        <div class="footer">
+            <p>GetVisa Assessoria - Seu visto americano com segurança 🇺🇸</p>
+        </div>
+    </div>
+</body>
+</html>
+EOF
+
+echo "✅ Página de obrigado criada!"

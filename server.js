@@ -5607,6 +5607,18 @@ app.get('/dashboard', (req, res) => {
 });
 
 // ============================================================
+// ROTA PARA PÁGINA DE OBRIGADO - VISTO NEGADO
+// ============================================================
+app.get('/obrigado-visto-negado', (req, res) => {
+    const pathObrigado = path.join(__dirname, 'public', 'obrigado-visto-negado.html');
+    if (fs.existsSync(pathObrigado)) {
+        res.sendFile(pathObrigado);
+    } else {
+        res.status(404).send('Página não encontrada');
+    }
+});
+
+// ============================================================
 // INICIALIZAÇÃO DO SERVIDOR (ÚLTIMA COISA NO ARQUIVO)
 // ============================================================
 

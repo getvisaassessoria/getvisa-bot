@@ -444,7 +444,7 @@
 
         .gv-btn-primary {
             background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
-            color: white;
+            color: #ffffff !important;
         }
 
         .gv-btn-primary:hover:not(:disabled) {
@@ -754,7 +754,7 @@
                     <div class="gv-buttons">
                         <button type="button" class="gv-btn gv-btn-secondary" id="prevBtn" disabled>← Voltar</button>
                         <button type="button" class="gv-btn gv-btn-primary" id="nextBtn">Próximo →</button>
-                        <button type="submit" class="gv-btn gv-btn-primary" id="submitBtn" style="display: none;">Enviar Avaliação</button>
+                        <button type="submit" class="gv-btn gv-btn-primary" id="submitBtn" style="display: none;">📤 Enviar Avaliação</button>
                     </div>
                 </form>
             </div>
@@ -820,292 +820,344 @@
     </div>
 
     <script>
-        const REDIRECT_URL = 'https://getvisa.com.br/obrigado/';
-        
-        const modal = document.getElementById('captureModal');
-        const openBtn = document.getElementById('openCaptureBtn');
-        const closeModalBtn = document.getElementById('closeModalBtn');
-        const captureForm = document.getElementById('captureForm');
-        const simulatorWrapper = document.getElementById('simulatorWrapper');
-        const welcomeBanner = document.getElementById('welcomeBanner');
-        const clienteNomeSpan = document.getElementById('clienteNome');
-        
-        let clienteData = {};
-        
-        const steps = document.querySelectorAll('#simulatorForm .gv-form-section');
-        const prevBtn = document.getElementById('prevBtn');
-        const nextBtn = document.getElementById('nextBtn');
-        const submitBtn = document.getElementById('submitBtn');
-        const progress = document.getElementById('progress');
-        const progressText = document.getElementById('progressText');
-        const simulatorForm = document.getElementById('simulatorForm');
-        
-        let currentStep = 0;
-        let answers = {};
-        let isSubmitting = false;
-        
-        const captureTelefone = document.getElementById('captureTelefone');
-        if (captureTelefone) {
-            captureTelefone.addEventListener('input', function(e) {
-                let v = e.target.value.replace(/\D/g, '');
-                if (v.length <= 10) {
-                    v = v.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
-                } else if (v.length <= 11) {
-                    v = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
-                }
-                e.target.value = v;
-            });
-        }
-        
-        openBtn.onclick = () => {
-            modal.classList.add('active');
-        };
-        
-        closeModalBtn.onclick = () => {
-            modal.classList.remove('active');
-        };
-        
-        modal.onclick = (e) => {
-            if (e.target === modal) {
-                modal.classList.remove('active');
-            }
-        };
-        
-        captureForm.onsubmit = (e) => {
-            e.preventDefault();
-            
-            const nome = document.getElementById('captureNome').value.trim();
-            const telefone = document.getElementById('captureTelefone').value.trim();
-            const email = document.getElementById('captureEmail').value.trim();
-            
-            if (!nome) {
-                alert('Por favor, informe seu nome completo.');
-                return;
-            }
-            if (!telefone || telefone.replace(/\D/g, '').length < 10) {
-                alert('Por favor, informe um telefone válido com DDD.');
-                return;
-            }
-            
-            clienteData = { nome, telefone, email };
-            
-            const primeiroNome = nome.split(' ')[0];
-            clienteNomeSpan.textContent = primeiroNome;
-            
-            modal.classList.remove('active');
-            
-            simulatorWrapper.classList.add('active');
-            welcomeBanner.classList.add('active');
-            
-            setTimeout(() => {
-                simulatorWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100);
-        };
-        
-        function updateProgress() {
-            let percent = ((currentStep + 1) / steps.length) * 100;
-            if (progress) progress.style.width = percent + '%';
-            if (progressText) progressText.textContent = `Etapa ${currentStep + 1} de ${steps.length}`;
-        }
-        
-        function showStep(index) {
-            steps.forEach((step, i) => step.classList.toggle('active', i === index));
-            updateProgress();
-            if (index === steps.length - 1) {
-                nextBtn.style.display = 'none';
-                submitBtn.style.display = 'inline-block';
-            } else {
-                nextBtn.style.display = 'inline-block';
-                submitBtn.style.display = 'none';
-            }
-            prevBtn.disabled = index === 0;
-        }
-        
-        function validateStep() {
-            let current = steps[currentStep];
-            let radios = current.querySelectorAll('input[type="radio"]');
-            
-            if (radios.length && !Array.from(radios).some(r => r.checked)) {
-                alert('Por favor, selecione uma opção antes de continuar.');
-                return false;
-            }
-            return true;
-        }
-        
-        function saveAnswers() {
-            let current = steps[currentStep];
-            current.querySelectorAll('input[type="radio"]:checked').forEach(r => {
-                answers[r.name] = r.value;
-            });
-            current.querySelectorAll('textarea').forEach(t => {
-                if (t.value.trim()) answers[t.id] = t.value.trim();
-            });
-        }
-        
-        function calcularScore() {
-            let score = 0;
-            
-            const quando = answers.quando;
-            if (quando === 'Menos de 3 meses') score += 5;
-            else if (quando === 'Entre 3 e 6 meses') score += 8;
-            else if (quando === 'Entre 6 meses e 1 ano') score += 12;
-            else if (quando === 'Mais de 1 ano') score += 15;
-            else if (quando === 'Nunca solicitei') score += 10;
-            
-            const motivo = answers.motivo;
-            if (motivo === 'Seção 214(b)') score += 10;
-            else if (motivo === 'Informações inconsistentes') score += 12;
-            else if (motivo === 'Problemas imigração anterior') score += 5;
-            else if (motivo === 'Não soube informar') score += 15;
-            else if (motivo === 'Outro motivo') score += 18;
-            
-            const mudanca = answers.mudanca_profissional;
-            if (mudanca === 'Mudei de emprego') score += 16;
-            else if (mudanca === 'Fui promovido') score += 18;
-            else if (mudanca === 'Abri empresa') score += 20;
-            else if (mudanca === 'Renda aumentou') score += 20;
-            else if (mudanca === 'Permaneceu igual') score += 8;
-            else if (mudanca === 'Não se aplica') score += 12;
-            
-            const vinculos = answers.fortaleceu_vinculos;
-            if (vinculos === 'Iniciei estudos') score += 16;
-            else if (vinculos === 'Adquiri bens') score += 20;
-            else if (vinculos === 'Família consolidada') score += 14;
-            else if (vinculos === 'Permaneceu igual') score += 6;
-            else if (vinculos === 'Não se aplica') score += 10;
-            
-            const ds160 = answers.falha_ds160;
-            if (ds160 === 'Sim, houve erros') score += 8;
-            else if (ds160 === 'Não tenho certeza') score += 12;
-            else if (ds160 === 'Não, estava correto') score += 15;
-            else if (ds160 === 'Não se aplica') score += 10;
-            
-            const imigracao = answers.problemas_imigracao;
-            if (imigracao === 'Não') score += 10;
-            else if (imigracao === 'Problemas menores') score += 6;
-            else if (imigracao === 'Overstay') score += 3;
-            else if (imigracao === 'Deportação') score += 0;
-            
-            return Math.min(Math.max(score, 0), 100);
-        }
-        
-        function getClassification(score) {
-            if (score < 35) return 'urgent';
-            if (score < 65) return 'moderate';
-            return 'strong';
-        }
-        
-        async function enviarParaBackend(score, classificationType) {
-    // 🔥 CLASSIFICAÇÕES EM PORTUGUÊS
-    let titulo = '';
-    let mensagem = '';
+    // ============================================================
+    // VARIÁVEIS GLOBAIS
+    // ============================================================
+    const modal = document.getElementById('captureModal');
+    const openBtn = document.getElementById('openCaptureBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const captureForm = document.getElementById('captureForm');
+    const simulatorWrapper = document.getElementById('simulatorWrapper');
+    const welcomeBanner = document.getElementById('welcomeBanner');
+    const clienteNomeSpan = document.getElementById('clienteNome');
     
-    if (classificationType === 'urgent') {
-        titulo = '⚠️ Seu caso requer atenção urgente!';
-        mensagem = 'Seu perfil apresenta pontos críticos que precisam ser analisados. Nossos especialistas estão prontos para te ajudar.';
-    } else if (classificationType === 'moderate') {
-        titulo = '💡 Potencial Moderado de Sucesso!';
-        mensagem = 'Seu perfil tem pontos positivos, mas ainda precisa de ajustes para aumentar suas chances.';
-    } else {
-        titulo = '✅ Forte Potencial de Reversão!';
-        mensagem = 'Parabéns! Seu perfil demonstra um forte potencial para reverter o visto negado.';
+    let clienteData = {};
+    let currentStep = 0;
+    let answers = {};
+    let isSubmitting = false;
+    
+    const steps = document.querySelectorAll('#simulatorForm .gv-form-section');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    const progress = document.getElementById('progress');
+    const progressText = document.getElementById('progressText');
+    const simulatorForm = document.getElementById('simulatorForm');
+
+    // ============================================================
+    // MÁSCARA DE TELEFONE
+    // ============================================================
+    const captureTelefone = document.getElementById('captureTelefone');
+    if (captureTelefone) {
+        captureTelefone.addEventListener('input', function(e) {
+            let v = e.target.value.replace(/\D/g, '');
+            if (v.length <= 10) {
+                v = v.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+            } else if (v.length <= 11) {
+                v = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+            }
+            e.target.value = v;
+        });
     }
-    
-    const dados = {
-        nome: clienteData.nome || '',
-        email: clienteData.email || '',
-        telefone: clienteData.telefone || '',
-        quando_negado: answers.quando || '',
-        motivo_negativa: answers.motivo || '',
-        mudanca_profissional: answers.mudanca_profissional || '',
-        fortaleceu_vinculos: answers.fortaleceu_vinculos || '',
-        falha_ds160: answers.falha_ds160 || '',
-        problemas_imigracao: answers.problemas_imigracao || '',
-        observacoes: answers.observacoes || '',
-        score: score,
-        classificacao_tipo: classificationType,
-        classificacao_titulo: titulo,
-        classificacao_mensagem: mensagem
+
+    // ============================================================
+    // MODAL
+    // ============================================================
+    openBtn.onclick = () => {
+        modal.classList.add('active');
     };
     
-    try {
-        const response = await fetch('/api/visto-negado', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(dados)
-        });
-        if (!response.ok) console.error('Erro no envio para backend:', response.status);
-        else console.log('✅ Dados enviados com sucesso');
-        return response.ok;
-    } catch (error) {
-        console.error('Erro ao enviar:', error);
-        return false;
-    }
-}
+    closeModalBtn.onclick = () => {
+        modal.classList.remove('active');
+    };
+    
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            modal.classList.remove('active');
+        }
+    };
+
+    // ============================================================
+    // CAPTURA DO CLIENTE
+    // ============================================================
+    captureForm.onsubmit = (e) => {
+        e.preventDefault();
         
-        async function enviarAvaliacao() {
-            if (isSubmitting) return;
-            isSubmitting = true;
-            
-            if (!clienteData.telefone || clienteData.telefone.replace(/\D/g, '').length < 10) {
-                alert('Dados de contato inválidos. Por favor, recarregue a página e tente novamente.');
-                isSubmitting = false;
-                return;
-            }
-            
-            const score = calcularScore();
-            const classificationType = getClassification(score);
-            
-            submitBtn.innerHTML = 'Enviando... <span class="gv-loading"></span>';
-            submitBtn.disabled = true;
-            
-            await enviarParaBackend(score, classificationType);
-            
-            window.location.href = REDIRECT_URL;
+        const nome = document.getElementById('captureNome').value.trim();
+        const telefone = document.getElementById('captureTelefone').value.trim();
+        const email = document.getElementById('captureEmail').value.trim();
+        
+        if (!nome) {
+            alert('Por favor, informe seu nome completo.');
+            return;
+        }
+        if (!telefone || telefone.replace(/\D/g, '').length < 10) {
+            alert('Por favor, informe um telefone válido com DDD.');
+            return;
         }
         
-        nextBtn.onclick = () => {
-            if (validateStep()) {
-                saveAnswers();
-                if (currentStep < steps.length - 1) {
-                    currentStep++;
-                    showStep(currentStep);
-                }
-            }
+        clienteData = { nome, telefone, email };
+        
+        const primeiroNome = nome.split(' ')[0];
+        clienteNomeSpan.textContent = primeiroNome;
+        
+        modal.classList.remove('active');
+        simulatorWrapper.classList.add('active');
+        welcomeBanner.classList.add('active');
+        
+        setTimeout(() => {
+            simulatorWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+    };
+
+    // ============================================================
+    // PROGRESSO
+    // ============================================================
+    function updateProgress() {
+        let percent = ((currentStep + 1) / steps.length) * 100;
+        if (progress) progress.style.width = percent + '%';
+        if (progressText) progressText.textContent = `Etapa ${currentStep + 1} de ${steps.length}`;
+    }
+
+    function showStep(index) {
+        steps.forEach((step, i) => {
+            step.classList.toggle('active', i === index);
+        });
+        updateProgress();
+        
+        if (index === steps.length - 1) {
+            nextBtn.style.display = 'none';
+            submitBtn.style.display = 'inline-block';
+        } else {
+            nextBtn.style.display = 'inline-block';
+            submitBtn.style.display = 'none';
+        }
+        prevBtn.disabled = index === 0;
+    }
+
+    // ============================================================
+    // VALIDAÇÃO E SALVAMENTO
+    // ============================================================
+    function validateStep() {
+        let current = steps[currentStep];
+        let radios = current.querySelectorAll('input[type="radio"]');
+        
+        if (radios.length && !Array.from(radios).some(r => r.checked)) {
+            alert('Por favor, selecione uma opção antes de continuar.');
+            return false;
+        }
+        return true;
+    }
+
+    function saveAnswers() {
+        let current = steps[currentStep];
+        current.querySelectorAll('input[type="radio"]:checked').forEach(r => {
+            answers[r.name] = r.value;
+        });
+        current.querySelectorAll('textarea').forEach(t => {
+            if (t.value.trim()) answers[t.id] = t.value.trim();
+        });
+    }
+
+    // ============================================================
+    // CÁLCULO DO SCORE
+    // ============================================================
+    function calcularScore() {
+        let score = 0;
+        
+        const quando = answers.quando;
+        if (quando === 'Menos de 3 meses') score += 5;
+        else if (quando === 'Entre 3 e 6 meses') score += 8;
+        else if (quando === 'Entre 6 meses e 1 ano') score += 12;
+        else if (quando === 'Mais de 1 ano') score += 15;
+        else if (quando === 'Nunca solicitei') score += 10;
+        
+        const motivo = answers.motivo;
+        if (motivo === 'Seção 214(b)') score += 10;
+        else if (motivo === 'Informações inconsistentes') score += 12;
+        else if (motivo === 'Problemas imigração anterior') score += 5;
+        else if (motivo === 'Não soube informar') score += 15;
+        else if (motivo === 'Outro motivo') score += 18;
+        
+        const mudanca = answers.mudanca_profissional;
+        if (mudanca === 'Mudei de emprego') score += 16;
+        else if (mudanca === 'Fui promovido') score += 18;
+        else if (mudanca === 'Abri empresa') score += 20;
+        else if (mudanca === 'Renda aumentou') score += 20;
+        else if (mudanca === 'Permaneceu igual') score += 8;
+        else if (mudanca === 'Não se aplica') score += 12;
+        
+        const vinculos = answers.fortaleceu_vinculos;
+        if (vinculos === 'Iniciei estudos') score += 16;
+        else if (vinculos === 'Adquiri bens') score += 20;
+        else if (vinculos === 'Família consolidada') score += 14;
+        else if (vinculos === 'Permaneceu igual') score += 6;
+        else if (vinculos === 'Não se aplica') score += 10;
+        
+        const ds160 = answers.falha_ds160;
+        if (ds160 === 'Sim, houve erros') score += 8;
+        else if (ds160 === 'Não tenho certeza') score += 12;
+        else if (ds160 === 'Não, estava correto') score += 15;
+        else if (ds160 === 'Não se aplica') score += 10;
+        
+        const imigracao = answers.problemas_imigracao;
+        if (imigracao === 'Não') score += 10;
+        else if (imigracao === 'Problemas menores') score += 6;
+        else if (imigracao === 'Overstay') score += 3;
+        else if (imigracao === 'Deportação') score += 0;
+        
+        return Math.min(Math.max(score, 0), 100);
+    }
+
+    function getClassification(score) {
+        if (score < 35) return 'urgent';
+        if (score < 65) return 'moderate';
+        return 'strong';
+    }
+
+    // ============================================================
+    // ENVIO PARA O BACKEND
+    // ============================================================
+    async function enviarParaBackend(score, classificationType) {
+        let titulo = '';
+        let mensagem = '';
+        
+        if (classificationType === 'urgent') {
+            titulo = '⚠️ Seu caso requer atenção urgente!';
+            mensagem = 'Seu perfil apresenta pontos críticos que precisam ser analisados. Nossos especialistas estão prontos para te ajudar.';
+        } else if (classificationType === 'moderate') {
+            titulo = '💡 Potencial Moderado de Sucesso!';
+            mensagem = 'Seu perfil tem pontos positivos, mas ainda precisa de ajustes para aumentar suas chances.';
+        } else {
+            titulo = '✅ Forte Potencial de Reversão!';
+            mensagem = 'Parabéns! Seu perfil demonstra um forte potencial para reverter o visto negado.';
+        }
+        
+        const dados = {
+            nome: clienteData.nome || '',
+            email: clienteData.email || '',
+            telefone: clienteData.telefone || '',
+            quando_negado: answers.quando || '',
+            motivo_negativa: answers.motivo || '',
+            mudanca_profissional: answers.mudanca_profissional || '',
+            fortaleceu_vinculos: answers.fortaleceu_vinculos || '',
+            falha_ds160: answers.falha_ds160 || '',
+            problemas_imigracao: answers.problemas_imigracao || '',
+            observacoes: answers.observacoes || '',
+            score: score,
+            classificacao_tipo: classificationType,
+            classificacao_titulo: titulo,
+            classificacao_mensagem: mensagem
         };
         
-        prevBtn.onclick = () => {
-            if (currentStep > 0) {
-                currentStep--;
+        try {
+            const response = await fetch('/api/visto-negado', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dados)
+            });
+            if (!response.ok) {
+                console.error('Erro no envio para backend:', response.status);
+                return false;
+            }
+            console.log('✅ Dados enviados com sucesso');
+            return true;
+        } catch (error) {
+            console.error('Erro ao enviar:', error);
+            return false;
+        }
+    }
+
+    // ============================================================
+    // ENVIAR AVALIAÇÃO
+    // ============================================================
+    async function enviarAvaliacao() {
+        if (isSubmitting) return;
+        isSubmitting = true;
+        
+        if (!clienteData.telefone || clienteData.telefone.replace(/\D/g, '').length < 10) {
+            alert('Dados de contato inválidos. Por favor, recarregue a página e tente novamente.');
+            isSubmitting = false;
+            return;
+        }
+        
+        const score = calcularScore();
+        const classificationType = getClassification(score);
+        
+        submitBtn.innerHTML = 'Enviando... <span class="gv-loading"></span>';
+        submitBtn.disabled = true;
+        
+        const enviado = await enviarParaBackend(score, classificationType);
+        
+        if (enviado) {
+            window.location.href = '/obrigado-visto-negado';
+        } else {
+            alert('❌ Erro ao enviar avaliação. Tente novamente.');
+            submitBtn.innerHTML = '📤 Enviar Avaliação';
+            submitBtn.disabled = false;
+            isSubmitting = false;
+        }
+    }
+
+    // ============================================================
+    // EVENTOS DOS BOTÕES
+    // ============================================================
+    nextBtn.onclick = function() {
+        if (validateStep()) {
+            saveAnswers();
+            if (currentStep < steps.length - 1) {
+                currentStep++;
                 showStep(currentStep);
             }
-        };
-        
-        simulatorForm.onsubmit = (e) => {
-            e.preventDefault();
-            if (validateStep()) {
-                saveAnswers();
-                enviarAvaliacao();
+        }
+    };
+    
+    prevBtn.onclick = function() {
+        if (currentStep > 0) {
+            currentStep--;
+            showStep(currentStep);
+        }
+    };
+    
+    simulatorForm.onsubmit = function(e) {
+        e.preventDefault();
+        if (validateStep()) {
+            saveAnswers();
+            enviarAvaliacao();
+        }
+    };
+
+    // ============================================================
+    // SELEÇÃO DE OPÇÕES
+    // ============================================================
+    document.querySelectorAll('.gv-option').forEach(function(opt) {
+        opt.onclick = function() {
+            const radio = this.querySelector('input[type="radio"]');
+            if (radio && !radio.checked) {
+                radio.checked = true;
+                const parent = this.parentElement;
+                parent.querySelectorAll('.gv-option').forEach(function(o) {
+                    o.classList.remove('selected');
+                });
+                this.classList.add('selected');
             }
         };
-        
-        document.querySelectorAll('.gv-option').forEach(opt => {
-            opt.onclick = function(e) {
-                const radio = this.querySelector('input[type="radio"]');
-                if (radio && !radio.checked) {
-                    radio.checked = true;
-                    this.parentElement.querySelectorAll('.gv-option').forEach(o => o.classList.remove('selected'));
-                    this.classList.add('selected');
-                }
-            };
+    });
+
+    // ============================================================
+    // FAQ
+    // ============================================================
+    document.querySelectorAll('.gv-faq-item').forEach(function(item) {
+        const question = item.querySelector('.gv-faq-question');
+        question.addEventListener('click', function() {
+            item.classList.toggle('active');
         });
-        
-        showStep(0);
-        
-        document.querySelectorAll('.gv-faq-item').forEach(item => {
-            const question = item.querySelector('.gv-faq-question');
-            question.addEventListener('click', () => item.classList.toggle('active'));
-        });
-    </script>
+    });
+
+    // ============================================================
+    // INICIAR
+    // ============================================================
+    showStep(0);
+</script>
 </body>
 </html>
