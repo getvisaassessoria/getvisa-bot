@@ -3063,8 +3063,8 @@ async function gerarPDF_DS160(dados) {
 
             // ========== PASSO 5 - VIAGENS ANTERIORES ==========
             'Já esteve nos EUA': dados['radio-us-travel'] === 'one' ? 'Sim' : 'Não',
-            'Viagens Anteriores (datas)': dados['us_travel_date[]'] ? dados['us_travel_date[]'].filter(Boolean).join(', ') : '',
-            'Duração das Viagens (dias)': dados['us_travel_duration[]'] ? dados['us_travel_duration[]'].filter(Boolean).join(', ') : '',
+            'Viagens Anteriores (datas)': Array.isArray(dados['us_travel_date[]']) ? dados['us_travel_date[]'].filter(Boolean).join(', ') : (dados['us_travel_date[]'] || ''),
+            'Duração das Viagens (dias)': Array.isArray(dados['us_travel_duration[]']) ? dados['us_travel_duration[]'].filter(Boolean).join(', ') : (dados['us_travel_duration[]'] || ''),
             'Possui Carteira de Habilitação dos EUA': dados['radio-us-driver'] === 'SIM' ? 'Sim' : 'Não',
             'Número da Habilitação': dados.us_driver_number || '',
             'Estado da Habilitação': dados.us_driver_state || '',
@@ -3089,8 +3089,9 @@ async function gerarPDF_DS160(dados) {
             'Telefone do Trabalho': dados.phone_work || '',
             'Telefones Adicionais': dados.phone_extra || '',
             'E-mail Principal': dados.email || '',
-            'E-mails Adicionais': dados['emails_extra[]'] ? dados['emails_extra[]'].filter(Boolean).join(', ') : '',
-            'Redes Sociais': dados['social_plataforma[]'] && dados['social_identificador[]'] ? dados['social_plataforma[]'].map((p, i) => `${p}: ${dados['social_identificador[]'][i] || ''}`).filter(Boolean).join('; ') : '',
+            'E-mails Adicionais': Array.isArray(dados['emails_extra[]']) ? dados['emails_extra[]'].filter(Boolean).join(', ') : (dados['emails_extra[]'] || ''),
+            'Redes Sociais': Array.isArray(dados['social_plataforma[]']) && Array.isArray(dados['social_identificador[]']) ? dados['social_plataforma[]'].map((p, i) => `${p}: ${dados['social_identificador[]'][i] || ''}`).filter(Boolean).join('; ') : (dados['social_plataforma[]'] || ''),
+
             'Presença Adicional em Redes Sociais': dados.social_extra || '',
 
             // ========== PASSO 7 - PASSAPORTE ==========
@@ -3123,8 +3124,8 @@ async function gerarPDF_DS160(dados) {
             'Data de Nascimento da Mãe': dados.mother_dob || '',
             'Mãe nos EUA': dados.mother_in_us === 'YES' ? 'Sim' : 'Não',
             'Situação da Mãe nos EUA': dados.mother_status || '',
-            'Parentes Diretos nos EUA': dados['radio-immediate-relatives'] === 'one' ? 'Sim' : 'Não',
-            'Detalhes dos Parentes Diretos': dados['immediate_relative_name[]'] ? dados['immediate_relative_name[]'].map((n, i) => `${n} (${dados['immediate_relative_relationship[]']?.[i] || ''} - ${dados['immediate_relative_status[]']?.[i] || ''})`).filter(Boolean).join('; ') : '',
+            'Detalhes dos Parentes Diretos': Array.isArray(dados['immediate_relative_name[]']) ? dados['immediate_relative_name[]'].map((n, i) => `${n} (${dados['immediate_relative_relationship[]']?.[i] || ''} - ${dados['immediate_relative_status[]']?.[i] || ''})`).filter(Boolean).join('; ') : (dados['immediate_relative_name[]'] || ''),
+            'Detalhes dos Parentes Diretos': Array.isArray(dados['immediate_relative_name[]']) ? dados['immediate_relative_name[]'].map((n, i) => `${n} (${dados['immediate_relative_relationship[]']?.[i] || ''} - ${dados['immediate_relative_status[]']?.[i] || ''})`).filter(Boolean).join('; ') : (dados['immediate_relative_name[]'] || ''),
             'Outros Parentes nos EUA': dados['radio-other-relatives'] === 'one' ? `Sim - ${dados.other_relatives_desc || ''}` : 'Não',
             'Nome do Cônjuge/Ex-Cônjuge': dados.spouse_name || '',
             'Data de Nascimento do Cônjuge': dados.spouse_dob || '',
@@ -3148,11 +3149,12 @@ async function gerarPDF_DS160(dados) {
             'Data de Início no Emprego': dados.employer_start || '',
             'Renda Mensal': dados.employer_income || '',
             'Descrição das Funções': dados.employer_duties || '',
-            'Outras Ocupações': dados['other_employer_name[]'] ? dados['other_employer_name[]'].filter(Boolean).join('; ') : '',
-            'Empregos Anteriores': dados['prev_employer_name[]'] ? dados['prev_employer_name[]'].filter(Boolean).join('; ') : '',
-            'Cursos/Educação': dados['edu_institution[]'] ? dados['edu_institution[]'].filter(Boolean).join('; ') : '',
-            'Idiomas (além do Português)': dados['languages[]'] ? dados['languages[]'].filter(Boolean).join(', ') : '',
-            'Países Visitados (últimos 5 anos)': dados['traveled_countries[]'] ? dados['traveled_countries[]'].filter(Boolean).join(', ') : '',
+            'Outras Ocupações': Array.isArray(dados['other_employer_name[]']) ? dados['other_employer_name[]'].filter(Boolean).join('; ') : (dados['other_employer_name[]'] || ''),
+
+            'Empregos Anteriores': Array.isArray(dados['prev_employer_name[]']) ? dados['prev_employer_name[]'].filter(Boolean).join('; ') : (dados['prev_employer_name[]'] || ''),
+            'Cursos/Educação': Array.isArray(dados['edu_institution[]']) ? dados['edu_institution[]'].filter(Boolean).join('; ') : (dados['edu_institution[]'] || ''),
+            'Idiomas (além do Português)': Array.isArray(dados['languages[]']) ? dados['languages[]'].filter(Boolean).join(', ') : (dados['languages[]'] || ''),
+            'Países Visitados (últimos 5 anos)': Array.isArray(dados['traveled_countries[]']) ? dados['traveled_countries[]'].filter(Boolean).join(', ') : (dados['traveled_countries[]'] || ''),
             'Treinamento Especializado': dados['radio-specialized'] === 'YES' ? `Sim - ${dados.specialized_description || ''}` : 'Não',
             'Serviço Militar': dados['radio-military'] === 'YES' ? 'Sim' : 'Não',
             'Ramo Militar': dados.military_branch || '',
