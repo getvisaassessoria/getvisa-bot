@@ -1,9 +1,9 @@
-// routes/webhookRoutesNew.js - VERSÃO COM setInterval RESTAURADO
+// routes/webhookRoutesNew.js - VERSÃO COMPLETA COM GET
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
-console.log('🚀 webhookRoutesNew CARREGADO (COM setInterval)');
+console.log('🚀 webhookRoutesNew CARREGADO (COM setInterval e GET)');
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -21,34 +21,40 @@ function limparTelefone(phone) {
 
 const messageQueue = [];
 
-// 🔥 PROCESSADOR DE FILA (restaurado)
+// 🔥 PROCESSADOR DE FILA
 setInterval(async () => {
     if (messageQueue.length === 0) return;
     
-    // Importação dinâmica para evitar erro de inicialização
-    const server = require('../server.js');
-    const processarMensagem = server.processarMensagem;
-    
-    if (typeof processarMensagem !== 'function') {
-        console.error('❌ processarMensagem ainda não disponível');
-        return;
-    }
-
-    console.log(`🔄 Processando fila: ${messageQueue.length} mensagens`);
-    
-    while (messageQueue.length > 0) {
-        const item = messageQueue.shift();
-        try {
-            console.log(`📨 Processando mensagem de ${item.phone}: ${item.message}`);
-            console.log('📌 Vou chamar processarMensagem agora...');
-            await processarMensagem(item.phone, item.message);
-            console.log('✅ processarMensagem finalizada para', item.phone);
-        } catch (error) {
-            console.error(`❌ Erro ao processar mensagem:`, error);
+    try {
+        // Importação dinâmica para evitar erro de inicialização
+        const server = require('../server.js');
+        const processarMensagem = server.processarMensagem;
+        
+        if (typeof processarMensagem !== 'function') {
+            console.error('❌ processarMensagem ainda não disponível');
+            return;
         }
+
+        console.log(`🔄 Processando fila: ${messageQueue.length} mensagens`);
+        
+        while (messageQueue.length > 0) {
+            const item = messageQueue.shift();
+            try {
+                console.log(`📨 Processando mensagem de ${item.phone}: ${item.message}`);
+                await processarMensagem(item.phone, item.message);
+                console.log('✅ processarMensagem finalizada para', item.phone);
+            } catch (error) {
+                console.error(`❌ Erro ao processar mensagem:`, error);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Erro no processador de fila:', error);
     }
 }, 3000);
 
+// ============================================================
+// ROTA POST - Webhook ZAPI (recebe mensagens)
+// ============================================================
 router.post('/zapi', async (req, res) => {
     try {
         console.log('------------------------------------');
@@ -61,12 +67,14 @@ router.post('/zapi', async (req, res) => {
         console.log(`💬 Mensagem: ${messageText}`);
         
         if (!phone || !messageText) {
+            console.log('⚠️ Dados incompletos');
             return res.status(400).json({ error: 'Dados incompletos' });
         }
 
         const telefoneLimpo = limparTelefone(phone);
         console.log(`📱 Telefone limpo: ${telefoneLimpo}`);
         
+        // Salvar ou atualizar cliente no Supabase
         try {
             const { data: clienteExistente } = await supabase
                 .from('clientes')
@@ -93,6 +101,7 @@ router.post('/zapi', async (req, res) => {
             console.error('❌ Erro no banco:', dbError);
         }
 
+        // Adicionar à fila de processamento
         messageQueue.push({
             phone: telefoneLimpo,
             message: messageText,
@@ -101,6 +110,7 @@ router.post('/zapi', async (req, res) => {
         
         console.log(`📥 Mensagem adicionada à fila. Total: ${messageQueue.length}`);
 
+        // Responde OK para o ZAPI
         res.status(200).send('OK');
 
     } catch (error) {
@@ -109,6 +119,21 @@ router.post('/zapi', async (req, res) => {
     }
 });
 
+// ============================================================
+// ROTA GET - Verificar se o webhook está ativo
+// ============================================================
+router.get('/zapi', (req, res) => {
+    res.status(200).json({ 
+        status: 'online', 
+        message: 'Webhook ZAPI ativo',
+        timestamp: new Date().toISOString(),
+        fila: messageQueue.length
+    });
+});
+
+// ============================================================
+// ROTA GET - Status da fila de mensagens
+// ============================================================
 router.get('/fila-status', (req, res) => {
     res.json({
         total: messageQueue.length,
@@ -116,4 +141,7 @@ router.get('/fila-status', (req, res) => {
     });
 });
 
-module.exports = router;  // ⚠️ Exporta só o router (a fila fica interna)
+// ============================================================
+// EXPORTAR O ROUTER
+// ============================================================
+module.exports = router;
