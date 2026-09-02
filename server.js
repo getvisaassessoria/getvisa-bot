@@ -1,7 +1,9 @@
-// server.js - INÍCIO CORRIGIDO
+// server.js - VERSÃO DEFINITIVA E SEGURA (COM ROTAS DUPLICADAS REMOVIDAS)
 console.log('--- 🚀 SERVER.JS INICIADO (VERSÃO DEFINITIVA) ---');
 
+// ============================================================
 // 1. DEPENDÊNCIAS E CONFIGURAÇÕES INICIAIS
+// ============================================================
 const express = require('express');
 const { Resend } = require('resend');
 const cors = require('cors');
@@ -14,28 +16,15 @@ const cron = require('node-cron');
 const multer = require('multer');
 const auth = require('./middleware/auth');
 
-// 🔥 IMPORTA DO botService
-const { 
-    processarMensagem,    // <-- AGORA IMPORTADA
-    userState,            // <-- MESMO ESTADO COMPARTILHADO
-    limparTelefone,
-    enviarWhatsApp
-} = require('./services/botService');
+const app = express();
+const resend = new Resend(process.env.RESEND_API_KEY || '');
+const PORT = process.env.PORT || 10000;
 
-// 🔥 MANTÉM AS CONSTANTES DO SEU ARQUIVO ORIGINAL
-const { 
-    ONBOARDING_STEPS,
-    BOAS_VINDAS_MESSAGES,
-    ETAPAS,
-    RADIO_MAPPING,
-    DATE_FIELDS,
-    SPAM_DOMAINS,
-    FEATURES
-} = require('./constants/botConstants'); // <-- CRIE ESTE ARQUIVO
+const userState = new Map();
 
-// OU SE NÃO TIVER O ARQUIVO DE CONSTANTES, COPIE AS CONSTANTES DO SEU SERVER.JS ORIGINAL AQUI
-
+// ============================================================
 // 2. CONFIGURAÇÃO DO SUPABASE
+// ============================================================
 let supabaseUrl = process.env.SUPABASE_URL || '';
 supabaseUrl = supabaseUrl.replace(/\/rest\/v1.*$/, '').replace(/\/+$/, '');
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -50,12 +39,112 @@ console.log(`✅ Cliente Supabase: ${supabase ? 'INICIALIZADO' : 'NÃO DISPONÍV
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'admin123';
 
+// ============================================================
 // 3. MIDDLEWARES BÁSICOS
+// ============================================================
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// ============================================================
+// CONSTANTES DO BOT
+// ============================================================
+const ONBOARDING_STEPS = {
+    SAUDACAO: 'saudacao',
+    AGUARDANDO_NOME: 'aguardando_nome',
+    AGUARDANDO_EMAIL: 'aguardando_email',
+    CONFIRMACAO: 'confirmacao',
+    COMPLETO: 'completo'
+};
+
+const BOAS_VINDAS_MESSAGES = {
+    primeira_saudacao: [
+        '👋 Olá! Seja muito bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸\n\nSomos especialistas em vistos americanos e estamos aqui para realizar seu sonho de viajar para os EUA! ✈️'
+    ],
+    solicitar_nome: [
+        'Para começarmos seu atendimento de forma personalizada, preciso saber:\n\n📝 **Qual é o seu nome completo?**\n\nEx: Maria Silva'
+    ],
+    nome_invalido: [
+        '🤔 Hmm, parece que não entendi bem seu nome. Poderia digitar novamente?\n\nEx: Maria Silva'
+    ],
+    confirmacao_nome: {
+        parte1: ['😊 Prazer, ', '🌟 Muito prazer, '],
+        parte2: ['! Agora me diga:\n\n📧 **Qual é o seu e-mail?**\n\nEx: maria@email.com']
+    }
+};
+
+const ETAPAS = {
+    formulario_enviado: { id: 'formulario_enviado', label: 'Formulário Enviado', next: 'analise_correcoes', color: '#3498db' },
+    analise_correcoes: { id: 'analise_correcoes', label: 'Análise e Correções', next: 'abertura_processo', color: '#f39c12' },
+    abertura_processo: { id: 'abertura_processo', label: 'Abertura do Processo', next: 'boleto_emitido', color: '#8e44ad' },
+    boleto_emitido: { id: 'boleto_emitido', label: 'Boleto Emitido', next: 'boleto_pago', color: '#e67e22' },
+    boleto_pago: { id: 'boleto_pago', label: 'Boleto Pago', next: 'agendamento_realizado', color: '#27ae60' },
+    agendamento_realizado: { id: 'agendamento_realizado', label: 'Agendamento Realizado', next: 'treinamento_realizado', color: '#2980b9' },
+    treinamento_realizado: { id: 'treinamento_realizado', label: 'Treinamento Concluído', next: 'entrevista_realizada', color: '#8e44ad' },
+    entrevista_realizada: { id: 'entrevista_realizada', label: '🎤 Entrevista Realizada', next: null, color: '#2c3e50' },
+    visto_aprovado: { id: 'visto_aprovado', label: '✅ Visto Aprovado', next: 'passaporte_retornado', color: '#16a34a' },
+    passaporte_retornado: { id: 'passaporte_retornado', label: '📦 Passaporte disponível para retirada/entrega', next: null, color: '#2ecc71' },
+    visto_recusado: { id: 'visto_recusado', label: '❌ Visto Recusado', next: null, color: '#ef4444' }
+};
+
+const RADIO_MAPPING = {
+    'one': 'Sim',
+    'two': 'Não',
+    'radio-28': { 'one': 'Turismo/negocio (B1/B2)', 'two': 'Estudos', 'Outros': 'Outros' },
+    'radio-3': { 'one': 'Masculino', 'two': 'Feminino' },
+    'select-4': { 'one': 'Casado(a)', 'two': 'Solteiro(a)', 'Uniao-estavel': 'Uniao estavel', 'Viuvo(a)': 'Viuvo(a)', 'Divorciado(a)': 'Divorciado(a)' },
+    'radio-6': { 'one': 'Eu mesmo', 'two': 'Outra pessoa' },
+    'radio-7': { 'one': 'Sim', 'two': 'Não' },
+    'radio-8': { 'one': 'Sim', 'two': 'Não' },
+    'radio-23': { 'one': 'Sim', 'two': 'Não' },
+    'radio-29': { 'one': 'Sim', 'two': 'Não' },
+    'radio-30': { 'one': 'Sim', 'two': 'Não' },
+    'radio-33': { 'one': 'Sim', 'two': 'Não' },
+    'radio-27': { 'Profissional': 'Profissional', 'Estudante': 'Estudante', 'Aposentado': 'Aposentado', 'Outra': 'Outra' },
+    'radio-17': { 'one': 'Sim', 'two': 'Não' },
+    'radio-18': { 'one': 'Sim', 'two': 'Não' },
+    'radio-19': { 'one': 'Sim', 'two': 'Não' },
+    'radio-20': { 'one': 'Sim', 'two': 'Não' },
+    'radio-14': { 'one': 'Sim', 'two': 'Não' },
+    'radio-15': { 'one': 'Sim', 'two': 'Não' },
+    'radio-16': { 'one': 'Sim', 'two': 'Não' },
+    'radio-26': { 'one': 'Sim', 'two': 'Não' },
+    'radio-planos': { 'one': 'Sim', 'two': 'Não' },
+    'radio-9': { 'one': 'Sim', 'two': 'Não, e diferente' },
+    'radio-10': { 'one': 'Sim', 'two': 'Não' },
+    'radio-11': { 'one': 'Sim', 'two': 'Não' },
+    'radio-12': { 'one': 'Sim', 'two': 'Não' },
+    'radio-outra-nac': { 'one': 'Sim', 'two': 'Não' },
+    'radio-residente': { 'one': 'Sim', 'two': 'Não' },
+    'spouse-address-same': { 'one': 'Mesmo que o meu', 'two': 'Diferente' },
+    'ex-address-same': { 'one': 'Mesmo que o meu', 'two': 'Diferente' },
+    'falecido-address-same': { 'one': 'Mesmo que o meu', 'two': 'Diferente' },
+    'radio-visto-negado': { 'one': 'Sim', 'two': 'Não' },
+    'radio-entrada-negada': { 'one': 'Sim', 'two': 'Não' },
+    'radio-deportado': { 'one': 'Sim', 'two': 'Não' }
+};
+
+const DATE_FIELDS = [
+    'text-5', 'text-21', 'text-35', 'text-66', 'text-67', 'text-69',
+    'text-61', 'text-62', 'spouse-dob', 'data_casamento_div',
+    'data_divorcio', 'data_falecimento', 'text-50', 'text-44',
+    'text-45', 'military_date_from', 'military_date_to', 'antecedentes_data'
+];
+
+const SPAM_DOMAINS = ['tempmail', 'mailinator', '10minutemail', 'guerrillamail', 'throwaway', 'fake', 'spam'];
+
+const FEATURES = {
+    SISTEMA_ETAPAS: {
+        ativo: true,
+        notificar_cliente: true,
+        auto_avancar: true
+    }
+};
+
+
+// ============================================================
 // 3.1 ROTA DE LOGIN ADMIN (PÚBLICA) - DEVE VIR ANTES DE QUALQUER PROTEÇÃO
+// ============================================================
 app.post('/api/admin/login', (req, res) => {
     const { apiKey } = req.body;
     const validKey = 'admin123';
@@ -86,7 +175,9 @@ app.post('/api/admin/login', (req, res) => {
     }
 });
 
+// ============================================================
 // 3.2 CONFIGURAÇÃO DO MULTER (DEVE VIR ANTES DE QUALQUER ROTA QUE USE UPLOAD)
+// ============================================================
 const uploadMemory = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
@@ -101,7 +192,9 @@ const uploadMemory = multer({
 
 console.log('✅ Multer configurado com memoryStorage');
 
+// ============================================================
 // 3.3 MIDDLEWARE DE LOG (DEPOIS DAS ROTAS PÚBLICAS)
+// ============================================================
 app.use(auth.logAcesso);
 
 // Middleware para log de requisições
@@ -110,13 +203,17 @@ app.use((req, res, next) => {
     next();
 });
 
+// ============================================================
 // 3.4 SERVIR ARQUIVOS ESTÁTICOS (DEPOIS DAS ROTAS)
+// ============================================================
 app.use(express.static(path.join(__dirname, 'public')));
 
 
 
 
+// ============================================================
 // 4. ROTAS PROTEGIDAS (DEVEM VIR ANTES DO STATIC)
+// ============================================================
 
 // 4.1 Admin protegido
 app.get('/admin.html', auth.verificarAdmin, (req, res) => {
@@ -138,7 +235,9 @@ app.get('/painel.html', auth.verificarAdmin, (req, res) => {
     }
 });
 
+// ============================================================
 // ROTAS DO PAINEL DE CLIENTES (PROTEGIDAS)
+// ============================================================
 
 // 🔥 PAINEL DE CLIENTES - Rota principal
 app.get('/painel', auth.verificarAdmin, (req, res) => {
@@ -212,7 +311,9 @@ app.get('/dashboard-antigo', auth.verificarAdmin, (req, res) => {
 
 
 
+// ============================================================
 // 5. SERVIR ARQUIVOS ESTÁTICOS (DEPOIS DAS ROTAS PROTEGIDAS)
+// ============================================================
 const publicPath = path.join(__dirname, 'public');
 if (fs.existsSync(publicPath)) {
     app.use(express.static(publicPath));
@@ -225,7 +326,9 @@ if (fs.existsSync(publicPath)) {
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// ============================================================
 // 6. FUNÇÃO PARA IMPORTAR MÓDULOS COM SEGURANÇA
+// ============================================================
 function safeRequire(modulePath, fallback) {
     try {
         const fullPath = path.join(__dirname, modulePath);
@@ -247,9 +350,13 @@ function safeRequire(modulePath, fallback) {
     }
 }
 
+// ============================================================
 // 7. ROTAS DA API
+// ============================================================
 
+// ============================================================
 // 7.1 ROTA DS-160 (COM PDF E NOTIFICAÇÃO PARA EQUIPE)
+// ============================================================
 
 // 🔥 FUNÇÃO AUXILIAR PARA EXTRAIR CAMPOS DO FORMULÁRIO
 function extractFormFields(data) {
@@ -390,7 +497,9 @@ app.post('/api/submit-ds160', async (req, res) => {
             console.error('❌ Erro ao enviar notificação WhatsApp:', whatsError);
         }
 
+// ============================================================
 // 📧 ENVIAR E-MAIL PARA A EQUIPE COM PDF
+// ============================================================
 let pdfBuffer = null; // 🔥 DECLARADO FORA DO TRY
 
 try {
@@ -453,7 +562,9 @@ try {
     console.error('❌ Mensagem de erro:', emailError.message);
 }
 
+// ============================================================
 // 📧 ENVIAR E-MAIL PARA O CLIENTE COM PDF
+// ============================================================
 try {
     console.log('📧 Tentando enviar e-mail para o cliente...');
     const clienteEmail = emailValido;
@@ -567,7 +678,9 @@ try {
     console.log('⚠️ Erro ao carregar ds160Routes adicionais:', error.message);
 }
 
+// ============================================================
 // 7.2 ROTA DE AGENDAMENTOS (REFATORADA - CORRIGIDA)
+// ============================================================
 console.log('🔧 Carregando rotas de Agendamentos...');
 
 // 🔥 ROTA DE UPLOAD DE PDF (NÃO PROTEGIDA - DEVE VIR ANTES DE QUALQUER MIDDLEWARE)
@@ -964,7 +1077,9 @@ try {
     console.log('⚠️ Erro ao carregar agendamentoRoutes:', error.message);
 }
 
+// ============================================================
 // 7.3 ROTA WEBHOOK (PÚBLICA)
+// ============================================================
 console.log('🔧 Carregando rotas Webhook...');
 try {
     const webhookRoutes = require('./routes/webhookRoutesNew');
@@ -979,8 +1094,12 @@ try {
     });
 }
 
+// ============================================================
 // 9. ROTA PARA VISTO NEGADO - SALVAR NO SUPABASE
+// ============================================================
+// ============================================================
 // ROTA PARA VISTO NEGADO - SALVAR NO SUPABASE
+// ============================================================
 app.post('/api/visto-negado', async (req, res) => {
     try {
         const dados = req.body;
@@ -1151,8 +1270,12 @@ app.post('/api/visto-negado', async (req, res) => {
     }
 });
 
+// ============================================================
 // ROTA PARA PÁGINA DE VISTO NEGADO
+// ============================================================
+// ============================================================
 // ROTA PARA PÁGINA DE VISTO NEGADO
+// ============================================================
 app.get('/visto-negado', (req, res) => {
     const pathVistoNegado = path.join(__dirname, 'public', 'visto-negado.html');
     if (fs.existsSync(pathVistoNegado)) {
@@ -1166,7 +1289,9 @@ app.get('/visto-negado', (req, res) => {
     }
 });
 
+// ============================================================
 // PÁGINA DE UPLOAD DE PDF - CASV + ENTREVISTA
+// ============================================================
 app.get('/upload-casv-pdf', (req, res) => {
     const uploadPath = path.join(__dirname, 'public', 'upload-casv-pdf.html');
     if (fs.existsSync(uploadPath)) {
@@ -1181,7 +1306,9 @@ app.get('/upload-casv-pdf', (req, res) => {
 });
 
 
+// ============================================================
 // 9. ROTA PRINCIPAL - DASHBOARD (PROTEGIDA COM AUTENTICAÇÃO)
+// ============================================================
 app.get('/', auth.verificarAdmin, (req, res) => {
     const dashboardPath = path.join(__dirname, 'public', 'index.html');
     if (fs.existsSync(dashboardPath)) {
@@ -1220,7 +1347,9 @@ app.get('/agendamentos', auth.verificarAdmin, (req, res) => {
     }
 });
 
+// ============================================================
 // LISTAR AGENDAMENTOS (API) - PÚBLICA COM AUTENTICAÇÃO
+// ============================================================
 app.get('/api/agendamentos', auth.verificarApiKey, async (req, res) => {
     console.log('📨 GET /api/agendamentos chamada!');
     
@@ -1255,7 +1384,9 @@ app.get('/api/agendamentos', auth.verificarApiKey, async (req, res) => {
     }
 });
 
+// ============================================================
 // LISTAR LEMBRETES (API) - PÚBLICA COM AUTENTICAÇÃO
+// ============================================================
 app.get('/api/lembretes', auth.verificarApiKey, async (req, res) => {
     console.log('📨 GET /api/lembretes chamada!');
     
@@ -1290,7 +1421,9 @@ app.get('/api/lembretes', auth.verificarApiKey, async (req, res) => {
     }
 });
 
+// ============================================================
 // 10. HEALTH CHECKS (PÚBLICOS)
+// ============================================================
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', timestamp: new Date().toISOString(), supabase: !!supabase });
 });
@@ -1315,172 +1448,10 @@ app.get('/api/status', (req, res) => {
     });
 });
 
+// ============================================================
 // 9. CONSTANTES DO BOT
+// ============================================================
 
-const ONBOARDING_STEPS = {
-    SAUDACAO: 'saudacao',
-    AGUARDANDO_NOME: 'aguardando_nome',
-    AGUARDANDO_EMAIL: 'aguardando_email',
-    CONFIRMACAO: 'confirmacao',
-    COMPLETO: 'completo'
-};
-
-const BOAS_VINDAS_MESSAGES = {
-    primeira_saudacao: [
-        '👋 Olá! Seja muito bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸\n\nSomos especialistas em vistos americanos e estamos aqui para realizar seu sonho de viajar para os EUA! ✈️',
-        '🌟 Bem-vindo(a) à **GetVisa**! Sua jornada para o visto americano começa aqui! 🇺🇸\n\nNossa equipe de especialistas vai te acompanhar em cada etapa do processo.',
-        '🎉 Olá! É um prazer ter você aqui na **GetVisa**! ✈️\n\nEstamos prontos para ajudar você a conquistar seu visto americano com segurança e tranquilidade.'
-    ],
-    solicitar_nome: [
-        'Para começarmos seu atendimento de forma personalizada, preciso saber:\n\n📝 **Qual é o seu nome completo?**\n\nEx: Maria Silva',
-        'Vamos iniciar seu processo! Primeiro, me diga:\n\n📝 **Qual é é o seu nome completo?**\n\nEx: João Santos',
-        'Que tal nos conhecermos melhor? Me diga seu nome completo para eu te chamar corretamente!\n\n📝 **Qual é o seu nome?**\n\nEx: Ana Oliveira'
-    ],
-    nome_invalido: [
-        '🤔 Hmm, parece que não entendi bem seu nome. Poderia digitar novamente?\n\nEx: Maria Silva',
-        '😅 Desculpe, não consegui identificar seu nome. Tente novamente no formato:\n\nEx: João Santos',
-        '📝 Para um atendimento personalizado, preciso do seu nome completo.\n\nEx: Ana Oliveira'
-    ],
-    confirmacao_nome: {
-        parte1: [
-            '😊 Prazer, ',
-            '🌟 Muito prazer, ',
-            '✨ Tudo bem? ',
-            '🎯 Ótimo, '
-        ],
-        parte2: [
-            '! Agora me diga:\n\n📧 **Qual é o seu e-mail?**\n\nEx: maria@email.com',
-            '! Para enviarmos as informações do seu processo, preciso do seu e-mail:\n\n📧 **Qual é o seu e-mail?**\n\nEx: joao@email.com',
-            '! Vamos continuar! Me informe seu e-mail para contato:\n\n📧 **Qual é o seu e-mail?**\n\nEx: ana@email.com'
-        ]
-    }
-};
-
-const ETAPAS = {
-    formulario_enviado: {
-        id: 'formulario_enviado',
-        label: 'Formulário Enviado',
-        next: 'analise_correcoes',
-        color: '#3498db'
-    },
-    analise_correcoes: {
-        id: 'analise_correcoes',
-        label: 'Análise e Correções',
-        next: 'abertura_processo',
-        color: '#f39c12'
-    },
-    abertura_processo: {
-        id: 'abertura_processo',
-        label: 'Abertura do Processo',
-        next: 'boleto_emitido',
-        color: '#8e44ad'
-    },
-    boleto_emitido: {
-        id: 'boleto_emitido',
-        label: 'Boleto Emitido',
-        next: 'boleto_pago',
-        color: '#e67e22'
-    },
-    boleto_pago: {
-        id: 'boleto_pago',
-        label: 'Boleto Pago',
-        next: 'agendamento_realizado',
-        color: '#27ae60'
-    },
-    agendamento_realizado: {
-        id: 'agendamento_realizado',
-        label: 'Agendamento Realizado',
-        next: 'treinamento_realizado',
-        color: '#2980b9'
-    },
-    treinamento_realizado: {
-        id: 'treinamento_realizado',
-        label: 'Treinamento Concluído',
-        next: 'entrevista_realizada',
-        color: '#8e44ad'
-    },
-    entrevista_realizada: {
-        id: 'entrevista_realizada',
-        label: '🎤 Entrevista Realizada',
-        next: null,
-        color: '#2c3e50'
-    },
-    visto_aprovado: {
-        id: 'visto_aprovado',
-        label: '✅ Visto Aprovado',
-        next: 'passaporte_retornado',
-        color: '#16a34a'
-    },
-    passaporte_retornado: {
-        id: 'passaporte_retornado',
-        label: '📦 Passaporte disponível para retirada/entrega',
-        next: null,
-        color: '#2ecc71'
-    },
-    visto_recusado: {
-        id: 'visto_recusado',
-        label: '❌ Visto Recusado',
-        next: null,
-        color: '#ef4444'
-    }
-};
-
-const RADIO_MAPPING = {
-    'one': 'Sim',
-    'two': 'Nao',
-    'radio-28': { 'one': 'Turismo/negocio (B1/B2)', 'two': 'Estudos', 'Outros': 'Outros' },
-    'radio-3': { 'one': 'Masculino', 'two': 'Feminino' },
-    'select-4': { 'one': 'Casado(a)', 'two': 'Solteiro(a)', 'Uniao-estavel': 'Uniao estavel', 'Viuvo(a)': 'Viuvo(a)', 'Divorciado(a)': 'Divorciado(a)' },
-    'radio-6': { 'one': 'Eu mesmo', 'two': 'Outra pessoa' },
-    'radio-7': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-8': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-23': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-29': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-30': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-33': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-27': { 'Profissional': 'Profissional', 'Estudante': 'Estudante', 'Aposentado': 'Aposentado', 'Outra': 'Outra' },
-    'radio-17': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-18': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-19': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-20': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-14': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-15': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-16': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-26': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-planos': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-9': { 'one': 'Sim', 'two': 'Nao, e diferente' },
-    'radio-10': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-11': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-12': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-outra-nac': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-residente': { 'one': 'Sim', 'two': 'Nao' },
-    'spouse-address-same': { 'one': 'Mesmo que o meu', 'two': 'Diferente' },
-    'ex-address-same': { 'one': 'Mesmo que o meu', 'two': 'Diferente' },
-    'falecido-address-same': { 'one': 'Mesmo que o meu', 'two': 'Diferente' },
-    'radio-visto-negado': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-entrada-negada': { 'one': 'Sim', 'two': 'Nao' },
-    'radio-deportado': { 'one': 'Sim', 'two': 'Nao' }
-};
-
-const DATE_FIELDS = [
-    'text-5', 'text-21', 'text-35', 'text-66', 'text-67', 'text-69',
-    'text-61', 'text-62', 'spouse-dob', 'data_casamento_div',
-    'data_divorcio', 'data_falecimento', 'text-50', 'text-44',
-    'text-45', 'military_date_from', 'military_date_to', 'antecedentes_data'
-];
-
-const SPAM_DOMAINS = ['tempmail', 'mailinator', '10minutemail', 'guerrillamail', 'throwaway', 'fake', 'spam'];
-
-const FEATURES = {
-    SISTEMA_ETAPAS: {
-        ativo: true,
-        notificar_cliente: true,
-        auto_avancar: true
-    }
-};
-
-// 10. ESTADO DO USUÁRIO (PARA O BOT)
-const userState = new Map();
 
 setInterval(() => {
     const now = Date.now();
@@ -1491,7 +1462,9 @@ setInterval(() => {
     }
 }, 60 * 1000);
 
+// ============================================================
 // 11. FUNÇÕES AUXILIARES GERAIS
+// ============================================================
 
 function limparTelefone(telefone) {
     if (!telefone) return null;
@@ -1645,7 +1618,9 @@ function isSpamData(dados) {
     return false;
 }
 
+// ============================================================
 // FUNÇÕES DE STATUS DO CLIENTE
+// ============================================================
 
 async function atualizarStatusCliente(telefone, novoStatus, dadosAdicionais = {}) {
     try {
@@ -1722,7 +1697,9 @@ async function enviarNotificacaoStatus(telefone, status, nome) {
     }
 }
 
+// ============================================================
 // MAPEAMENTO DE ETAPAS
+// ============================================================
 const ETAPA_LABELS = {
     'formulario_enviado': '📋 Formulário Enviado',
     'analise_correcoes': '🔍 Análise e Correções',
@@ -1740,7 +1717,9 @@ const ETAPA_LABELS = {
     'finalizado': '🏁 Processo Finalizado'
 };
 
+// ============================================================
 // FUNÇÃO PARA ATUALIZAR ETAPA (USANDO etapas_processo)
+// ============================================================
 async function atualizarEtapa(telefone, novaEtapa, dadosAdicionais = {}) {
     try {
         const updateData = {
@@ -1777,7 +1756,9 @@ async function atualizarEtapa(telefone, novaEtapa, dadosAdicionais = {}) {
     }
 }
 
+// ============================================================
 // FUNÇÃO PARA ENVIAR NOTIFICAÇÃO DE ETAPA
+// ============================================================
 async function enviarNotificacaoEtapa(telefone, etapa, dadosCliente) {
     const mensagens = {
         'formulario_enviado': (nome) => `✅ Olá ${nome}! Recebemos seu formulário DS-160 com sucesso!\n\n📌 Nossa equipe já está analisando seus dados.\n\n⏳ Em até 24h entraremos em contato.`,
@@ -1807,7 +1788,9 @@ async function enviarNotificacaoEtapa(telefone, etapa, dadosCliente) {
     }
 }
 
+// ============================================================
 // FUNÇÃO PARA BUSCAR ETAPAS DO CLIENTE
+// ============================================================
 async function buscarEtapasCliente(telefone) {
     const { data, error } = await supabase
         .from('etapas_processo')
@@ -1823,7 +1806,9 @@ async function buscarEtapasCliente(telefone) {
     return { success: true, data };
 }
 
+// ============================================================
 // FUNÇÃO PARA SALVAR AGENDAMENTOS (CASV + ENTREVISTA)
+// ============================================================
 async function salvarAgendamentos(telefone, casv, entrevista) {
     const { data, error } = await supabase
         .from('etapas_processo')
@@ -1847,7 +1832,9 @@ async function salvarAgendamentos(telefone, casv, entrevista) {
     return { success: true, data };
 }
 
+// ============================================================
 // FUNÇÃO PARA SALVAR TREINAMENTO
+// ============================================================
 async function salvarTreinamento(telefone, treinamento) {
     const { data, error } = await supabase
         .from('etapas_processo')
@@ -1871,7 +1858,9 @@ async function salvarTreinamento(telefone, treinamento) {
 }
 
 
+// ============================================================
 // 12. FUNÇÕES DE CLASSIFICAÇÃO E RESPOSTAS DO BOT
+// ============================================================
 
 function normalizarTexto(texto) {
   return String(texto || '')
@@ -2018,7 +2007,9 @@ function detectarIntencao(mensagem) {
     return 'iniciar_processo';
   }
 
+  // ============================================================
   // NOVAS INTENÇÕES (movidas para dentro da função)
+  // ============================================================
 
   // Indicar amigo/contato
   if (
@@ -2220,7 +2211,9 @@ function gerarRespostaBot(intencao, nome, etapaAtual) {
   );
 }
 
+// ============================================================
 // 13. FUNÇÕES DE MENU (BOT)
+// ============================================================
 
 async function getMenuPrincipal() {
     return '🌟 GETVISA - ASSESSORIA EM VISTOS\n\n' +
@@ -2303,7 +2296,9 @@ function getSubmenu(service) {
         'Digite o número da opção (1-7)';
 }
 
+// ============================================================
 // 14. FUNÇÕES DE ONBOARDING (BOT)
+// ============================================================
 
 async function processarOnboarding(cleanPhone, messageText, state) {
     console.log('=== PROCESSANDO ONBOARDING ===');
@@ -2683,7 +2678,9 @@ async function processarOpcaoNoSubmenu(cleanPhone, messageText, state) {
 }
 
 
+// ============================================================
 // FUNÇÃO DE ENVIO DE RESPOSTA (WHATSAPP)
+// ============================================================
 async function sendReply(phone, message) {
     try {
         console.log(`📨 sendReply INICIADA para ${phone}`);
@@ -2708,7 +2705,9 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
     };
 
     try {
+        // ============================================================
         // 1. SERVIÇOS NUMÉRICOS (1-6)
+        // ============================================================
         if (servicoMap[messageText]) {
             const serviceKey = servicoMap[messageText];
             state.nivel = 'submenu';
@@ -2722,7 +2721,9 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
+        // ============================================================
         // 2. OPÇÃO 7 - AJUDA / CONTATO
+        // ============================================================
         if (messageText === '7') {
             let nome = state?.nome || 'Cliente';
             try {
@@ -2733,12 +2734,16 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
+        // ============================================================
         // 3. DETECTAR INTENÇÃO
+        // ============================================================
         let intent = null;
         try { intent = detectarIntencao(messageText); } catch (e) {}
         console.log('Intenção detectada:', intent);
 
+        // ============================================================
         // 4. BUSCAR CLIENTE NO SUPABASE
+        // ============================================================
         let clienteDB = null;
         try {
             const { data } = await supabase
@@ -2752,7 +2757,9 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
         const nomeCliente = clienteDB?.nome || state?.nome || 'Cliente';
         const primeiroNome = nomeCliente.split(' ')[0];
 
+        // ============================================================
         // 5. QUAL O SERVIÇO DO CLIENTE?
+        // ============================================================
         let servicoCliente = 'visto_americano';
         let servicoLabel = 'Visto Americano';
         
@@ -2764,7 +2771,9 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             servicoLabel = 'Visto Americano';
         }
 
+        // ============================================================
         // 6. TRATAMENTO DAS INTENÇÕES (USANDO RESPOSTAS DETALHADAS)
+        // ============================================================
 
         // 6.1 INICIAR PROCESSO / SOLICITAR DS-160
         if (intent === 'iniciar_processo' || intent === 'solicitar_ds160') {
@@ -2877,7 +2886,9 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
+        // ============================================================
         // 7. FALLBACK - APENAS PARA INTENÇÕES VÁLIDAS NÃO TRATADAS
+        // ============================================================
         if (intent && intent !== 'desconhecida' && intent !== 'andamento' && intent !== 'documentos' && intent !== 'prazo' && intent !== 'pagamento') {
             let nome = state?.nome || 'Cliente';
             try {
@@ -2890,7 +2901,9 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
             return;
         }
 
+               // ============================================================
         // 8. NENHUMA INTENÇÃO DETECTADA - CONTATO DIRETO COM ESPECIALISTA
+        // ============================================================
         console.log('⚠️ Nenhuma intenção detectada para:', messageText);
         
         // Buscar nome do cliente
@@ -2935,15 +2948,49 @@ Digite 0 para o menu principal`;
     }
 } // <-- FECHA A FUNÇÃO processarOpcaoNoMenuPrincipal
 
-// 17. WEBHOOK PRINCIPAL (Z-API) - USANDO botService
+// ============================================================
+// 17. WEBHOOK PRINCIPAL (Z-API)
+// ============================================================
 
-// 🔥 REMOVA A IMPLEMENTAÇÃO ANTIGA E USE O ROUTER
-const webhookRoutes = require('./routes/webhookRoutesNew');
-app.use('/api/webhook', webhookRoutes);
+// ============================================================
+// WEBHOOK PRINCIPAL (Z-API) - PROCESSAMENTO DIRETO
+// ============================================================
+app.post('/api/webhook/zapi', async (req, res) => {
+    console.log('📨 Webhook Z-API recebido!');
+    
+    // Responde imediatamente para a Z-API
+    res.status(200).send('OK');
 
-console.log('✅ Rotas Webhook montadas em /api/webhook');
+    // Processa a mensagem em background
+    (async () => {
+        try {
+            const body = req.body;
+            const telefone = body.phone || body.from || '';
+            const mensagem = body.text?.message || body.message || body.text || '';
+            
+            console.log(`📱 Telefone: ${telefone}`);
+            console.log(`💬 Mensagem: ${mensagem}`);
+            
+            if (!telefone || !mensagem) {
+                console.log('⚠️ Dados incompletos, ignorando.');
+                return;
+            }
 
+            const telefoneLimpo = limparTelefone(telefone);
+            console.log(`📱 Telefone limpo: ${telefoneLimpo}`);
+
+            // Processa diretamente
+            await processarMensagem(telefoneLimpo, mensagem);
+
+        } catch (erro) {
+            console.error('❌ Erro no webhook:', erro);
+        }
+    })();
+});
+
+// ============================================================
 // 18. FUNÇÕES DE GERAÇÃO DE PDF (DS-160)
+// ============================================================
 
 function validateDS160(formData) {
     const errors = {};
@@ -3196,7 +3243,9 @@ function getMensagemFormularioDS160ParaCliente(nomeCliente) {
            `📱 Dúvidas? Fale com a gente: [Fale com nosso especialista](https://wa.me/5521974601812)`;
 }
 
+// ============================================================
 // 19. FUNÇÕES DE GERENCIAMENTO DE CLIENTES E ETAPAS
+// ============================================================
 
 async function buscarClienteEmQualquerTabela(telefoneLimpo, tabelaInicial = 'clientes') {
     const tabelas = [tabelaInicial, 'clientes_ativos', 'clientes_finalizados', 'contatos_amigos'];
@@ -3323,7 +3372,9 @@ async function notificarClienteEtapa(clienteTelefone, etapaId, mensagemPersonali
     return enviarWhatsApp(clienteTelefone, mensagem);
 }
 
+// ============================================================
 // 20. ROTAS DE ADMINISTRAÇÃO
+// ============================================================
 
 app.post('/api/admin/regenerar-pdf', async function(req, res) {
     try {
@@ -4929,7 +4980,9 @@ app.get('/api/admin/verificar-cliente/:telefone', async function(req, res) {
     }
 });
 
+// ============================================================
 // 21. ROTA DE DASHBOARD (PAINEL)
+// ============================================================
 
 app.get('/api/dashboard-data', async (req, res) => {
     try {
@@ -4990,7 +5043,9 @@ app.get('/api/dashboard-data', async (req, res) => {
     }
 });
 
+// ============================================================
 // DASHBOARD CENTRAL (APÓS LOGIN)
+// ============================================================
 app.get('/dashboard', auth.verificarAdmin, (req, res) => {
     const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
     if (fs.existsSync(dashboardPath)) {
@@ -5004,7 +5059,9 @@ app.get('/dashboard', auth.verificarAdmin, (req, res) => {
     }
 });
 
+// ============================================================
 // 22. AGENDAR TREINAMENTO (via página)
+// ============================================================
 
 app.post('/api/agendar-treinamento', async (req, res) => {
     try {
@@ -5084,12 +5141,16 @@ app.post('/api/agendar-treinamento', async (req, res) => {
     }
 });
 
+// ============================================================
 // 23. HEALTH CHECKS E CRON JOB
+// ============================================================
 
 app.get('/health', (req, res) => { res.status(200).send('OK'); });
 app.get('/ping', (req, res) => { res.status(200).send('ok'); });
 
+// ============================================================
 // CRON JOB
+// ============================================================
 cron.schedule('*/5 * * * *', async () => {
     console.log('⏰ Executando cron job: processPendingReminders');
     try {
@@ -5101,9 +5162,13 @@ cron.schedule('*/5 * * * *', async () => {
     }
 });
 
+// ============================================================
 // 24. FUNÇÕES DE WHATSAPP (Z-API)
+// ============================================================
 
+// ============================================================
 // FUNÇÕES DE WHATSAPP (Z-API)
+// ============================================================
 
 async function enviarWhatsApp(telefone, mensagem) {
     try {
@@ -5211,7 +5276,9 @@ async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
     }
 }
 
+// ============================================================
 // ROTA PARA ATUALIZAR STATUS DO CLIENTE (ADMIN)
+// ============================================================
 app.post('/api/admin/atualizar-status', async (req, res) => {
     try {
         const adminKey = req.headers['x-admin-key'];
@@ -5270,7 +5337,9 @@ app.post('/api/admin/atualizar-status', async (req, res) => {
     }
 });
 
+// ============================================================
 // ROTA PARA ATUALIZAR TREINAMENTO (EDITÁVEL PELA EQUIPE)
+// ============================================================
 app.post('/api/admin/atualizar-treinamento', async (req, res) => {
     try {
         const adminKey = req.headers['x-admin-key'];
@@ -5339,7 +5408,9 @@ app.post('/api/admin/atualizar-treinamento', async (req, res) => {
 });
 
 
+// ============================================================
 // PROCESSADOR DA FILA DE MENSAGENS
+// ============================================================
 // setInterval(async () => {
     //if (messageQueue.length === 0) return;
     
@@ -5349,6 +5420,8 @@ app.post('/api/admin/atualizar-treinamento', async (req, res) => {
       //  const item = messageQueue.shift();
         //try {
           //  console.log(`📨 Processando mensagem de ${item.phone}: "${item.message}"`);
+            //await processarMensagem(item.phone, item.message);
+            //console.log(`✅ Mensagem processada para ${item.phone}`);
        // } catch (err) {
          //   console.error(`❌ Erro ao processar mensagem:`, err.message);
            // messageQueue.push(item);
@@ -5357,7 +5430,9 @@ app.post('/api/admin/atualizar-treinamento', async (req, res) => {
    // }
 // }, 3000);
 
+// ============================================================
 // ROTA PARA RECEBER DADOS DO SIMULADOR
+// ============================================================
 app.post('/api/submit-simulador', async (req, res) => {
     try {
         const dados = req.body;
@@ -5443,7 +5518,9 @@ app.post('/api/submit-simulador', async (req, res) => {
     }
 });
 
+// ============================================================
 // ROTAS DE PÁGINAS ESTÁTICAS
+// ============================================================
 
 // Rota para o simulador
 app.get('/simulador-visto-americano', (req, res) => {
@@ -5461,7 +5538,9 @@ app.get('/dashboard', (req, res) => {
     res.sendFile(dashboardPath);
 });
 
+// ============================================================
 // ROTA PARA PÁGINA DE OBRIGADO - VISTO NEGADO
+// ============================================================
 app.get('/obrigado-visto-negado', (req, res) => {
     const pathObrigado = path.join(__dirname, 'public', 'obrigado-visto-negado.html');
     if (fs.existsSync(pathObrigado)) {
@@ -5471,7 +5550,9 @@ app.get('/obrigado-visto-negado', (req, res) => {
     }
 });
 
+// ============================================================
 // INICIALIZAÇÃO DO SERVIDOR (ÚLTIMA COISA NO ARQUIVO)
+// ============================================================
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Servidor rodando na porta ${PORT}`);
@@ -5488,27 +5569,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('⏰ Cron job de lembretes agendado para rodar a cada 5 minutos.');
 });
 
-
 // ============================================================
-// EXPORTAR FUNÇÕES PARA OUTROS ARQUIVOS
-// ============================================================
-module.exports = {
-    // AGORA VEM DO botService
-    processarMensagem,
-    userState,
-    limparTelefone,
-    enviarWhatsApp,
-    
-    // FUNÇÕES ESPECÍFICAS DO SERVER.JS
-    supabase,
-    gerarPDF_DS160,
-    atualizarStatusCliente,
-    enviarNotificacaoStatus,
-    buscarEtapasCliente,
-    salvarAgendamentos,
-    salvarTreinamento
-};
-
-// ============================================================
-// FIM DO ARQUIVO
+// FIM DO ARQUIVO - NÃO ADICIONAR MAIS NADA ABAIXO
 // ============================================================
