@@ -1,9 +1,10 @@
-// routes/webhookRoutesNew.js - VERSÃO COMPLETA COM GET
+cat > routes/webhookRoutesNew.js << 'EOF'
+// routes/webhookRoutesNew.js - VERSÃO COM FUNÇÃO INTERNA
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
-console.log('🚀 webhookRoutesNew CARREGADO (COM setInterval e GET)');
+console.log('🚀 webhookRoutesNew CARREGADO');
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -19,42 +20,104 @@ function limparTelefone(phone) {
     return cleaned;
 }
 
+// ============================================================
+// FUNÇÃO PARA PROCESSAR MENSAGEM (DIRETAMENTE AQUI)
+// ============================================================
+async function processarMensagem(phone, message) {
+    console.log(`📨 Processando mensagem de ${phone}: ${message}`);
+    
+    try {
+        // Importa o server.js para pegar as funções necessárias
+        const server = require('../server.js');
+        
+        // Busca o estado do usuário
+        let state = server.userState ? server.userState.get(phone) : null;
+        
+        if (!state) {
+            state = {
+                onboardingStep: 'saudacao',
+                onboardingCompleto: false,
+                nivel: 'principal',
+                service: null,
+                lastActivity: Date.now()
+            };
+            if (server.userState) {
+                server.userState.set(phone, state);
+            }
+        }
+        
+        // Se o usuário está em onboarding
+        if (!state.onboardingCompleto) {
+            if (server.processarOnboarding) {
+                await server.processarOnboarding(phone, message, state);
+            } else {
+                console.error('❌ processarOnboarding não encontrado');
+            }
+            return;
+        }
+        
+        // Se é comando de menu (0)
+        if (message === '0') {
+            state.nivel = 'principal';
+            state.service = null;
+            state.onboardingCompleto = true;
+            if (server.userState) {
+                server.userState.set(phone, state);
+            }
+            if (server.sendReply) {
+                const menu = await server.getMenuPrincipal();
+                await server.sendReply(phone, menu);
+            }
+            return;
+        }
+        
+        // Se está no submenu
+        if (state.nivel === 'submenu' && state.service) {
+            if (server.processarOpcaoNoSubmenu) {
+                await server.processarOpcaoNoSubmenu(phone, message, state);
+            }
+            return;
+        }
+        
+        // Menu principal
+        if (server.processarOpcaoNoMenuPrincipal) {
+            await server.processarOpcaoNoMenuPrincipal(phone, message, state);
+        }
+        
+    } catch (error) {
+        console.error('❌ Erro ao processar mensagem:', error);
+        try {
+            const server = require('../server.js');
+            if (server.sendReply) {
+                await server.sendReply(phone, '❌ Ocorreu um erro. Digite 0 para o menu principal.');
+            }
+        } catch (e) {
+            console.error('❌ Erro ao enviar mensagem de erro:', e);
+        }
+    }
+}
+
 const messageQueue = [];
 
-// 🔥 PROCESSADOR DE FILA
+// PROCESSADOR DE FILA
 setInterval(async () => {
     if (messageQueue.length === 0) return;
     
-    try {
-        // Importação dinâmica para evitar erro de inicialização
-        const server = require('../server.js');
-        const processarMensagem = server.processarMensagem;
-        
-        if (typeof processarMensagem !== 'function') {
-            console.error('❌ processarMensagem ainda não disponível');
-            return;
+    console.log(`🔄 Processando fila: ${messageQueue.length} mensagens`);
+    
+    while (messageQueue.length > 0) {
+        const item = messageQueue.shift();
+        try {
+            console.log(`📨 Processando mensagem de ${item.phone}: ${item.message}`);
+            await processarMensagem(item.phone, item.message);
+            console.log('✅ Mensagem processada para', item.phone);
+        } catch (error) {
+            console.error(`❌ Erro ao processar mensagem:`, error.message);
         }
-
-        console.log(`🔄 Processando fila: ${messageQueue.length} mensagens`);
-        
-        while (messageQueue.length > 0) {
-            const item = messageQueue.shift();
-            try {
-                console.log(`📨 Processando mensagem de ${item.phone}: ${item.message}`);
-                await processarMensagem(item.phone, item.message);
-                console.log('✅ processarMensagem finalizada para', item.phone);
-            } catch (error) {
-                console.error(`❌ Erro ao processar mensagem:`, error);
-            }
-        }
-    } catch (error) {
-        console.error('❌ Erro no processador de fila:', error);
     }
 }, 3000);
 
-// ============================================================
-// ROTA POST - Webhook ZAPI (recebe mensagens)
-// ============================================================
+// ROTA POST - Webhook ZAPI
 router.post('/zapi', async (req, res) => {
     try {
         console.log('------------------------------------');
@@ -67,14 +130,13 @@ router.post('/zapi', async (req, res) => {
         console.log(`💬 Mensagem: ${messageText}`);
         
         if (!phone || !messageText) {
-            console.log('⚠️ Dados incompletos');
             return res.status(400).json({ error: 'Dados incompletos' });
         }
 
         const telefoneLimpo = limparTelefone(phone);
         console.log(`📱 Telefone limpo: ${telefoneLimpo}`);
         
-        // Salvar ou atualizar cliente no Supabase
+        // Salvar cliente no Supabase
         try {
             const { data: clienteExistente } = await supabase
                 .from('clientes')
@@ -101,7 +163,6 @@ router.post('/zapi', async (req, res) => {
             console.error('❌ Erro no banco:', dbError);
         }
 
-        // Adicionar à fila de processamento
         messageQueue.push({
             phone: telefoneLimpo,
             message: messageText,
@@ -110,7 +171,6 @@ router.post('/zapi', async (req, res) => {
         
         console.log(`📥 Mensagem adicionada à fila. Total: ${messageQueue.length}`);
 
-        // Responde OK para o ZAPI
         res.status(200).send('OK');
 
     } catch (error) {
@@ -119,9 +179,7 @@ router.post('/zapi', async (req, res) => {
     }
 });
 
-// ============================================================
-// ROTA GET - Verificar se o webhook está ativo
-// ============================================================
+// ROTA GET - Verificar status
 router.get('/zapi', (req, res) => {
     res.status(200).json({ 
         status: 'online', 
@@ -131,9 +189,7 @@ router.get('/zapi', (req, res) => {
     });
 });
 
-// ============================================================
-// ROTA GET - Status da fila de mensagens
-// ============================================================
+// ROTA GET - Status da fila
 router.get('/fila-status', (req, res) => {
     res.json({
         total: messageQueue.length,
@@ -141,7 +197,5 @@ router.get('/fila-status', (req, res) => {
     });
 });
 
-// ============================================================
-// EXPORTAR O ROUTER
-// ============================================================
 module.exports = router;
+EOF
