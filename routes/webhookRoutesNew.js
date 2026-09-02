@@ -1,10 +1,9 @@
-cat > routes/webhookRoutesNew.js << 'EOF'
-// routes/webhookRoutesNew.js - VERSÃO COM FUNÇÃO INTERNA
+// routes/webhookRoutesNew.js - VERSÃO INDEPENDENTE
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
-console.log('🚀 webhookRoutesNew CARREGADO');
+console.log('🚀 webhookRoutesNew CARREGADO (VERSÃO INDEPENDENTE)');
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -20,84 +19,77 @@ function limparTelefone(phone) {
     return cleaned;
 }
 
-// ============================================================
-// FUNÇÃO PARA PROCESSAR MENSAGEM (DIRETAMENTE AQUI)
-// ============================================================
+const messageQueue = [];
+
+// FUNÇÃO PARA ENVIAR WHATSAPP
+async function enviarWhatsApp(telefone, mensagem) {
+    try {
+        const instance = process.env.ZAPI_INSTANCE;
+        const token = process.env.ZAPI_TOKEN;
+        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
+        
+        if (!instance || !token) {
+            console.error('❌ Z-API não configurada');
+            return false;
+        }
+
+        const telefoneLimpo = telefone.toString().replace(/\D/g, '');
+        const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
+
+        const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-text`;
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (clientToken) {
+            headers['Client-Token'] = clientToken;
+        }
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                phone: telefoneFormatado,
+                message: mensagem
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ Erro Z-API (${response.status}):`, errorText);
+            return false;
+        }
+
+        console.log('✅ Mensagem enviada com sucesso');
+        return true;
+    } catch (error) {
+        console.error('❌ Erro ao enviar WhatsApp:', error);
+        return false;
+    }
+}
+
+// LÓGICA DO BOT
 async function processarMensagem(phone, message) {
     console.log(`📨 Processando mensagem de ${phone}: ${message}`);
     
     try {
-        // Importa o server.js para pegar as funções necessárias
-        const server = require('../server.js');
-        
-        // Busca o estado do usuário
-        let state = server.userState ? server.userState.get(phone) : null;
-        
-        if (!state) {
-            state = {
-                onboardingStep: 'saudacao',
-                onboardingCompleto: false,
-                nivel: 'principal',
-                service: null,
-                lastActivity: Date.now()
-            };
-            if (server.userState) {
-                server.userState.set(phone, state);
-            }
-        }
-        
-        // Se o usuário está em onboarding
-        if (!state.onboardingCompleto) {
-            if (server.processarOnboarding) {
-                await server.processarOnboarding(phone, message, state);
-            } else {
-                console.error('❌ processarOnboarding não encontrado');
-            }
-            return;
-        }
-        
-        // Se é comando de menu (0)
-        if (message === '0') {
-            state.nivel = 'principal';
-            state.service = null;
-            state.onboardingCompleto = true;
-            if (server.userState) {
-                server.userState.set(phone, state);
-            }
-            if (server.sendReply) {
-                const menu = await server.getMenuPrincipal();
-                await server.sendReply(phone, menu);
-            }
-            return;
-        }
-        
-        // Se está no submenu
-        if (state.nivel === 'submenu' && state.service) {
-            if (server.processarOpcaoNoSubmenu) {
-                await server.processarOpcaoNoSubmenu(phone, message, state);
-            }
-            return;
-        }
-        
-        // Menu principal
-        if (server.processarOpcaoNoMenuPrincipal) {
-            await server.processarOpcaoNoMenuPrincipal(phone, message, state);
-        }
-        
+        const mensagemBoasVindas = `👋 Olá! Seja bem-vindo(a) à GetVisa Assessoria! 🇺🇸
+
+Somos especialistas em vistos americanos e estamos aqui para realizar seu sonho de viajar para os EUA! ✈️
+
+Para começarmos, preciso saber:
+
+📝 **Qual é o seu nome completo?**
+
+Ex: Maria Silva
+
+Digite 0 a qualquer momento para ver o menu principal.`;
+
+        await enviarWhatsApp(phone, mensagemBoasVindas);
+        console.log(`✅ Mensagem de boas-vindas enviada para ${phone}`);
+
     } catch (error) {
         console.error('❌ Erro ao processar mensagem:', error);
-        try {
-            const server = require('../server.js');
-            if (server.sendReply) {
-                await server.sendReply(phone, '❌ Ocorreu um erro. Digite 0 para o menu principal.');
-            }
-        } catch (e) {
-            console.error('❌ Erro ao enviar mensagem de erro:', e);
-        }
     }
 }
-
-const messageQueue = [];
 
 // PROCESSADOR DE FILA
 setInterval(async () => {
@@ -117,10 +109,9 @@ setInterval(async () => {
     }
 }, 3000);
 
-// ROTA POST - Webhook ZAPI
+// ROTA POST
 router.post('/zapi', async (req, res) => {
     try {
-        console.log('------------------------------------');
         console.log('📨 Webhook Z-API recebido!');
         
         const phone = req.body.phone || req.body.telefone || req.body.from || '';
@@ -136,7 +127,6 @@ router.post('/zapi', async (req, res) => {
         const telefoneLimpo = limparTelefone(phone);
         console.log(`📱 Telefone limpo: ${telefoneLimpo}`);
         
-        // Salvar cliente no Supabase
         try {
             const { data: clienteExistente } = await supabase
                 .from('clientes')
@@ -179,7 +169,7 @@ router.post('/zapi', async (req, res) => {
     }
 });
 
-// ROTA GET - Verificar status
+// ROTA GET
 router.get('/zapi', (req, res) => {
     res.status(200).json({ 
         status: 'online', 
@@ -189,7 +179,6 @@ router.get('/zapi', (req, res) => {
     });
 });
 
-// ROTA GET - Status da fila
 router.get('/fila-status', (req, res) => {
     res.json({
         total: messageQueue.length,
@@ -198,4 +187,3 @@ router.get('/fila-status', (req, res) => {
 });
 
 module.exports = router;
-EOF
