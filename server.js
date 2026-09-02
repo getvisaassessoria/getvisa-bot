@@ -5551,6 +5551,101 @@ app.get('/obrigado-visto-negado', (req, res) => {
 });
 
 // ============================================================
+// FUNÇÃO: PROCESSAR MENSAGEM (PRINCIPAL DO BOT)
+// ============================================================
+async function processarMensagem(phone, message) {
+    console.log(`📨 processarMensagem: ${phone} -> "${message}"`);
+    
+    const telefoneLimpo = limparTelefone(phone);
+    if (!telefoneLimpo || telefoneLimpo.length < 10) {
+        console.log(`⚠️ Telefone inválido: ${telefoneLimpo}`);
+        return;
+    }
+    
+    // Busca ou cria estado
+    let state = userState.get(telefoneLimpo);
+    if (!state) {
+        state = {
+            onboardingStep: 'saudacao',
+            onboardingCompleto: false,
+            nome: null,
+            email: null,
+            nivel: 'onboarding',
+            service: null,
+            lastActivity: Date.now()
+        };
+        userState.set(telefoneLimpo, state);
+    }
+    
+    state.lastActivity = Date.now();
+    userState.set(telefoneLimpo, state);
+    
+    const msg = message.trim();
+    const msgLower = msg.toLowerCase();
+    
+    // Comando: menu ou 0
+    if (msgLower === 'menu' || msg === '0') {
+        if (state.onboardingCompleto) {
+            state.nivel = 'principal';
+            state.service = null;
+            userState.set(telefoneLimpo, state);
+            const menu = `🌟 **GETVISA - ASSESSORIA EM VISTOS**
+
+1️⃣ - 🇺🇸 VISTO AMERICANO
+2️⃣ - 🇨🇦 VISTO CANADENSE
+3️⃣ - 🇦🇺 VISTO AUSTRALIANO
+4️⃣ - 🇬🇧 eTA UK
+5️⃣ - 🇨🇦 eTA CANADENSE
+6️⃣ - 🛂 PASSAPORTE
+7️⃣ - 📞 AJUDA / CONTATO
+
+Digite o número da opção (1-7)`;
+            await enviarWhatsApp(telefoneLimpo, menu);
+        } else {
+            state.onboardingStep = 'saudacao';
+            userState.set(telefoneLimpo, state);
+            await processarOnboarding(telefoneLimpo, '', state);
+        }
+        return;
+    }
+    
+    // Se não completou onboarding
+    if (!state.onboardingCompleto) {
+        await processarOnboarding(telefoneLimpo, msg, state);
+        return;
+    }
+    
+    // Se está em um submenu
+    if (state.nivel === 'submenu' && state.service) {
+        await processarOpcaoNoSubmenu(telefoneLimpo, msg, state);
+        return;
+    }
+    
+    // Menu principal
+    await processarOpcaoNoMenuPrincipal(telefoneLimpo, msg, state);
+}
+
+// ============================================================
+// EXPORTAÇÕES PARA O botService.js E OUTROS MÓDULOS
+// ============================================================
+module.exports = {
+    userState,
+    processarMensagem,
+    limparTelefone,
+    enviarWhatsApp,
+    detectarIntencao,
+    gerarRespostaBot,
+    processarOnboarding,
+    processarOpcaoNoMenuPrincipal,
+    processarOpcaoNoSubmenu,
+    getSubmenu,
+    getRespostaSubmenu,
+    supabase,
+    ONBOARDING_STEPS,
+    ETAPAS
+};
+
+// ============================================================
 // INICIALIZAÇÃO DO SERVIDOR (ÚLTIMA COISA NO ARQUIVO)
 // ============================================================
 
