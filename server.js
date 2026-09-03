@@ -1363,11 +1363,12 @@ app.get('/formulario-ds160', (req, res) => {
 
 // 🔥 PAINEL DE AGENDAMENTOS (rota separada)
 app.get('/agendamentos', auth.verificarAdmin, (req, res) => {
-    const adminPath = path.join(__dirname, 'public', 'admin.html');
+    // 🔥 USA admin-login.html (painel de agendamentos)
+    const adminPath = path.join(__dirname, 'public', 'admin-login.html');
     if (fs.existsSync(adminPath)) {
         res.sendFile(adminPath);
     } else {
-        res.send('<h1>📅 Agendamentos</h1><p>Arquivo não encontrado.</p>');
+        res.status(404).send('<h1>📅 Agendamentos</h1><p>Arquivo admin-login.html não encontrado.</p>');
     }
 });
 
