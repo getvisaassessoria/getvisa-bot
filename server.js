@@ -5579,7 +5579,105 @@ app.get('/obrigado-visto-negado', (req, res) => {
 // ============================================================
 // FUNÇÃO: PROCESSAR CLIENTE EXISTENTE
 // ============================================================
-processarClienteExistente
+// ============================================================
+// FUNÇÃO: PROCESSAR CLIENTE EXISTENTE
+// ============================================================
+async function processarClienteExistente(phone, message, cliente) {
+    console.log(`📌 Processando cliente existente: ${cliente.nome}`);
+    
+    const primeiroNome = cliente.nome.split(' ')[0];
+    const msg = message.trim().toLowerCase();
+    
+    // ============================================================
+    // 1. COMANDOS ESPECÍFICOS (menu, 0)
+    // ============================================================
+    if (msg === 'menu' || msg === '0') {
+        const menu = `🌟 **GETVISA - ASSESSORIA EM VISTOS**
+
+1️⃣ - 🇺🇸 VISTO AMERICANO
+2️⃣ - 🇨🇦 VISTO CANADENSE
+3️⃣ - 🇦🇺 VISTO AUSTRALIANO
+4️⃣ - 🇬🇧 eTA UK
+5️⃣ - 🇨🇦 eTA CANADENSE
+6️⃣ - 🛂 PASSAPORTE
+7️⃣ - 📞 AJUDA / CONTATO
+
+Digite o número da opção (1-7)`;
+        await enviarWhatsApp(phone, menu);
+        return;
+    }
+    
+    // ============================================================
+    // 2. MOSTRAR STATUS DO PROCESSO
+    // ============================================================
+    
+    // Buscar etapa atual do cliente
+    let etapaAtual = cliente.etapa_atual || cliente.status || 'lead';
+    
+    const statusLabels = {
+        'lead': '📋 Cadastro iniciado - aguardando formulário',
+        'formulario_solicitado': '📋 Formulário DS-160 enviado para você',
+        'formulario_enviado': '📋 Formulário recebido - em análise',
+        'em_analise': '🔍 Em análise pela equipe',
+        'analise_correcoes': '📝 Aguardando correções no formulário',
+        'processo_aberto': '📌 Processo aberto - aguardando agendamento',
+        'agendado_casv': '📅 CASV agendado',
+        'agendado_entrevista': '🎤 Entrevista agendada',
+        'treinamento_agendado': '🎯 Treinamento agendado',
+        'treinamento_realizado': '✅ Treinamento concluído',
+        'entrevista_realizada': '🎤 Entrevista realizada - aguardando decisão',
+        'visto_aprovado': '🎉 Visto APROVADO!',
+        'visto_recusado': '😔 Visto recusado - vamos analisar juntos',
+        'passaporte_retornado': '📦 Passaporte disponível para retirada'
+    };
+    
+    const label = statusLabels[etapaAtual] || etapaAtual;
+    
+    // Buscar data de atualização
+    const dataAtualizacao = cliente.updated_at || cliente.data_atualizacao || new Date().toISOString();
+    const dataFormatada = new Date(dataAtualizacao).toLocaleDateString('pt-BR');
+    
+    // Montar mensagem de status
+    let mensagem = `📊 *Olá ${primeiroNome}!*
+
+📍 *Status do seu processo:* ${label}
+📅 *Última atualização:* ${dataFormatada}`;
+
+    // Adicionar informações específicas da etapa
+    if (etapaAtual === 'agendado_casv' || etapaAtual === 'agendado_entrevista') {
+        try {
+            const { data: etapaData } = await supabase
+                .from('etapas_processo')
+                .select('dados_casv, dados_entrevista')
+                .eq('cliente_telefone', phone)
+                .maybeSingle();
+                
+            if (etapaData) {
+                if (etapaData.dados_casv?.data) {
+                    mensagem += `\n\n📅 *CASV:* ${etapaData.dados_casv.data} às ${etapaData.dados_casv.hora || '--:--'}`;
+                }
+                if (etapaData.dados_entrevista?.data) {
+                    mensagem += `\n🎤 *Entrevista:* ${etapaData.dados_entrevista.data} às ${etapaData.dados_entrevista.hora || '--:--'}`;
+                }
+            }
+        } catch (err) {
+            console.error('❌ Erro ao buscar dados de agendamento:', err);
+        }
+    }
+
+    mensagem += `
+
+💪 *Estamos acompanhando seu caso!*
+
+📌 *Para qualquer outra informação:*
+Deixe sua mensagem aqui e nossa equipe entrará em contato em breve.
+
+📱 *Fale conosco:* wa.me/5521974601812
+
+Digite *0* para o menu principal.`;
+
+    await enviarWhatsApp(phone, mensagem);
+}
 
 // ============================================================
 // FUNÇÃO: PROCESSAR MENSAGEM (PRINCIPAL DO BOT)
