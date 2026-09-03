@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GetVisa - Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #003366, #1a5276);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .login-box h1 {
+            color: #003366;
+            margin-bottom: 10px;
+        }
+        .login-box p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .login-box input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        .login-box input:focus {
+            border-color: #003366;
+            outline: none;
+        }
+        .login-box button {
+            width: 100%;
+            padding: 12px;
+            background: #003366;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .login-box button:hover {
+            background: #1a5276;
+        }
+        .login-box .error {
+            color: #dc3545;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h1>🔐 GetVisa</h1>
+        <p>Digite sua chave de acesso para entrar</p>
+        <input type="password" id="senha" placeholder="Chave de acesso" onkeydown="if(event.key==='Enter') fazerLogin()">
+        <button onclick="fazerLogin()">Entrar</button>
+        <div class="error" id="erro">❌ Chave inválida. Tente novamente.</div>
+    </div>
+
+    <script>
+        function fazerLogin() {
+            const senha = document.getElementById('senha').value;
+            const erro = document.getElementById('erro');
+            
+            if (senha === 'admin123') {
+                // Salva no sessionStorage
+                sessionStorage.setItem('adminKey', 'admin123');
+                // Redireciona para o dashboard
+                window.location.href = '/dashboard?api_key=admin123';
+            } else {
+                erro.style.display = 'block';
+                setTimeout(() => { erro.style.display = 'none'; }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>

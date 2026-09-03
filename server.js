@@ -227,11 +227,33 @@ app.get('/admin.html', auth.verificarAdmin, (req, res) => {
 
 // 4.2 Painel protegido (versão corrigida)
 app.get('/painel.html', auth.verificarAdmin, (req, res) => {
-    const painelPath = path.join(__dirname, 'public', 'painel.html');
+    const painelPath = path.join(__dirname, 'public', 'painel-clientes.html');
     if (fs.existsSync(painelPath)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
         res.sendFile(painelPath);
     } else {
-        res.send('<h1>📊 Painel</h1><p>Arquivo painel.html não encontrado.</p>');
+        res.send('<h1>📊 Painel</h1><p>Arquivo painel-clientes.html não encontrado.</p>');
+    }
+});
+
+// ============================================================
+// ROTA: LOGIN
+// ============================================================
+app.get('/login', (req, res) => {
+    const loginPath = path.join(__dirname, 'public', 'login.html');
+    if (fs.existsSync(loginPath)) {
+        res.sendFile(loginPath);
+    } else {
+        res.send(`
+            <h1>🔐 GetVisa - Login</h1>
+            <form action="/api/admin/login" method="POST">
+                <input type="password" name="apiKey" placeholder="Digite sua chave">
+                <button type="submit">Entrar</button>
+            </form>
+            <p>Use a chave: <strong>admin123</strong></p>
+        `);
     }
 });
 
