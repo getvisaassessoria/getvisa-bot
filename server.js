@@ -5808,6 +5808,27 @@ Digite o número da opção (1-7)`;
 }
 
 // ============================================================
+// API: CONTAR FORMULÁRIOS DS-160
+// ============================================================
+app.get('/api/formularios/ds160/count', auth.verificarApiKey, async (req, res) => {
+    try {
+        const { count, error } = await supabase
+            .from('form_ds160')
+            .select('*', { count: 'exact', head: true });
+        
+        if (error) {
+            console.error('❌ Erro ao contar formulários:', error);
+            return res.status(500).json({ error: error.message });
+        }
+        
+        res.json({ count });
+    } catch (error) {
+        console.error('❌ Erro:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================================
 // EXPORTAÇÕES PARA O botService.js E OUTROS MÓDULOS
 // ============================================================
 module.exports = {

@@ -172,7 +172,14 @@
                 const respAgendamentos = await fetch('/api/agendamentos?api_key=' + API_KEY);
                 const dataAgendamentos = await respAgendamentos.json();
                 document.getElementById('totalAgendamentos').textContent = dataAgendamentos.agendamentos?.length || 0;
+                try {
+                const respFormularios = await fetch('/api/formularios/ds160/count?api_key=' + API_KEY);
+                const dataFormularios = await respFormularios.json();
+                document.getElementById('totalFormularios').textContent = dataFormularios.count || 0;
+            } catch (error) {
+                console.error('❌ Erro ao carregar formulários:', error);
                 document.getElementById('totalFormularios').textContent = 0;
+            }
                 document.getElementById('totalVistoNegado').textContent = 0;
             } catch (error) {
                 console.error('❌ Erro ao carregar estatísticas:', error);
