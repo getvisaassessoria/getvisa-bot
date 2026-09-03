@@ -23,14 +23,8 @@
             max-width: 400px;
             text-align: center;
         }
-        .login-box h1 {
-            color: #003366;
-            margin-bottom: 10px;
-        }
-        .login-box p {
-            color: #666;
-            margin-bottom: 20px;
-        }
+        .login-box h1 { color: #003366; margin-bottom: 10px; }
+        .login-box p { color: #666; margin-bottom: 20px; }
         .login-box input {
             width: 100%;
             padding: 12px 16px;
@@ -39,10 +33,7 @@
             font-size: 16px;
             margin-bottom: 15px;
         }
-        .login-box input:focus {
-            border-color: #003366;
-            outline: none;
-        }
+        .login-box input:focus { border-color: #003366; outline: none; }
         .login-box button {
             width: 100%;
             padding: 12px;
@@ -54,38 +45,64 @@
             cursor: pointer;
             font-weight: 600;
         }
-        .login-box button:hover {
-            background: #1a5276;
-        }
-        .login-box .error {
-            color: #dc3545;
-            margin-top: 10px;
-            display: none;
-        }
+        .login-box button:hover { background: #1a5276; }
+        .login-box .error { color: #dc3545; margin-top: 10px; display: none; }
+        .login-box .loading { display: none; margin-top: 10px; color: #666; }
     </style>
 </head>
 <body>
     <div class="login-box">
         <h1>🔐 GetVisa</h1>
         <p>Digite sua chave de acesso para entrar</p>
-        <input type="password" id="senha" placeholder="Chave de acesso" onkeydown="if(event.key==='Enter') fazerLogin()">
-        <button onclick="fazerLogin()">Entrar</button>
+        <input type="password" id="senha" placeholder="Chave de acesso" onkeydown="if(event.key==='Enter') fazerLogin()" autofocus>
+        <button onclick="fazerLogin()" id="btnLogin">Entrar</button>
         <div class="error" id="erro">❌ Chave inválida. Tente novamente.</div>
+        <div class="loading" id="loading">⏳ Entrando...</div>
     </div>
 
     <script>
-        function fazerLogin() {
-            const senha = document.getElementById('senha').value;
+        async function fazerLogin() {
+            const senha = document.getElementById('senha').value.trim();
             const erro = document.getElementById('erro');
+            const loading = document.getElementById('loading');
+            const btn = document.getElementById('btnLogin');
             
-            if (senha === 'admin123') {
-                // Salva no sessionStorage
-                sessionStorage.setItem('adminKey', 'admin123');
-                // Redireciona para o dashboard
-                window.location.href = '/dashboard?api_key=admin123';
-            } else {
+            if (!senha) {
+                erro.textContent = '❌ Digite a chave de acesso.';
                 erro.style.display = 'block';
                 setTimeout(() => { erro.style.display = 'none'; }, 3000);
+                return;
+            }
+            
+            loading.style.display = 'block';
+            btn.disabled = true;
+            erro.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiKey: senha })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    sessionStorage.setItem('adminKey', 'admin123');
+                    window.location.href = '/dashboard?api_key=admin123';
+                } else {
+                    erro.textContent = '❌ ' + (data.message || 'Chave inválida.');
+                    erro.style.display = 'block';
+                    setTimeout(() => { erro.style.display = 'none'; }, 3000);
+                }
+            } catch (error) {
+                console.error('Erro no login:', error);
+                erro.textContent = '❌ Erro ao conectar com o servidor.';
+                erro.style.display = 'block';
+                setTimeout(() => { erro.style.display = 'none'; }, 3000);
+            } finally {
+                loading.style.display = 'none';
+                btn.disabled = false;
             }
         }
     </script>
