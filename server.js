@@ -204,6 +204,25 @@ app.use((req, res, next) => {
 });
 
 // ============================================================
+// ROTA: LOGIN
+// ============================================================
+app.get('/login', (req, res) => {
+    const loginPath = path.join(__dirname, 'public', 'login.html');
+    if (fs.existsSync(loginPath)) {
+        res.sendFile(loginPath);
+    } else {
+        res.send(`
+            <h1>🔐 GetVisa - Login</h1>
+            <form action="/api/admin/login" method="POST">
+                <input type="password" name="apiKey" placeholder="Digite sua chave">
+                <button type="submit">Entrar</button>
+            </form>
+            <p>Use a chave: <strong>admin123</strong></p>
+        `);
+    }
+});
+
+// ============================================================
 // 3.4 SERVIR ARQUIVOS ESTÁTICOS (DEPOIS DAS ROTAS)
 // ============================================================
 app.use(express.static(path.join(__dirname, 'public')));
@@ -238,24 +257,7 @@ app.get('/painel.html', auth.verificarAdmin, (req, res) => {
     }
 });
 
-// ============================================================
-// ROTA: LOGIN
-// ============================================================
-app.get('/login', (req, res) => {
-    const loginPath = path.join(__dirname, 'public', 'login.html');
-    if (fs.existsSync(loginPath)) {
-        res.sendFile(loginPath);
-    } else {
-        res.send(`
-            <h1>🔐 GetVisa - Login</h1>
-            <form action="/api/admin/login" method="POST">
-                <input type="password" name="apiKey" placeholder="Digite sua chave">
-                <button type="submit">Entrar</button>
-            </form>
-            <p>Use a chave: <strong>admin123</strong></p>
-        `);
-    }
-});
+
 
 // ============================================================
 // ROTAS DO PAINEL DE CLIENTES (PROTEGIDAS)
