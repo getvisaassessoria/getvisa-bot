@@ -1688,17 +1688,17 @@ async function enviarNotificacaoStatus(telefone, status, nome) {
         
         'em_analise': `🔍 Olá ${nome}! Estamos analisando seus documentos e formulário com atenção.\n\n📌 Se houver necessidade de correções, entraremos em contato.\n\n⏳ Aguarde nosso retorno em breve!`,
         
-        'analise_correcoes': `📝 Olá ${nome}! Identificamos alguns pontos que precisam de ajuste no seu formulário.\n\n📌 Em breve nossa equipe entrará em contato para orientar as correções necessárias.`,
+        'analise_correcoes': `📝 Olá ${nome}! Analisando o formulario, observamos que algumas perguntas merecem esclarecimentos.\n\n📌 Em breve entraremos em contato!`,
         
-        'processo_aberto': `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\n✅ Próximos passos:\n• Agendamento da coleta biométrica (CASV)\n• Preparação para a entrevista\n\n📱 Em breve enviaremos mais detalhes.`,
+        'processo_aberto': `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\n✅ Próximos passos:\n• Pagamento da taxa consular.\n`,
         
-        'boleto_emitido': `💰 Olá ${nome}! O boleto da taxa consular foi emitido.\n\n📌 Verifique seu e-mail para acessar o boleto.\n⏰ Prazo de pagamento: 7 dias úteis.`,
+        'boleto_emitido': `💰 Olá ${nome}! O boleto/pix da taxa consular foi enviado.\n\n📌 Verifique seu e-mail/whatsapp para acessar o boleto/pix.\n`,
         
         'boleto_pago': `✅ Olá ${nome}! Confirmamos o pagamento da taxa consular!\n\n📌 Agora vamos prosseguir com o agendamento da sua entrevista.`,
         
-        'agendado_casv': `📅 Olá ${nome}! Seu CASV (coleta biométrica) foi agendado!\n\n📍 Verifique seu e-mail com os detalhes do local e horário.\n\n📌 Não se esqueça de levar:\n• Passaporte original\n• Comprovante de agendamento\n• Documentos pessoais`,
+        'agendado_casv': `📅 Olá ${nome}! Seu CASV (coleta biométrica) foi agendado!\n\n📍 Verifique seu e-mail/whatsapp com os detalhes do local e horário.\n\n📌 Não se esqueça de levar:\n• Passaporte original\n• Comprovante de agendamento\n• Documentos pessoais`,
         
-        'agendado_entrevista': `🎤 Olá ${nome}! Sua entrevista no Consulado foi agendada!\n\n📍 Verifique seu e-mail com a data, horário e local.\n\n📌 Dicas importantes:\n• Chegue com 30 minutos de antecedência\n• Leve todos os documentos originais\n• Mantenha a calma e seja sincero(a)`,
+        'agendado_entrevista': `🎤 Olá ${nome}! Sua entrevista no Consulado foi agendada!\n\n📍 Verifique seu e-mail/whatsapp com a data, horário e local.\n\n📌 Dicas importantes:\n• Chegue com 30 minutos de antecedência\n• Leve todos os documentos originais\n• Mantenha a calma e seja sincero(a)`,
         
         'treinamento_realizado': `✅ Olá ${nome}! Seu treinamento para a entrevista foi concluído!\n\n🎯 Você está preparado(a) para a entrevista!\n\n📌 Lembre-se:\n• Confiança é a chave\n• Responda com clareza\n• Seja objetivo(a)`,
         
@@ -1787,8 +1787,8 @@ async function enviarNotificacaoEtapa(telefone, etapa, dadosCliente) {
     const mensagens = {
         'formulario_enviado': (nome) => `✅ Olá ${nome}! Recebemos seu formulário DS-160 com sucesso!\n\n📌 Nossa equipe já está analisando seus dados.\n\n⏳ Em até 24h entraremos em contato.`,
         'analise_correcoes': (nome) => `🔍 Olá ${nome}! Estamos analisando seus documentos.\n\n📌 Em breve entraremos em contato se houver correções.`,
-        'abertura_processo': (nome) => `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\n✅ Próximos passos:\n• Agendamento CASV\n• Preparação para entrevista`,
-        'boleto_emitido': (nome) => `💰 Olá ${nome}! O boleto da taxa consular foi emitido.\n\n📌 Verifique seu e-mail para acessar o boleto.\n⏰ Prazo: 7 dias úteis.`,
+        'abertura_processo': (nome) => `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\n✅ Próximos passos:\n• Pagamento da taxa consular\n• Agendamento para procedimentos (CASV/Consulado). `,
+        'boleto_emitido': (nome) => `💰 Olá ${nome}! O boleto da taxa consular foi emitido.\n\n📌 Verifique seu e-mail para acessar o boleto.\n`,
         'boleto_pago': (nome) => `✅ Olá ${nome}! Pagamento confirmado!\n\n📌 Agora vamos agendar sua coleta biométrica.`,
         'agendado_casv': (nome) => `📅 Olá ${nome}! Seu CASV foi agendado!\n\n📍 Verifique seu e-mail com os detalhes.\n\n⚠️ Leve a CONFIRMATION IMPRESSA e PASSAPORTE.`,
         'treinamento_agendado': (nome) => `🎯 Olá ${nome}! Seu treinamento foi agendado!\n\n📅 Data e horário enviados por e-mail.\n\n📌 Prepare-se! Estamos com você!`,
@@ -5587,6 +5587,60 @@ async function processarMensagem(phone, message) {
         console.log(`⚠️ Telefone inválido: ${telefoneLimpo}`);
         return;
     }
+    
+    // ============================================================
+    // 🔥 VERIFICAR SE O CLIENTE JÁ EXISTE NO SUPABASE
+    // ============================================================
+    let clienteExistente = null;
+    try {
+        const { data, error } = await supabase
+            .from('clientes')
+            .select('nome, email, status, onboarding_completo')
+            .eq('telefone', telefoneLimpo)
+            .maybeSingle();
+        
+        if (!error && data) {
+            clienteExistente = data;
+            console.log(`✅ Cliente encontrado no Supabase: ${clienteExistente.nome}`);
+        }
+    } catch (err) {
+        console.error('❌ Erro ao buscar cliente:', err);
+    }
+    
+    // ============================================================
+    // SE O CLIENTE JÁ EXISTE, PULAR ONBOARDING
+    // ============================================================
+    if (clienteExistente) {
+        console.log(`🔄 Cliente já cadastrado (${clienteExistente.nome}), pulando onboarding`);
+        
+        // Buscar ou criar estado
+        let state = userState.get(telefoneLimpo);
+        if (!state) {
+            state = {
+                onboardingCompleto: true,
+                nome: clienteExistente.nome,
+                email: clienteExistente.email,
+                nivel: 'principal',
+                service: null,
+                lastActivity: Date.now()
+            };
+            userState.set(telefoneLimpo, state);
+        }
+        
+        state.onboardingCompleto = true;
+        state.nome = clienteExistente.nome;
+        state.email = clienteExistente.email;
+        state.lastActivity = Date.now();
+        userState.set(telefoneLimpo, state);
+        
+        // Processar a mensagem no menu principal
+        await processarOpcaoNoMenuPrincipal(telefoneLimpo, message, state);
+        return;
+    }
+    
+    // ============================================================
+    // SE NÃO EXISTE, FAZER ONBOARDING NORMAL
+    // ============================================================
     
     // Busca ou cria estado
     let state = userState.get(telefoneLimpo);
