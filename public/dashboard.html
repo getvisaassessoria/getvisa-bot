@@ -18,11 +18,7 @@
             gap: 10px;
         }
         .header h1 { font-size: 24px; }
-        .header .user-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
+        .header .user-info { display: flex; align-items: center; gap: 15px; }
         .header .user-info span { font-size: 14px; opacity: 0.8; }
         .header button {
             background: rgba(255,255,255,0.2);
@@ -189,9 +185,7 @@
                 window.location.href = '/login';
             }
         }
-        document.addEventListener('DOMContentLoaded', function() {
-            carregarEstatisticas();
-        });
+        document.addEventListener('DOMContentLoaded', carregarEstatisticas);
     </script>
 </body>
 </html>
