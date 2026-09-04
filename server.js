@@ -5604,11 +5604,7 @@ async function processarClienteExistente(phone, message, cliente) {
     const primeiroNome = cliente.nome.split(' ')[0];
     const msg = message.trim().toLowerCase();
     
-    // ============================================================
-    // 1. COMANDOS ESPECÍFICOS
-    // ============================================================
-    
-    // Menu principal
+    // Se digitar 0 ou menu, mostra as 2 opções
     if (msg === 'menu' || msg === '0') {
         const menu = `📊 *Olá ${primeiroNome}!*
 
@@ -5616,20 +5612,15 @@ Seu processo está em andamento.
 
 O que você gostaria de fazer?
 
-1️⃣ - Ver status do processo
-2️⃣ - Informações sobre o processo
-3️⃣ - Falar com um especialista
+1️⃣ - Ver status do seu processo
+2️⃣ - Falar com um especialista
 
 0️⃣ - Voltar ao menu principal
 
-Digite o número da opção (1-3)`;
+Digite o número da opção (1-2)`;
         await enviarWhatsApp(phone, menu);
         return;
     }
-    
-    // ============================================================
-    // 2. OPÇÕES DO CLIENTE
-    // ============================================================
     
     // Opção 1: Status do processo
     if (msg === '1' || msg.includes('status') || msg.includes('andamento')) {
@@ -5637,31 +5628,8 @@ Digite o número da opção (1-3)`;
         return;
     }
     
-    // Opção 2: Informações sobre o processo
-    if (msg === '2' || msg.includes('informação') || msg.includes('processo') || msg.includes('como funciona')) {
-        await enviarWhatsApp(phone, `📋 *Olá ${primeiroNome}!*
-
-O processo de visto americano funciona assim:
-
-1️⃣ *DS-160* - Formulário preenchido (✅ você já fez!)
-2️⃣ *Pagamento* - Taxa consular paga
-3️⃣ *CASV* - Coleta de dados biométricos (digitais e foto)
-4️⃣ *Entrevista* - No Consulado Americano
-5️⃣ *Retirada* - Passaporte com visto
-
-⏱️ *Prazo médio total:* 30 a 40 dias
-
-📍 *Sua etapa atual:*
-${cliente.etapa_atual ? `✅ ${cliente.etapa_atual.replace('_', ' ').toUpperCase()}` : '📋 Em andamento'}
-
-📱 Dúvidas? Digite *3* para falar com um especialista.
-
-0️⃣ - Voltar ao menu principal`);
-        return;
-    }
-    
-    // Opção 3: Falar com especialista
-    if (msg === '3' || msg.includes('especialista') || msg.includes('ajuda') || msg.includes('contato')) {
+    // Opção 2: Falar com especialista
+    if (msg === '2' || msg.includes('especialista') || msg.includes('ajuda') || msg.includes('contato')) {
         await enviarWhatsApp(phone, `👨‍💼 *Olá ${primeiroNome}!*
 
 📱 Fale com nossa equipe: wa.me/5521974601812
@@ -5674,11 +5642,9 @@ ${cliente.etapa_atual ? `✅ ${cliente.etapa_atual.replace('_', ' ').toUpperCase
         return;
     }
     
-    // ============================================================
-    // 3. SE NENHUMA OPÇÃO, MOSTRA STATUS
-    // ============================================================
+    // Se nenhuma opção, mostra status
     await mostrarStatusProcesso(phone, cliente);
-}  // ← ESTA CHAVE FECHA A FUNÇÃO!
+}
     
 // ============================================================
 // FUNÇÃO: MOSTRAR STATUS DO PROCESSO
@@ -5759,7 +5725,7 @@ Digite o número da opção (1-3) ou *0* para o menu principal.`;
 }
 
 // ============================================================
-// FUNÇÃO: TRIAGEM INICIAL (VERSÃO COMPLETA)
+// FUNÇÃO: TRIAGEM INICIAL (CORRIGIDA)
 // ============================================================
 async function processarTriagemInicial(phone, message) {
     console.log(`📌 Processando triagem inicial para: ${phone}`);
@@ -5808,48 +5774,50 @@ Digite o número da opção (1, 2 ou 3)`;
     if (state.triagemStep === 'aguardando_resposta') {
         const opcao = message.trim();
         
-        let tipoContato = 'nao_definido';
-        let mensagemResposta = '';
-        let nextStep = '';
-        
         switch(opcao) {
             case '1':
-                // 🔥 CLIENTE - Busca por email
-                tipoContato = 'cliente';
-                mensagemResposta = `✅ Entendi! Você já está em processo de visto.
+                // 🔥 CLIENTE - Pede APENAS o email
+                state.tipoContato = 'cliente';
+                state.triagemStep = 'concluido';
+                state.nivel = 'cliente_busca';
+                state.onboardingStep = 'aguardando_email_cliente';
+                userState.set(phone, state);
+                
+                await enviarWhatsApp(phone, `✅ Entendi! Você já está em processo de visto.
 
 Para verificar o andamento do seu processo, me informe:
 
 📧 **Qual é o seu e-mail cadastrado?**
 
-Ex: maria@email.com`;
-                nextStep = 'aguardando_email_cliente';
-                break;
+Ex: maria@email.com`);
+                return;
                 
             case '2':
-                // 🔥 LEAD - Pede nome e email
-                tipoContato = 'lead';
-                mensagemResposta = `📋 Ótimo! Vou te ajudar com todas as informações sobre vistos e viagens!
+                // 🔥 LEAD - Pede nome e email normalmente
+                state.tipoContato = 'lead';
+                state.triagemStep = 'concluido';
+                state.nivel = 'onboarding';
+                state.onboardingStep = ONBOARDING_STEPS.AGUARDANDO_NOME;
+                userState.set(phone, state);
+                
+                await enviarWhatsApp(phone, `📋 Ótimo! Vou te ajudar com todas as informações sobre vistos e viagens!
 
 📌 *Para começar, me diga seu nome completo:*
 
-Ex: Maria Silva`;
-                nextStep = ONBOARDING_STEPS.AGUARDANDO_NOME;
-                break;
+Ex: Maria Silva`);
+                return;
                 
             case '3':
-                // 🔥 OUTROS - Encerra
-                tipoContato = 'contato_pessoal';
-                mensagemResposta = `👋 Entendi! Este é um canal de atendimento para vistos e viagens.
-
-Se precisar de informações sobre vistos, digite *2*.
-Se for cliente, digite *1*.
-
-Caso contrário, nossa equipe não poderá ajudar.
-
-Digite *0* para o menu principal.`;
-                nextStep = 'finalizado';
-                break;
+                // 🔥 CONTATO PESSOAL - NÃO RESPONDE MAIS!
+                state.tipoContato = 'contato_pessoal';
+                state.triagemStep = 'concluido';
+                state.nivel = 'finalizado';
+                state.onboardingCompleto = true;
+                userState.set(phone, state);
+                
+                // 🔥 NÃO ENVIA NENHUMA MENSAGEM!
+                console.log(`🔇 Contato pessoal ${phone} - não vai mais responder`);
+                return;
                 
             default:
                 await enviarWhatsApp(phone, `❌ Opção inválida! Por favor, digite:
@@ -5859,36 +5827,6 @@ Digite *0* para o menu principal.`;
 3️⃣ - Outros assuntos`);
                 return;
         }
-        
-        // Salvar tipo de contato
-        if (tipoContato !== 'contato_pessoal') {
-            try {
-                await supabase
-                    .from('clientes')
-                    .upsert({
-                        telefone: phone,
-                        tipo_contato: tipoContato,
-                        status: tipoContato === 'lead' ? 'lead' : 'cliente',
-                        data_contato: new Date().toISOString(),
-                        onboarding_completo: false
-                    }, { onConflict: 'telefone' });
-                console.log(`✅ Tipo de contato salvo: ${tipoContato} para ${phone}`);
-            } catch (err) {
-                console.error('❌ Erro ao salvar:', err);
-            }
-        }
-        
-        // Enviar mensagem de resposta
-        await enviarWhatsApp(phone, mensagemResposta);
-        
-        // Atualizar estado
-        state.triagemStep = 'concluido';
-        state.tipoContato = tipoContato;
-        state.nivel = 'onboarding';
-        state.onboardingStep = nextStep;
-        state.nome = tipoContato === 'cliente' ? 'Cliente' : null;
-        
-        userState.set(phone, state);
     }
 }
 
@@ -5981,11 +5919,8 @@ async function clientePodeReceberNotificacoes(telefone) {
     }
 }
 
-// ============================================================
-// FUNÇÃO: PROCESSAR MENSAGEM (PRINCIPAL DO BOT)
-// ============================================================
-// ============================================================
-// FUNÇÃO: PROCESSAR MENSAGEM (PRINCIPAL DO BOT)
+/// ============================================================
+// FUNÇÃO: PROCESSAR MENSAGEM (COM VERIFICAÇÃO PARA CONTATO PESSOAL)
 // ============================================================
 async function processarMensagem(phone, message) {
     console.log(`📨 processarMensagem: ${phone} -> "${message}"`);
@@ -6017,12 +5952,19 @@ async function processarMensagem(phone, message) {
     }
     
     // ============================================================
-    // SE O CLIENTE JÁ EXISTE, USA A FUNÇÃO ESPECÍFICA
+    // 🔥 SE FOR CONTATO PESSOAL, NÃO RESPONDE NADA!
+    // ============================================================
+    if (clienteExistente && clienteExistente.tipo_contato === 'contato_pessoal') {
+        console.log(`🔇 Contato pessoal ${telefoneLimpo} - mensagem ignorada`);
+        return;  // 🔥 NÃO RESPONDE!
+    }
+    
+    // ============================================================
+    // SE O CLIENTE JÁ EXISTE E É CLIENTE OU LEAD
     // ============================================================
     if (clienteExistente) {
         console.log(`🔄 Cliente já cadastrado (${clienteExistente.nome}), processando...`);
         
-        // Atualizar estado
         let state = userState.get(telefoneLimpo);
         if (!state) {
             state = {
@@ -6042,22 +5984,17 @@ async function processarMensagem(phone, message) {
         state.lastActivity = Date.now();
         userState.set(telefoneLimpo, state);
         
-        // 🔥 VERIFICA O TIPO DE CONTATO
-        // Se for contato pessoal, não mostra status do processo
-        if (clienteExistente.tipo_contato === 'contato_pessoal') {
-            await processarContatoPessoal(telefoneLimpo, message, clienteExistente);
-            return;
-        }
-        
-        // Se for lead, mostra opções de lead
+        // Se for lead, mostra menu principal
         if (clienteExistente.tipo_contato === 'lead') {
             await processarLead(telefoneLimpo, message, clienteExistente);
             return;
         }
         
-        // Se for cliente, mostra status do processo
-        await processarClienteExistente(telefoneLimpo, message, clienteExistente);
-        return;
+        // Se for cliente, mostra status + especialista
+        if (clienteExistente.tipo_contato === 'cliente') {
+            await processarClienteExistente(telefoneLimpo, message, clienteExistente);
+            return;
+        }
     }
     
     // ============================================================
@@ -6075,79 +6012,53 @@ async function processarLead(phone, message, cliente) {
     const primeiroNome = cliente.nome.split(' ')[0];
     const msg = message.trim().toLowerCase();
     
-    // Se digitar 0 ou menu, mostra opções
+    // Se digitar 0 ou menu, mostra menu principal
     if (msg === 'menu' || msg === '0') {
-        const menu = `📋 *Olá ${primeiroNome}!*
-
-Você ainda não enviou o formulário DS-160.
-
-O que você gostaria de fazer?
-
-1️⃣ - Preencher o formulário DS-160
-2️⃣ - Informações sobre o processo
-3️⃣ - Falar com um especialista
-
-Digite o número da opção (1-3)`;
+        const menu = await getMenuPrincipal();
         await enviarWhatsApp(phone, menu);
         return;
     }
     
-    // Opções do lead
-    if (msg === '1' || msg.includes('formulario') || msg.includes('ds160')) {
-        const mensagem = `📋 *Ótimo, ${primeiroNome}!*
-
-Acesse o link abaixo para preencher seu formulário DS-160:
-
-🔗 [Clique aqui para preencher o formulário](https://app.getvisa.com.br/formulario-ds160)
-
-⏱️ Tempo estimado: 15-20 minutos
-📱 Pode preencher pelo celular ou computador
-
-✅ *Depois de preencher:* nossa equipe fará a análise dos dados.
-
-📱 Dúvidas? Fale com a gente: wa.me/5521974601812`;
-        await enviarWhatsApp(phone, mensagem);
-        return;
-    }
+    // Opção 1-7: Serviços do menu principal
+    const servicoMap = {
+        '1': 'visto_americano',
+        '2': 'visto_canadense',
+        '3': 'visto_australiano',
+        '4': 'eta_uk',
+        '5': 'eta_canadense',
+        '6': 'passaporte',
+        '7': 'ajuda_contato'
+    };
     
-    if (msg === '2' || msg.includes('informação') || msg.includes('processo')) {
-        await enviarWhatsApp(phone, `📋 *Olá ${primeiroNome}!*
+    if (servicoMap[msg]) {
+        const serviceKey = servicoMap[msg];
+        if (serviceKey === 'ajuda_contato') {
+            await enviarWhatsApp(phone, `📞 *Olá ${primeiroNome}!* Precisa de ajuda? 👇
 
-O processo de visto americano envolve:
-
-1️⃣ Preenchimento do formulário DS-160
-2️⃣ Pagamento da taxa consular
-3️⃣ Agendamento da coleta biométrica (CASV)
-4️⃣ Entrevista no Consulado
-5️⃣ Retirada do passaporte
-
-📌 *Prazo médio:* 30 a 40 dias
-
-📱 Quer começar? Digite *1* para acessar o formulário.`);
-        return;
-    }
-    
-    if (msg === '3' || msg.includes('especialista') || msg.includes('ajuda')) {
-        await enviarWhatsApp(phone, `👨‍💼 *Olá ${primeiroNome}!*
-
-📱 Fale com nossa equipe: wa.me/5521974601812
+👨‍💼 *Fale com nossa equipe:* wa.me/5521974601812
 📧 contato@getvisa.com.br
-⏰ Seg-Sex, 9h-18h
+🌐 getvisa.com.br
+📋 https://app.getvisa.com.br/formulario-ds160
 
-Digite *0* para o menu principal.`);
+Digite 0 para o MENU principal`);
+            return;
+        }
+        
+        // Mostra submenu do serviço
+        const submenu = getSubmenu(serviceKey);
+        await enviarWhatsApp(phone, submenu);
         return;
     }
     
-    // Mensagem padrão para lead
-    await enviarWhatsApp(phone, `📋 *Olá ${primeiroNome}!*
-
-O que você gostaria de fazer?
-
-1️⃣ - Preencher o formulário DS-160
-2️⃣ - Informações sobre o processo
-3️⃣ - Falar com um especialista
-
-Digite o número da opção (1-3) ou *0* para o menu principal.`);
+    // Se estiver em submenu (service definido)
+    if (cliente.service) {
+        await processarOpcaoNoSubmenu(phone, msg, cliente);
+        return;
+    }
+    
+    // Fallback
+    const menu = await getMenuPrincipal();
+    await enviarWhatsApp(phone, menu);
 }
 
 // ============================================================
