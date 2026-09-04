@@ -117,10 +117,6 @@
                 <div class="number" id="totalFormularios">-</div>
                 <div class="label">📋 Formulários DS-160</div>
             </div>
-            <div class="stat-card">
-                <div class="number" id="totalVistoNegado">-</div>
-                <div class="label">❌ Visto Negado</div>
-            </div>
         </div>
         <div class="cards">
             <a href="/agendamentos?api_key=admin123" class="card">
@@ -153,12 +149,6 @@
                 <p>Avaliação gratuita de perfil</p>
                 <span class="badge verde">Público</span>
             </a>
-            <a href="/visto-negado" class="card">
-                <span class="icon">🔄</span>
-                <h3>Visto Negado</h3>
-                <p>Análise de casos com negativa</p>
-                <span class="badge laranja">Equipe</span>
-            </a>
         </div>
         <div class="footer">GetVisa Assessoria - Sistema de Gestão v2.0</div>
     </div>
@@ -172,8 +162,14 @@
                 const respAgendamentos = await fetch('/api/agendamentos?api_key=' + API_KEY);
                 const dataAgendamentos = await respAgendamentos.json();
                 document.getElementById('totalAgendamentos').textContent = dataAgendamentos.agendamentos?.length || 0;
-                document.getElementById('totalFormularios').textContent = 0;
-                document.getElementById('totalVistoNegado').textContent = 0;
+                try {
+                    const respFormularios = await fetch('/api/formularios/ds160/count?api_key=' + API_KEY);
+                    const dataFormularios = await respFormularios.json();
+                    document.getElementById('totalFormularios').textContent = dataFormularios.count || 0;
+                } catch (error) {
+                    console.error('❌ Erro ao carregar formulários:', error);
+                    document.getElementById('totalFormularios').textContent = 0;
+                }
             } catch (error) {
                 console.error('❌ Erro ao carregar estatísticas:', error);
             }
@@ -189,3 +185,4 @@
     </script>
 </body>
 </html>
+
