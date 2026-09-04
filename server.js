@@ -960,19 +960,306 @@ async function processarLead(phone, message, cliente) {
         return;
     }
     
-    // Fallback: mostra menu principal
-    const menu = await getMenuPrincipal();
-    await enviarWhatsApp(phone, menu);
+
+    // Fallback: mensagem amigável + contato com especialista
+    const primeiroNome = obterNomeExibicao(cliente?.nome || 'Cliente');
+    const mensagem = `🤔 *Olá ${primeiroNome}!*
+
+    Não entendi muito bem o que você quis dizer com essa mensagem. 😅
+
+    Mas fique tranquilo(a)! Vamos analisar sua demanda e um especialista entrará em contato em breve. ⏳
+
+    📱 Enquanto isso, você pode falar diretamente com nossa equipe:
+    [Fale com nosso especialista](https://wa.me/5521974601812)
+
+    📋 Ou se preferir, já pode preencher o formulário DS-160:
+    [Clique aqui](https://app.getvisa.com.br/formulario-ds160)
+
+    *Digite 0 para ver o menu principal*`;
+
+    await enviarWhatsApp(phone, mensagem);
 }
 
-// 10.4. PROCESSAR OPÇÃO NO SUBMENU
-async function processarOpcaoNoSubmenu(phone, message, state) {
+// ============================================================
+// FUNÇÃO: PROCESSAR OPÇÃO NO MENU PRINCIPAL
+// ============================================================
+async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
+    console.log('=== MENU PRINCIPAL ===');
+    console.log('Mensagem recebida: "' + messageText + '"');
+
+    const servicoMap = {
+        '1': 'visto_americano', '2': 'visto_canadense', '3': 'visto_australiano',
+        '4': 'eta_uk', '5': 'eta_canadense', '6': 'passaporte'
+    };
+
+    try {
+        // ============================================================
+        // 1. SERVIÇOS NUMÉRICOS (1-6)
+        // ============================================================
+        if (servicoMap[messageText]) {
+            const serviceKey = servicoMap[messageText];
+            state.nivel = 'submenu';
+            state.service = serviceKey;
+            userState.set(cleanPhone, state);
+            try {
+                await enviarWhatsApp(cleanPhone, getSubmenu(serviceKey));
+            } catch (err) {
+                await enviarWhatsApp(cleanPhone, '📋 Serviço selecionado! Digite 0 para voltar ao menu principal.');
+            }
+            return;
+        }
+
+        // ============================================================
+        // 2. OPÇÃO 7 - AJUDA / CONTATO
+        // ============================================================
+        if (messageText === '7') {
+            let nome = state?.nome || 'Cliente';
+            try {
+                const { data } = await supabase.from('clientes').select('nome').eq('telefone', cleanPhone).maybeSingle();
+                if (data?.nome) nome = data.nome;
+            } catch (e) {}
+            await enviarWhatsApp(cleanPhone, `📞 *Olá ${nome.split(' ')[0]}!* Precisa de ajuda? 👇\n\n👨‍💼 *Fale com nossa equipe:* wa.me/5521974601812\n📧 contato@getvisa.com.br\n🌐 getvisa.com.br\n📋 https://app.getvisa.com.br/formulario-ds160\n\nDigite 0 para o MENU principal`);
+            return;
+        }
+
+        // ============================================================
+        // 3. DETECTAR INTENÇÃO
+        // ============================================================
+        let intent = null;
+        try { intent = detectarIntencao(messageText); } catch (e) {}
+        console.log('Intenção detectada:', intent);
+
+        // ============================================================
+        // 4. BUSCAR CLIENTE NO SUPABASE
+        // ============================================================
+        let clienteDB = null;
+        try {
+            const { data } = await supabase
+                .from('clientes')
+                .select('status, etapa_atual, nome, consulado')
+                .eq('telefone', cleanPhone)
+                .maybeSingle();
+            if (data) clienteDB = data;
+        } catch (e) {}
+
+        const nomeCliente = clienteDB?.nome || state?.nome || 'Cliente';
+        const primeiroNome = nomeCliente.split(' ')[0];
+
+        // ============================================================
+        // 5. QUAL O SERVIÇO DO CLIENTE?
+        // ============================================================
+        let servicoCliente = 'visto_americano';
+        let servicoLabel = 'Visto Americano';
+        
+        if (clienteDB?.consulado) {
+            servicoCliente = 'visto_americano';
+            servicoLabel = `Visto Americano (${clienteDB.consulado})`;
+        } else if (clienteDB?.status) {
+            servicoCliente = 'visto_americano';
+            servicoLabel = 'Visto Americano';
+        }
+
+        // ============================================================
+        // 6. TRATAMENTO DAS INTENÇÕES (USANDO RESPOSTAS DETALHADAS)
+        // ============================================================
+
+        // 6.1 INICIAR PROCESSO / SOLICITAR DS-160
+        if (intent === 'iniciar_processo' || intent === 'solicitar_ds160') {
+            const msg = (state?.nome && state?.email) 
+                ? getMensagemFormularioComEspecialista(nomeCliente)
+                : getMensagemFormularioParaBot(nomeCliente);
+            await enviarWhatsApp(cleanPhone, msg);
+            return;
+        }
+
+        // 6.2 ANDAMENTO DO PROCESSO
+        if (intent === 'andamento') {
+            if (!clienteDB) {
+                await enviarWhatsApp(cleanPhone, '❌ Ainda não encontrei seu cadastro. Digite 0 para o menu principal.');
+                return;
+            }
+            
+            const statusLabels = {
+                'lead': '📋 Cadastro iniciado - aguardando formulário',
+                'formulario_enviado': '📋 Formulário recebido - em análise',
+                'em_analise': '🔍 Em análise pela equipe',
+                'processo_aberto': '📌 Processo aberto - aguardando agendamento',
+                'agendado_casv': '📅 CASV agendado',
+                'agendado_entrevista': '🎤 Entrevista agendada',
+                'treinamento_realizado': '✅ Treinamento concluído',
+                'entrevista_realizada': '🎤 Entrevista realizada - aguardando decisão',
+                'visto_aprovado': '🎉 Visto APROVADO!',
+                'visto_recusado': '😔 Visto recusado - vamos analisar juntos',
+                'passaporte_retornado': '📦 Passaporte disponível para retirada'
+            };
+            
+            const statusAtual = clienteDB.etapa_atual || clienteDB.status || 'lead';
+            const label = statusLabels[statusAtual] || statusAtual;
+            const dataAtualizacao = clienteDB.ultima_atualizacao ? new Date(clienteDB.ultima_atualizacao).toLocaleDateString('pt-BR') : 'Não disponível';
+            
+            const mensagem = `📊 *Olá ${primeiroNome}!*\n\n📍 *Status:* ${label}\n📅 *Atualização:* ${dataAtualizacao}\n${clienteDB.consulado ? `🏛️ *Consulado:* ${clienteDB.consulado}\n` : ''}\n💪 *Estamos com você!*\n\n📱 [Fale com especialista](https://wa.me/5521974601812)\n\nDigite 0 para o menu principal`;
+            
+            await enviarWhatsApp(cleanPhone, mensagem);
+            return;
+        }
+
+        // 6.3 DOCUMENTOS - USANDO RESPOSTA DETALHADA
+        if (intent === 'documentos') {
+            console.log('📄 Cliente perguntou sobre documentos - usando resposta detalhada');
+            const resposta = getRespostaSubmenu(servicoCliente, 'documentos');
+            await enviarWhatsApp(cleanPhone, `📋 *Olá ${primeiroNome}!*\n\n${resposta}`);
+            return;
+        }
+
+        // 6.4 PRAZO - USANDO RESPOSTA DETALHADA
+        if (intent === 'prazo') {
+            console.log('⏱️ Cliente perguntou sobre prazo - usando resposta detalhada');
+            const resposta = getRespostaSubmenu(servicoCliente, 'prazo');
+            await enviarWhatsApp(cleanPhone, `⏱️ *Olá ${primeiroNome}!*\n\n${resposta}`);
+            return;
+        }
+
+        // 6.5 PAGAMENTO - USANDO RESPOSTA DETALHADA
+        if (intent === 'pagamento') {
+            console.log('💰 Cliente perguntou sobre pagamento - usando resposta detalhada');
+            const resposta = getRespostaSubmenu(servicoCliente, 'preco');
+            await enviarWhatsApp(cleanPhone, `💰 *Olá ${primeiroNome}!*\n\n${resposta}`);
+            return;
+        }
+
+        // 6.6 PROCESSO - USANDO RESPOSTA DETALHADA
+        if (intent === 'processo') {
+            console.log('🔄 Cliente perguntou sobre o processo');
+            const resposta = getRespostaSubmenu(servicoCliente, 'processo');
+            await enviarWhatsApp(cleanPhone, `🔄 *Olá ${primeiroNome}!*\n\n${resposta}`);
+            return;
+        }
+
+        // 6.7 INDICAR AMIGO
+        if (intent === 'indicar_amigo') {
+            await enviarWhatsApp(cleanPhone, `👥 *Olá ${primeiroNome}!* Que legal! 🌟\n\n📱 Compartilhe: wa.me/5521974601812\n🌐 getvisa.com.br\n📋 https://app.getvisa.com.br/formulario-ds160\n\n🎁 *Bônus:* Indique um amigo que feche o processo e ganhe 10% de desconto!\n\nDigite 0 para o menu principal`);
+            return;
+        }
+
+        // 6.8 FALAR COM ESPECIALISTA
+        if (intent === 'falar_especialista') {
+            await enviarWhatsApp(cleanPhone, `👨‍💼 *Olá ${primeiroNome}!*\n\n📱 Fale com nossa equipe: wa.me/5521974601812\n📧 contato@getvisa.com.br\n⏰ Seg-Sex, 9h-18h\n💡 *Dica:* Tenha seu número de protocolo em mãos!\n\nDigite 0 para o menu principal`);
+            return;
+        }
+
+        // 6.9 DÚVIDA GERAL
+        if (intent === 'duvida_geral') {
+            await enviarWhatsApp(cleanPhone, `🤔 *Olá ${primeiroNome}!*\n\nPosso ajudar com:\n1️⃣ *Documentos* - Quais levar\n2️⃣ *Prazo* - Quanto tempo demora\n3️⃣ *Status* - Andamento do seu processo\n4️⃣ *Valores* - Quanto custa\n\n💡 *Seja específico(a)*, ex: "documentos para visto"\n📱 wa.me/5521974601812\n\nDigite 0 para o menu principal`);
+            return;
+        }
+
+        // 6.10 FEEDBACK
+        if (intent === 'feedback') {
+            await enviarWhatsApp(cleanPhone, `⭐ *Olá ${primeiroNome}!* Obrigado! 🌟\n\n📱 wa.me/5521974601812\n📧 contato@getvisa.com.br\n⭐ *Avalie:* Excelente | Bom | Regular\n\nDigite 0 para o menu principal`);
+            return;
+        }
+
+        // 6.11 VISTO AMERICANO (intenção direta)
+        if (intent === 'visto_americano') {
+            state.nivel = 'submenu';
+            state.service = 'visto_americano';
+            userState.set(cleanPhone, state);
+            await enviarWhatsApp(cleanPhone, getSubmenu('visto_americano'));
+            return;
+        }
+
+        // 6.12 VISTO NEGADO
+        if (intent === 'visto_negado') {
+            await enviarWhatsApp(cleanPhone, `🔄 *Olá ${primeiroNome}!*\n\nTeve o visto negado? Não desanime!\n\n🔗 Análise gratuita: https://getvisa.com.br/visto-americano-negado/\n\n✅ *Oferecemos:*\n• Análise do motivo da negativa\n• Correção do formulário\n• Documentação reforçada\n• Preparação para entrevista\n\n💰 Investimento: R$ 380\n\n📱 [Fale com especialista](wa.me/5521974601812)\n\nDigite 0 para o menu principal`);
+            return;
+        }
+
+        // ============================================================
+        // 7. FALLBACK - APENAS PARA INTENÇÕES VÁLIDAS NÃO TRATADAS
+        // ============================================================
+        if (intent && intent !== 'desconhecida' && intent !== 'andamento' && intent !== 'documentos' && intent !== 'prazo' && intent !== 'pagamento') {
+            let nome = state?.nome || 'Cliente';
+            try {
+                const { data } = await supabase.from('clientes').select('nome').eq('telefone', cleanPhone).maybeSingle();
+                if (data?.nome) nome = data.nome;
+            } catch (e) {}
+            let resposta = gerarRespostaBot(intent, state?.nome, state?.etapaAtual);
+            resposta = resposta.replace(/Cliente/g, nome.split(' ')[0]);
+            await enviarWhatsApp(cleanPhone, resposta + '\n\nDigite 0 para o menu principal');
+            return;
+        }
+
+        // ============================================================
+        // 8. NENHUMA INTENÇÃO DETECTADA - MENSAGEM AMIGÁVEL COM ESPECIALISTA
+        // ============================================================
+        console.log('⚠️ Nenhuma intenção detectada para:', messageText);
+        
+        // Buscar nome do cliente
+        let nomeFallback = state?.nome || 'Cliente';
+        try {
+            const { data } = await supabase
+                .from('clientes')
+                .select('nome')
+                .eq('telefone', cleanPhone)
+                .maybeSingle();
+            if (data?.nome) nomeFallback = data.nome;
+        } catch (e) {}
+        
+        const primeiroNomeFallback = nomeFallback.split(' ')[0];
+        
+        // 🔥 MENSAGEM AMIGÁVEL COM CONTATO DO ESPECIALISTA
+        const fallbackMsg = `🤔 *Olá ${primeiroNomeFallback}!*
+
+Não entendi sua pergunta. 😅
+
+Mas fique tranquilo(a)! Vamos analisar sua demanda e um especialista entrará em contato em breve. ⏳
+
+📱 *Fale com nossa equipe:*
+[Clique aqui](https://wa.me/5521974601812)
+
+📋 *Preencha o formulário DS-160:*
+[Clique aqui](https://app.getvisa.com.br/formulario-ds160)
+
+📧 *E-mail:* contato@getvisa.com.br
+
+💡 *Dica:* Para respostas rápidas, use palavras-chave como "documentos", "prazo", "status" ou "valores".
+
+Digite *0* para o menu principal.`;
+
+        await enviarWhatsApp(cleanPhone, fallbackMsg);
+
+    } catch (error) {
+        console.error('❌ ERRO NO processarOpcaoNoMenuPrincipal:', error);
+        console.error('❌ Stack:', error.stack);
+        await enviarWhatsApp(cleanPhone, '❌ Desculpe, ocorreu um erro. Digite 0 para tentar novamente.');
+    }
+}
+
+// ============================================================
+// FUNÇÃO: PROCESSAR OPÇÃO NO SUBMENU (CORRIGIDA)
+// ============================================================
+async function processarOpcaoNoSubmenu(phone, messageText, state) {
     const service = state.service;
     const nomeCliente = state.nome ? ', ' + state.nome.split(' ')[0] : '';
-    const opcoes = { '1':'preco','2':'prazo','3':'documentos','4':'processo','5':'especial','6':'avaliacao','7':'especialista' };
-    if (opcoes[message]) {
-        const op = message;
-        switch(op) {
+
+    console.log('=== SUBMENU ATIVO: ' + service + ' ===');
+    console.log('Opção recebida: ' + messageText);
+
+    const opcoesSubmenu = {
+        '1': 'preco',
+        '2': 'prazo', 
+        '3': 'documentos',
+        '4': 'processo',
+        '5': 'especial',
+        '6': 'avaliacao',
+        '7': 'especialista'
+    };
+
+    // 1. Primeiro, verifica se é uma opção válida do submenu (1 a 7)
+    if (opcoesSubmenu[messageText]) {
+        console.log('Processando opção ' + messageText + ' do submenu de ' + service);
+
+        switch(messageText) {
             case '1': {
                 const resposta = getRespostaSubmenu(service, 'preco');
                 await enviarWhatsApp(phone, resposta + '\n\n📌 ' + nomeCliente + ' - Você está em: ' + getServiceName(service).toUpperCase() + '\nDigite outra opção (1-7) ou 0 para menu principal');
@@ -1026,26 +1313,76 @@ async function processarOpcaoNoSubmenu(phone, message, state) {
         return;
     }
 
-    // Detectar intenção
-    const intencao = detectarIntencao(message);
+    // 2. Se não for opção, detecta intenção (prioridade)
+    const intencao = detectarIntencao(messageText);
+    console.log('Intenção detectada no submenu:', intencao);
+
+    // 3. Se for uma intenção de formulário/início, interrompe o submenu e responde diretamente
     if (intencao === 'solicitar_ds160' || intencao === 'iniciar_processo') {
-        const msg = getMensagemFormularioComEspecialista(state.nome || 'Cliente');
-        await enviarWhatsApp(phone, msg);
-        await supabase.from('clientes').update({ status: 'formulario_solicitado', updated_at: new Date().toISOString() }).eq('telefone', phone);
+        console.log('🚀 Cliente quer o formulário DS-160 (saindo do submenu)');
+        const nomeCliente2 = state.nome || 'Cliente';
+        const mensagemFormulario = getMensagemFormularioComEspecialista(nomeCliente2);
+        await enviarWhatsApp(phone, mensagemFormulario);
+        
+        // Atualiza status no Supabase
+        try {
+            await supabase
+                .from('clientes')
+                .update({ 
+                    status: 'formulario_solicitado',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('telefone', phone);
+            console.log('📋 Status atualizado para "formulario_solicitado"');
+        } catch (err) {
+            console.error('Erro ao atualizar status:', err);
+        }
+        
+        // Notifica especialista (opcional)
+        try {
+            await enviarWhatsApp(process.env.ADMIN_PHONE, 
+                `📋 *Cliente solicitou o formulário DS-160!*\n\n` +
+                `👤 Nome: ${state.nome || 'Não informado'}\n` +
+                `📱 Telefone: ${phone}\n\n` +
+                `Acesse o painel para mais detalhes.`
+            );
+            console.log('📨 Notificação enviada para o especialista.');
+        } catch (err) {
+            console.error('Erro ao notificar especialista:', err);
+        }
+        
+        // Opcional: volta para o menu principal após enviar o formulário
         state.nivel = 'principal';
         state.service = null;
         userState.set(phone, state);
-        return;
-    }
-    if (intencao && intencao !== 'desconhecida') {
-        const resposta = gerarRespostaBot(intencao, state.nome, null);
-        await enviarWhatsApp(phone, resposta);
+        
         return;
     }
 
-    // Fallback
-    const erroMsg = '❌ Opção inválida' + nomeCliente + '!\n\nVocê está no menu: ' + getServiceName(service).toUpperCase() + '\n\nOpções disponíveis:\n' + getSubmenu(service) + '\n\n💡 Para escolher outro serviço, digite 0 primeiro.';
-    await enviarWhatsApp(phone, erroMsg);
+    // 4. Se for outra intenção, responde com a resposta genérica
+    if (intencao && intencao !== 'desconhecida') {
+        const respostaIntencao = gerarRespostaBot(intencao, state.nome, null);
+        await enviarWhatsApp(phone, respostaIntencao);
+        return;
+    }
+
+    // 5. Mensagem amigável para opção inválida no submenu
+    const primeiroNome = state?.nome?.split(' ')[0] || 'Cliente';
+    const mensagem = `🤔 *Olá ${primeiroNome}!*
+
+Não entendi sua solicitação no menu de ${getServiceName(service).toUpperCase()}. 😅
+
+Mas fique tranquilo(a)! Vamos analisar sua demanda e um especialista entrará em contato em breve.
+
+📱 *Fale com nossa equipe:* wa.me/5521974601812
+📧 contato@getvisa.com.br
+
+💡 *Opções disponíveis neste menu:*
+${getSubmenu(service)}
+
+Digite *0* para voltar ao menu principal.`;
+
+    await enviarWhatsApp(phone, mensagem);
 }
 
 // 10.5. PROCESSAR MENSAGEM PRINCIPAL (PONTO DE ENTRADA)
