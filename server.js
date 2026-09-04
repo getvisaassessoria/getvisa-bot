@@ -5600,27 +5600,86 @@ async function processarClienteExistente(phone, message, cliente) {
     const msg = message.trim().toLowerCase();
     
     // ============================================================
-    // 1. COMANDOS ESPECÍFICOS (menu, 0)
+    // 1. COMANDOS ESPECÍFICOS
     // ============================================================
+    
+    // Menu principal
     if (msg === 'menu' || msg === '0') {
-        const menu = `🌟 **GETVISA - ASSESSORIA EM VISTOS**
+        const menu = `📊 *Olá ${primeiroNome}!*
 
-1️⃣ - 🇺🇸 VISTO AMERICANO
-2️⃣ - 🇨🇦 VISTO CANADENSE
-3️⃣ - 🇦🇺 VISTO AUSTRALIANO
-4️⃣ - 🇬🇧 eTA UK
-5️⃣ - 🇨🇦 eTA CANADENSE
-6️⃣ - 🛂 PASSAPORTE
-7️⃣ - 📞 AJUDA / CONTATO
+Seu processo está em andamento.
 
-Digite o número da opção (1-7)`;
+O que você gostaria de fazer?
+
+1️⃣ - Ver status do processo
+2️⃣ - Informações sobre o processo
+3️⃣ - Falar com um especialista
+
+0️⃣ - Voltar ao menu principal
+
+Digite o número da opção (1-3)`;
         await enviarWhatsApp(phone, menu);
         return;
     }
     
     // ============================================================
-    // 2. MOSTRAR STATUS DO PROCESSO
+    // 2. OPÇÕES DO CLIENTE
     // ============================================================
+    
+    // Opção 1: Status do processo
+    if (msg === '1' || msg.includes('status') || msg.includes('andamento')) {
+        await mostrarStatusProcesso(phone, cliente);
+        return;
+    }
+    
+    // Opção 2: Informações sobre o processo
+    if (msg === '2' || msg.includes('informação') || msg.includes('processo') || msg.includes('como funciona')) {
+        await enviarWhatsApp(phone, `📋 *Olá ${primeiroNome}!*
+
+O processo de visto americano funciona assim:
+
+1️⃣ *DS-160* - Formulário preenchido (✅ você já fez!)
+2️⃣ *Pagamento* - Taxa consular paga
+3️⃣ *CASV* - Coleta de dados biométricos (digitais e foto)
+4️⃣ *Entrevista* - No Consulado Americano
+5️⃣ *Retirada* - Passaporte com visto
+
+⏱️ *Prazo médio total:* 30 a 40 dias
+
+📍 *Sua etapa atual:*
+${cliente.etapa_atual ? `✅ ${cliente.etapa_atual.replace('_', ' ').toUpperCase()}` : '📋 Em andamento'}
+
+📱 Dúvidas? Digite *3* para falar com um especialista.
+
+0️⃣ - Voltar ao menu principal`);
+        return;
+    }
+    
+    // Opção 3: Falar com especialista
+    if (msg === '3' || msg.includes('especialista') || msg.includes('ajuda') || msg.includes('contato')) {
+        await enviarWhatsApp(phone, `👨‍💼 *Olá ${primeiroNome}!*
+
+📱 Fale com nossa equipe: wa.me/5521974601812
+📧 contato@getvisa.com.br
+⏰ Seg-Sex, 9h-18h
+
+💡 *Dica:* Tenha seu protocolo DS-160 em mãos.
+
+0️⃣ - Voltar ao menu principal`);
+        return;
+    }
+    
+    // ============================================================
+    // 3. SE NENHUMA OPÇÃO, MOSTRA STATUS
+    // ============================================================
+    await mostrarStatusProcesso(phone, cliente);
+}  // ← ESTA CHAVE FECHA A FUNÇÃO!
+    
+// ============================================================
+// FUNÇÃO: MOSTRAR STATUS DO PROCESSO
+// ============================================================
+async function mostrarStatusProcesso(phone, cliente) {
+    const primeiroNome = cliente.nome.split(' ')[0];
     
     // Buscar etapa atual do cliente
     let etapaAtual = cliente.etapa_atual || cliente.status || 'lead';
@@ -5632,6 +5691,8 @@ Digite o número da opção (1-7)`;
         'em_analise': '🔍 Em análise pela equipe',
         'analise_correcoes': '📝 Aguardando correções no formulário',
         'processo_aberto': '📌 Processo aberto - aguardando agendamento',
+        'boleto_emitido': '💰 Boleto emitido - aguardando pagamento',
+        'boleto_pago': '✅ Boleto pago - aguardando agendamento',
         'agendado_casv': '📅 CASV agendado',
         'agendado_entrevista': '🎤 Entrevista agendada',
         'treinamento_agendado': '🎯 Treinamento agendado',
@@ -5680,12 +5741,14 @@ Digite o número da opção (1-7)`;
 
 💪 *Estamos acompanhando seu caso!*
 
-📌 *Para qualquer outra informação:*
-Deixe sua mensagem aqui e nossa equipe entrará em contato em breve.
+📌 *O que você gostaria de fazer?*
+1️⃣ - Ver status novamente
+2️⃣ - Informações sobre o processo
+3️⃣ - Falar com especialista
 
-📱 *Fale conosco:* wa.me/5521974601812
+0️⃣ - Menu principal
 
-Digite *0* para o menu principal.`;
+Digite o número da opção (1-3) ou *0* para o menu principal.`;
 
     await enviarWhatsApp(phone, mensagem);
 }
