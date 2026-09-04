@@ -2468,6 +2468,11 @@ async function processarOnboarding(cleanPhone, messageText, state) {
             userState.set(cleanPhone, state);
             console.log('✅ Estado atualizado para: COMPLETO');
 
+            // 🔥 MOSTRA O MENU PRINCIPAL COMPLETO
+            const menuPrincipal = await getMenuPrincipal();
+            await sendReply(cleanPhone, menuPrincipal);
+            break;
+
             // 🔥 ADICIONE ESTE BLOCO: Atualizar status do cliente para "lead"
             try {
                 const { data: clienteAtualizado, error: updateError } = await supabase
@@ -5754,12 +5759,11 @@ Digite o número da opção (1-3) ou *0* para o menu principal.`;
 }
 
 // ============================================================
-// FUNÇÃO: TRIAGEM INICIAL
+// FUNÇÃO: TRIAGEM INICIAL (VERSÃO COMPLETA)
 // ============================================================
 async function processarTriagemInicial(phone, message) {
     console.log(`📌 Processando triagem inicial para: ${phone}`);
     
-    // Busca ou cria estado
     let state = userState.get(phone);
     if (!state) {
         state = {
@@ -5777,13 +5781,11 @@ async function processarTriagemInicial(phone, message) {
     state.lastActivity = Date.now();
     userState.set(phone, state);
     
-    // Se já passou da triagem, vai para onboarding
     if (state.triagemStep === 'concluido') {
         await processarOnboarding(phone, message, state);
         return;
     }
     
-    // Pergunta inicial
     if (state.triagemStep === 'perguntar_tipo') {
         const mensagem = `👋 Olá! Seja bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸
 
@@ -5808,34 +5810,47 @@ Digite o número da opção (1, 2 ou 3)`;
         
         let tipoContato = 'nao_definido';
         let mensagemResposta = '';
+        let nextStep = '';
         
         switch(opcao) {
             case '1':
+                // 🔥 CLIENTE - Busca por email
                 tipoContato = 'cliente';
                 mensagemResposta = `✅ Entendi! Você já está em processo de visto.
 
-Vou verificar o andamento do seu processo e te dar as informações atualizadas.
+Para verificar o andamento do seu processo, me informe:
 
-📌 *Para começar, me diga seu nome completo:*
+📧 **Qual é o seu e-mail cadastrado?**
 
-Ex: Maria Silva`;
+Ex: maria@email.com`;
+                nextStep = 'aguardando_email_cliente';
                 break;
+                
             case '2':
+                // 🔥 LEAD - Pede nome e email
                 tipoContato = 'lead';
                 mensagemResposta = `📋 Ótimo! Vou te ajudar com todas as informações sobre vistos e viagens!
 
 📌 *Para começar, me diga seu nome completo:*
 
 Ex: Maria Silva`;
+                nextStep = ONBOARDING_STEPS.AGUARDANDO_NOME;
                 break;
+                
             case '3':
+                // 🔥 OUTROS - Encerra
                 tipoContato = 'contato_pessoal';
-                mensagemResposta = `👋 Entendi! Vou te ajudar no que precisar.
+                mensagemResposta = `👋 Entendi! Este é um canal de atendimento para vistos e viagens.
 
-📌 *Para te conhecer melhor, me diga seu nome:*
+Se precisar de informações sobre vistos, digite *2*.
+Se for cliente, digite *1*.
 
-Ex: Maria Silva`;
+Caso contrário, nossa equipe não poderá ajudar.
+
+Digite *0* para o menu principal.`;
+                nextStep = 'finalizado';
                 break;
+                
             default:
                 await enviarWhatsApp(phone, `❌ Opção inválida! Por favor, digite:
 
@@ -5845,38 +5860,34 @@ Ex: Maria Silva`;
                 return;
         }
         
-        // Salvar no Supabase
-        try {
-            const { data, error } = await supabase
-                .from('clientes')
-                .upsert({
-                    telefone: phone,
-                    tipo_contato: tipoContato,
-                    status: tipoContato === 'cliente' ? 'cliente' : tipoContato === 'lead' ? 'lead' : 'contato_pessoal',
-                    data_contato: new Date().toISOString(),
-                    onboarding_completo: false,
-                    silenciar_notificacoes: tipoContato === 'contato_pessoal' ? true : false
-                }, { onConflict: 'telefone' })
-                .select()
-                .single();
-            
-            if (error) {
-                console.error('❌ Erro ao salvar tipo de contato:', error);
-            } else {
+        // Salvar tipo de contato
+        if (tipoContato !== 'contato_pessoal') {
+            try {
+                await supabase
+                    .from('clientes')
+                    .upsert({
+                        telefone: phone,
+                        tipo_contato: tipoContato,
+                        status: tipoContato === 'lead' ? 'lead' : 'cliente',
+                        data_contato: new Date().toISOString(),
+                        onboarding_completo: false
+                    }, { onConflict: 'telefone' });
                 console.log(`✅ Tipo de contato salvo: ${tipoContato} para ${phone}`);
+            } catch (err) {
+                console.error('❌ Erro ao salvar:', err);
             }
-        } catch (err) {
-            console.error('❌ Erro ao salvar:', err);
         }
         
         // Enviar mensagem de resposta
         await enviarWhatsApp(phone, mensagemResposta);
         
-        // Atualizar estado para onboarding
+        // Atualizar estado
         state.triagemStep = 'concluido';
         state.tipoContato = tipoContato;
         state.nivel = 'onboarding';
-        state.onboardingStep = ONBOARDING_STEPS.AGUARDANDO_NOME;
+        state.onboardingStep = nextStep;
+        state.nome = tipoContato === 'cliente' ? 'Cliente' : null;
+        
         userState.set(phone, state);
     }
 }
