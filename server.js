@@ -5730,9 +5730,6 @@ Digite o número da opção (1-3) ou *0* para o menu principal.`;
 // ============================================================
 // FUNÇÃO: TRIAGEM INICIAL (CORRIGIDA)
 // ============================================================
-// ============================================================
-// FUNÇÃO: TRIAGEM INICIAL (CORRIGIDA)
-// ============================================================
 async function processarTriagemInicial(phone, message) {
     console.log(`📌 Processando triagem inicial para: ${phone}`);
     
@@ -5754,6 +5751,11 @@ async function processarTriagemInicial(phone, message) {
     userState.set(phone, state);
     
     if (state.triagemStep === 'concluido') {
+        // 🔥 Se for cliente, NÃO vai para onboarding, vai para busca por email
+        if (state.tipoContato === 'cliente') {
+            await processarBuscaCliente(phone, message, state);
+            return;
+        }
         await processarOnboarding(phone, message, state);
         return;
     }
@@ -5786,7 +5788,7 @@ Digite o número da opção (1, 2 ou 3)`;
                 state.tipoContato = 'cliente';
                 state.triagemStep = 'concluido';
                 state.nivel = 'cliente_busca';
-                state.onboardingStep = 'aguardando_email_cliente';
+                state.email = null;
                 userState.set(phone, state);
                 
                 await enviarWhatsApp(phone, `✅ Entendi! Você já está em processo de visto.
@@ -5821,7 +5823,6 @@ Ex: Maria Silva`);
                 state.onboardingCompleto = true;
                 userState.set(phone, state);
                 
-                // 🔥 NÃO ENVIA NENHUMA MENSAGEM!
                 console.log(`🔇 Contato pessoal ${phone} - não vai mais responder`);
                 return;
                 
@@ -5833,6 +5834,75 @@ Ex: Maria Silva`);
 3️⃣ - Outros assuntos`);
                 return;
         }
+    }
+}
+
+// ============================================================
+// FUNÇÃO: PROCESSAR BUSCA DE CLIENTE POR EMAIL
+// ============================================================
+async function processarBuscaCliente(phone, message, state) {
+    console.log(`📌 Buscando cliente por email: ${message}`);
+    
+    const email = message.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!emailRegex.test(email)) {
+        await enviarWhatsApp(phone, `❌ E-mail inválido! Digite um e-mail válido.
+
+📧 Ex: maria@email.com`);
+        return;
+    }
+    
+    // 🔥 BUSCAR CLIENTE NO SUPABASE PELO EMAIL
+    try {
+        const { data: cliente, error } = await supabase
+            .from('clientes')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
+        
+        if (error) {
+            console.error('❌ Erro ao buscar cliente:', error);
+            await enviarWhatsApp(phone, `❌ Erro ao buscar cliente. Tente novamente mais tarde.`);
+            return;
+        }
+        
+        if (!cliente) {
+            console.log(`❌ Cliente não encontrado para o email: ${email}`);
+            await enviarWhatsApp(phone, `❌ Nenhum cliente encontrado com este e-mail.
+
+Você quer se cadastrar como lead para receber informações sobre vistos?
+
+Digite *2* para continuar como lead.
+Digite *0* para o menu principal.`);
+            return;
+        }
+        
+        // ✅ CLIENTE ENCONTRADO
+        console.log(`✅ Cliente encontrado: ${cliente.nome}`);
+        
+        // Atualizar telefone do cliente
+        await supabase
+            .from('clientes')
+            .update({
+                telefone: phone,
+                updated_at: new Date().toISOString()
+            })
+            .eq('email', email);
+        
+        // Atualizar estado
+        state.nome = cliente.nome;
+        state.email = cliente.email;
+        state.onboardingCompleto = true;
+        state.nivel = 'principal';
+        userState.set(phone, state);
+        
+        // 🔥 MOSTRA STATUS DO PROCESSO
+        await processarClienteExistente(phone, '', cliente);
+        
+    } catch (err) {
+        console.error('❌ Erro ao buscar cliente:', err);
+        await enviarWhatsApp(phone, `❌ Erro ao buscar cliente. Tente novamente.`);
     }
 }
 
@@ -5925,11 +5995,8 @@ async function clientePodeReceberNotificacoes(telefone) {
     }
 }
 
-/// ============================================================
-// FUNÇÃO: PROCESSAR MENSAGEM (COM VERIFICAÇÃO PARA CONTATO PESSOAL)
 // ============================================================
-// ============================================================
-// FUNÇÃO: PROCESSAR MENSAGEM (COM VERIFICAÇÃO PARA CONTATO PESSOAL)
+// FUNÇÃO: PROCESSAR MENSAGEM (PRINCIPAL DO BOT)
 // ============================================================
 async function processarMensagem(phone, message) {
     console.log(`📨 processarMensagem: ${phone} -> "${message}"`);
@@ -5965,11 +6032,11 @@ async function processarMensagem(phone, message) {
     // ============================================================
     if (clienteExistente && clienteExistente.tipo_contato === 'contato_pessoal') {
         console.log(`🔇 Contato pessoal ${telefoneLimpo} - mensagem ignorada`);
-        return;  // 🔥 NÃO RESPONDE!
+        return;
     }
     
     // ============================================================
-    // SE O CLIENTE JÁ EXISTE E É CLIENTE OU LEAD
+    // SE O CLIENTE JÁ EXISTE
     // ============================================================
     if (clienteExistente) {
         console.log(`🔄 Cliente já cadastrado (${clienteExistente.nome}), processando...`);
