@@ -5598,6 +5598,9 @@ app.get('/obrigado-visto-negado', (req, res) => {
 // ============================================================
 // FUNÇÃO: PROCESSAR CLIENTE EXISTENTE
 // ============================================================
+// ============================================================
+// FUNÇÃO: PROCESSAR CLIENTE EXISTENTE
+// ============================================================
 async function processarClienteExistente(phone, message, cliente) {
     console.log(`📌 Processando cliente existente: ${cliente.nome}`);
     
@@ -5724,6 +5727,9 @@ Digite o número da opção (1-3) ou *0* para o menu principal.`;
     await enviarWhatsApp(phone, mensagem);
 }
 
+// ============================================================
+// FUNÇÃO: TRIAGEM INICIAL (CORRIGIDA)
+// ============================================================
 // ============================================================
 // FUNÇÃO: TRIAGEM INICIAL (CORRIGIDA)
 // ============================================================
@@ -5922,6 +5928,9 @@ async function clientePodeReceberNotificacoes(telefone) {
 /// ============================================================
 // FUNÇÃO: PROCESSAR MENSAGEM (COM VERIFICAÇÃO PARA CONTATO PESSOAL)
 // ============================================================
+// ============================================================
+// FUNÇÃO: PROCESSAR MENSAGEM (COM VERIFICAÇÃO PARA CONTATO PESSOAL)
+// ============================================================
 async function processarMensagem(phone, message) {
     console.log(`📨 processarMensagem: ${phone} -> "${message}"`);
     
@@ -6003,6 +6012,9 @@ async function processarMensagem(phone, message) {
     await processarTriagemInicial(telefoneLimpo, message);
 }
 
+// ============================================================
+// FUNÇÃO: PROCESSAR LEAD
+// ============================================================
 // ============================================================
 // FUNÇÃO: PROCESSAR LEAD
 // ============================================================
