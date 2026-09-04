@@ -907,27 +907,60 @@ async function mostrarStatusProcesso(phone, cliente) {
 async function processarLead(phone, message, cliente) {
     const primeiroNome = obterNomeExibicao(cliente.nome);
     const msg = message.trim().toLowerCase();
+    
+    // 🔥 VERIFICA SE ESTÁ EM SUBMENU (USANDO O userState)
+    const state = userState.get(phone);
+    if (state && state.nivel === 'submenu' && state.service) {
+        await processarOpcaoNoSubmenu(phone, msg, state);
+        return;
+    }
+    
+    // Se digitar 0 ou menu, mostra menu principal
     if (msg === 'menu' || msg === '0') {
         const menu = await getMenuPrincipal();
         await enviarWhatsApp(phone, menu);
         return;
     }
-    const servicoMap = { '1':'visto_americano','2':'visto_canadense','3':'visto_australiano','4':'eta_uk','5':'eta_canadense','6':'passaporte','7':'ajuda_contato' };
+    
+    // Opção 1-7: Serviços do menu principal
+    const servicoMap = {
+        '1': 'visto_americano',
+        '2': 'visto_canadense',
+        '3': 'visto_australiano',
+        '4': 'eta_uk',
+        '5': 'eta_canadense',
+        '6': 'passaporte',
+        '7': 'ajuda_contato'
+    };
+    
     if (servicoMap[msg]) {
         const serviceKey = servicoMap[msg];
         if (serviceKey === 'ajuda_contato') {
             await enviarWhatsApp(phone, `📞 *Olá ${primeiroNome}!* Precisa de ajuda? 👇\n\n👨‍💼 *Fale com nossa equipe:* wa.me/5521974601812\n📧 contato@getvisa.com.br\n🌐 getvisa.com.br\n📋 https://app.getvisa.com.br/formulario-ds160\n\nDigite 0 para o MENU principal`);
             return;
         }
+        
+        // 🔥 SALVA O ESTADO DE SUBMENU
+        let userStateData = userState.get(phone) || {};
+        userStateData.nivel = 'submenu';
+        userStateData.service = serviceKey;
+        userStateData.nome = cliente.nome;
+        userState.set(phone, userStateData);
+        
         const submenu = getSubmenu(serviceKey);
         await enviarWhatsApp(phone, submenu);
         return;
     }
-    // Se estiver em submenu (service definido)
-    if (cliente.service) {
-        await processarOpcaoNoSubmenu(phone, msg, cliente);
+    
+    // 🔥 SE NÃO FOR OPÇÃO VÁLIDA, DETECTA INTENÇÃO
+    const intencao = detectarIntencao(message);
+    if (intencao && intencao !== 'desconhecida') {
+        const resposta = gerarRespostaBot(intencao, cliente.nome, null);
+        await enviarWhatsApp(phone, resposta);
         return;
     }
+    
+    // Fallback: mostra menu principal
     const menu = await getMenuPrincipal();
     await enviarWhatsApp(phone, menu);
 }
