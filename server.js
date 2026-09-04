@@ -5728,7 +5728,7 @@ Digite o número da opção (1-3) ou *0* para o menu principal.`;
 }
 
 // ============================================================
-// FUNÇÃO: TRIAGEM INICIAL (CORRIGIDA)
+// FUNÇÃO: TRIAGEM INICIAL (COM REINÍCIO)
 // ============================================================
 async function processarTriagemInicial(phone, message) {
     console.log(`📌 Processando triagem inicial para: ${phone}`);
@@ -5742,7 +5742,9 @@ async function processarTriagemInicial(phone, message) {
             email: null,
             nivel: 'triagem',
             service: null,
-            lastActivity: Date.now()
+            tipoContato: null,
+            lastActivity: Date.now(),
+            reiniciarTriagem: false
         };
         userState.set(phone, state);
     }
@@ -5750,24 +5752,19 @@ async function processarTriagemInicial(phone, message) {
     state.lastActivity = Date.now();
     userState.set(phone, state);
     
-    // 🔥 Se já passou da triagem e é cliente, busca por email
+    // 🔥 Se a triagem já foi concluída e é cliente, busca por email
     if (state.triagemStep === 'concluido' && state.tipoContato === 'cliente') {
         await processarBuscaCliente(phone, message, state);
         return;
     }
     
-    // 🔥 Se já passou da triagem e é lead, vai para onboarding
+    // 🔥 Se a triagem já foi concluída e é lead, vai para onboarding
     if (state.triagemStep === 'concluido' && state.tipoContato === 'lead') {
         await processarOnboarding(phone, message, state);
         return;
     }
     
-    // 🔥 Se já passou da triagem e é contato pessoal, NÃO RESPONDE
-    if (state.triagemStep === 'concluido' && state.tipoContato === 'contato_pessoal') {
-        console.log(`🔇 Contato pessoal - não responde`);
-        return;
-    }
-    
+    // 🔥 Se está perguntando o tipo
     if (state.triagemStep === 'perguntar_tipo') {
         const mensagem = `👋 Olá! Seja bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸
 
@@ -5824,14 +5821,14 @@ Ex: Maria Silva`);
                 return;
                 
             case '3':
-                // 🔥 CONTATO PESSOAL - NÃO RESPONDE MAIS!
+                // 🔥 CONTATO PESSOAL - NÃO RESPONDE AGORA, MAS PERMITE REINÍCIO
                 state.tipoContato = 'contato_pessoal';
                 state.triagemStep = 'concluido';
                 state.nivel = 'finalizado';
                 state.onboardingCompleto = true;
                 userState.set(phone, state);
                 
-                // 🔥 Salva no Supabase para não responder mais
+                // 🔥 Salva no Supabase
                 await supabase
                     .from('clientes')
                     .upsert({
@@ -5842,7 +5839,8 @@ Ex: Maria Silva`);
                         onboarding_completo: true
                     }, { onConflict: 'telefone' });
                 
-                console.log(`🔇 Contato pessoal ${phone} - não vai mais responder`);
+                console.log(`🔇 Contato pessoal ${phone} - silêncio, mas pode reiniciar`);
+                // 🔥 NÃO ENVIA NENHUMA MENSAGEM!
                 return;
                 
             default:
@@ -6014,7 +6012,7 @@ async function clientePodeReceberNotificacoes(telefone) {
 }
 
 // ============================================================
-// FUNÇÃO: PROCESSAR MENSAGEM (PRINCIPAL DO BOT) - VERSÃO CORRIGIDA
+// FUNÇÃO: PROCESSAR MENSAGEM (PRINCIPAL DO BOT) - CORRIGIDA
 // ============================================================
 async function processarMensagem(phone, message) {
     console.log(`📨 processarMensagem: ${phone} -> "${message}"`);
@@ -6026,7 +6024,30 @@ async function processarMensagem(phone, message) {
     }
     
     // ============================================================
-    // 🔥 1. VERIFICAR SE O CLIENTE JÁ EXISTE NO SUPABASE
+    // 🔥 1. BUSCAR OU CRIAR ESTADO
+    // ============================================================
+    let state = userState.get(telefoneLimpo);
+    if (!state) {
+        state = {
+            triagemStep: 'perguntar_tipo',
+            onboardingCompleto: false,
+            nome: null,
+            email: null,
+            nivel: 'triagem',
+            service: null,
+            tipoContato: null,
+            lastActivity: Date.now(),
+            // 🔥 NOVO: controle de reinício
+            reiniciarTriagem: false
+        };
+        userState.set(telefoneLimpo, state);
+    }
+    
+    state.lastActivity = Date.now();
+    userState.set(telefoneLimpo, state);
+    
+    // ============================================================
+    // 🔥 2. VERIFICAR SE O CLIENTE JÁ EXISTE NO SUPABASE
     // ============================================================
     let clienteExistente = null;
     try {
@@ -6040,38 +6061,26 @@ async function processarMensagem(phone, message) {
             clienteExistente = data;
             console.log(`✅ Cliente encontrado no Supabase: ${clienteExistente.nome}`);
             console.log(`📌 Tipo de contato: ${clienteExistente.tipo_contato || 'não definido'}`);
-            console.log(`📌 Status: ${clienteExistente.status}`);
         }
     } catch (err) {
         console.error('❌ Erro ao buscar cliente:', err);
     }
     
     // ============================================================
-    // 🔥 2. BUSCAR OU CRIAR ESTADO
+    // 🔥 3. SE É CONTATO PESSOAL, REINICIA A TRIAGEM
     // ============================================================
-    let state = userState.get(telefoneLimpo);
-    if (!state) {
-        state = {
-            triagemStep: 'perguntar_tipo',
-            onboardingCompleto: false,
-            nome: clienteExistente?.nome || null,
-            email: clienteExistente?.email || null,
-            nivel: 'triagem',
-            service: null,
-            tipoContato: clienteExistente?.tipo_contato || null,
-            lastActivity: Date.now()
-        };
-        userState.set(telefoneLimpo, state);
-    }
-    
-    state.lastActivity = Date.now();
-    userState.set(telefoneLimpo, state);
-    
-    // ============================================================
-    // 🔥 3. SE FOR CONTATO PESSOAL, NÃO RESPONDE NADA!
-    // ============================================================
+    // 🔥 Se o cliente existe e é contato_pessoal, NÃO RESPONDE AGORA,
+    // mas permite que ele reinicie a triagem na próxima mensagem
     if (clienteExistente && clienteExistente.tipo_contato === 'contato_pessoal') {
-        console.log(`🔇 Contato pessoal ${telefoneLimpo} - mensagem ignorada`);
+        console.log(`🔇 Contato pessoal ${telefoneLimpo} - mensagem ignorada, mas permitindo reinício`);
+        
+        // 🔥 Marca para reiniciar a triagem na próxima interação
+        state.reiniciarTriagem = true;
+        state.tipoContato = null;
+        state.triagemStep = 'perguntar_tipo';
+        userState.set(telefoneLimpo, state);
+        
+        // 🔥 NÃO ENVIA NENHUMA MENSAGEM (SILÊNCIO)
         return;
     }
     
@@ -6085,15 +6094,14 @@ async function processarMensagem(phone, message) {
         state.nome = clienteExistente.nome;
         state.email = clienteExistente.email;
         state.nivel = 'principal';
+        state.tipoContato = clienteExistente.tipo_contato;
         userState.set(telefoneLimpo, state);
         
-        // Se for lead, mostra menu principal
         if (clienteExistente.tipo_contato === 'lead') {
             await processarLead(telefoneLimpo, message, clienteExistente);
             return;
         }
         
-        // Se for cliente, mostra status + especialista
         if (clienteExistente.tipo_contato === 'cliente') {
             await processarClienteExistente(telefoneLimpo, message, clienteExistente);
             return;
@@ -6101,20 +6109,22 @@ async function processarMensagem(phone, message) {
     }
     
     // ============================================================
-    // 🔥 5. SE NÃO EXISTE, FAZER TRIAGEM INICIAL
+    // 🔥 5. SE O CLIENTE NÃO EXISTE OU É CONTATO PESSOAL (REINICIADO)
     // ============================================================
-    if (!clienteExistente) {
+    // 🔥 Se o estado está marcado para reiniciar, mostra a triagem
+    if (state.reiniciarTriagem || !clienteExistente) {
+        state.reiniciarTriagem = false;
+        state.triagemStep = 'perguntar_tipo';
+        state.tipoContato = null;
+        userState.set(telefoneLimpo, state);
         await processarTriagemInicial(telefoneLimpo, message);
         return;
     }
     
     // ============================================================
-    // 🔥 6. SE O CLIENTE EXISTE MAS NÃO TEM TIPO DEFINIDO
+    // 🔥 6. FALLBACK - FAZER TRIAGEM INICIAL
     // ============================================================
-    if (clienteExistente && !clienteExistente.tipo_contato) {
-        await processarTriagemInicial(telefoneLimpo, message);
-        return;
-    }
+    await processarTriagemInicial(telefoneLimpo, message);
 }
 
 // ============================================================
