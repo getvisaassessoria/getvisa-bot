@@ -5728,44 +5728,37 @@ Digite o número da opção (1-3) ou *0* para o menu principal.`;
 }
 
 // ============================================================
-// FUNÇÃO: TRIAGEM INICIAL (COM REINÍCIO)
+// FUNÇÃO: TRIAGEM INICIAL (CORRIGIDA)
 // ============================================================
 async function processarTriagemInicial(phone, message) {
     console.log(`📌 Processando triagem inicial para: ${phone}`);
     
+    // 🔥 BUSCA O ESTADO (NÃO CRIA NOVO SE JÁ EXISTIR)
     let state = userState.get(phone);
+    
+    // 🔥 SE NÃO HOUVER ESTADO, CRIA UM NOVO
     if (!state) {
+        console.log(`🆕 Criando novo estado para ${phone}`);
         state = {
-            triagemStep: 'perguntar_tipo',
-            onboardingCompleto: false,
+            step: 'perguntar_tipo',
+            tipo: null,
             nome: null,
             email: null,
-            nivel: 'triagem',
-            service: null,
-            tipoContato: null,
-            lastActivity: Date.now(),
-            reiniciarTriagem: false
+            lastActivity: Date.now()
         };
         userState.set(phone, state);
     }
     
+    // 🔥 SE O ESTADO JÁ EXISTE, MOSTRA O PASSO ATUAL
+    console.log(`📌 Estado atual: step=${state.step}, tipo=${state.tipo}`);
+    
     state.lastActivity = Date.now();
     userState.set(phone, state);
     
-    // 🔥 Se a triagem já foi concluída e é cliente, busca por email
-    if (state.triagemStep === 'concluido' && state.tipoContato === 'cliente') {
-        await processarBuscaCliente(phone, message, state);
-        return;
-    }
-    
-    // 🔥 Se a triagem já foi concluída e é lead, vai para onboarding
-    if (state.triagemStep === 'concluido' && state.tipoContato === 'lead') {
-        await processarOnboarding(phone, message, state);
-        return;
-    }
-    
-    // 🔥 Se está perguntando o tipo
-    if (state.triagemStep === 'perguntar_tipo') {
+    // ============================================================
+    // PASSO 1: PERGUNTAR O TIPO
+    // ============================================================
+    if (state.step === 'perguntar_tipo') {
         const mensagem = `👋 Olá! Seja bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸
 
 Somos especialistas em vistos americanos e viagens internacionais!
@@ -5779,21 +5772,23 @@ Para eu saber como posso te ajudar melhor, me diga:
 Digite o número da opção (1, 2 ou 3)`;
 
         await enviarWhatsApp(phone, mensagem);
-        state.triagemStep = 'aguardando_resposta';
+        state.step = 'aguardando_resposta';
         userState.set(phone, state);
         return;
     }
     
-    if (state.triagemStep === 'aguardando_resposta') {
+    // ============================================================
+    // PASSO 2: AGUARDANDO RESPOSTA DA TRIAGEM
+    // ============================================================
+    if (state.step === 'aguardando_resposta') {
         const opcao = message.trim();
+        console.log(`📌 Opção recebida: "${opcao}"`);
         
         switch(opcao) {
-            case '1':
-                // 🔥 CLIENTE - Pede APENAS o email
-                state.tipoContato = 'cliente';
-                state.triagemStep = 'concluido';
-                state.nivel = 'cliente_busca';
-                state.email = null;
+            case '1': // CLIENTE
+                console.log(`📌 Cliente selecionado - pedindo email`);
+                state.tipo = 'cliente';
+                state.step = 'aguardando_email_cliente';
                 userState.set(phone, state);
                 
                 await enviarWhatsApp(phone, `✅ Entendi! Você já está em processo de visto.
@@ -5805,12 +5800,10 @@ Para verificar o andamento do seu processo, me informe:
 Ex: maria@email.com`);
                 return;
                 
-            case '2':
-                // 🔥 LEAD - Pede nome e email
-                state.tipoContato = 'lead';
-                state.triagemStep = 'concluido';
-                state.nivel = 'onboarding';
-                state.onboardingStep = ONBOARDING_STEPS.AGUARDANDO_NOME;
+            case '2': // LEAD
+                console.log(`📌 Lead selecionado - pedindo nome`);
+                state.tipo = 'lead';
+                state.step = 'aguardando_nome_lead';
                 userState.set(phone, state);
                 
                 await enviarWhatsApp(phone, `📋 Ótimo! Vou te ajudar com todas as informações sobre vistos e viagens!
@@ -5820,15 +5813,9 @@ Ex: maria@email.com`);
 Ex: Maria Silva`);
                 return;
                 
-            case '3':
-                // 🔥 CONTATO PESSOAL - NÃO RESPONDE AGORA, MAS PERMITE REINÍCIO
-                state.tipoContato = 'contato_pessoal';
-                state.triagemStep = 'concluido';
-                state.nivel = 'finalizado';
-                state.onboardingCompleto = true;
-                userState.set(phone, state);
-                
-                // 🔥 Salva no Supabase
+            case '3': // CONTATO PESSOAL
+                console.log(`📌 Contato pessoal selecionado - silêncio`);
+                // 🔥 SALVA COMO CONTATO PESSOAL
                 await supabase
                     .from('clientes')
                     .upsert({
@@ -5839,9 +5826,10 @@ Ex: Maria Silva`);
                         onboarding_completo: true
                     }, { onConflict: 'telefone' });
                 
-                console.log(`🔇 Contato pessoal ${phone} - silêncio, mas pode reiniciar`);
-                // 🔥 NÃO ENVIA NENHUMA MENSAGEM!
-                return;
+                // 🔥 LIMPA O ESTADO PARA NÃO RESPONDER MAIS
+                userState.delete(phone);
+                console.log(`🔇 Contato pessoal ${phone} - não vai mais responder`);
+                return; // 🔥 NÃO ENVIA NENHUMA MENSAGEM!
                 
             default:
                 await enviarWhatsApp(phone, `❌ Opção inválida! Por favor, digite:
@@ -5852,6 +5840,132 @@ Ex: Maria Silva`);
                 return;
         }
     }
+    
+    // ============================================================
+    // PASSO 3: AGUARDANDO EMAIL DO CLIENTE
+    // ============================================================
+    if (state.step === 'aguardando_email_cliente') {
+        console.log(`📌 Aguardando email do cliente: "${message}"`);
+        const email = message.trim().toLowerCase();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        
+        if (!emailRegex.test(email)) {
+            await enviarWhatsApp(phone, `❌ E-mail inválido! Digite um e-mail válido.
+
+📧 Ex: maria@email.com`);
+            return;
+        }
+        
+        // 🔥 BUSCAR CLIENTE POR EMAIL
+        console.log(`🔍 Buscando cliente por email: ${email}`);
+        const { data: cliente, error } = await supabase
+            .from('clientes')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
+        
+        if (error || !cliente) {
+            console.log(`❌ Cliente não encontrado para: ${email}`);
+            await enviarWhatsApp(phone, `❌ Nenhum cliente encontrado com este e-mail.
+
+📌 Verifique se o e-mail está correto ou cadastre-se como lead digitando *2*.`);
+            return;
+        }
+        
+        // ✅ CLIENTE ENCONTRADO
+        console.log(`✅ Cliente encontrado: ${cliente.nome}`);
+        
+        // Atualizar telefone
+        await supabase
+            .from('clientes')
+            .update({
+                telefone: phone,
+                tipo_contato: 'cliente',
+                updated_at: new Date().toISOString()
+            })
+            .eq('email', email);
+        
+        // 🔥 LIMPA O ESTADO
+        userState.delete(phone);
+        
+        // Mostrar status
+        await processarClienteExistente(phone, '', cliente);
+        return;
+    }
+    
+    // ============================================================
+    // PASSO 4: AGUARDANDO NOME DO LEAD
+    // ============================================================
+    if (state.step === 'aguardando_nome_lead') {
+        console.log(`📌 Aguardando nome do lead: "${message}"`);
+        const nome = message.trim();
+        
+        if (nome.length < 3) {
+            await enviarWhatsApp(phone, `❌ Nome inválido! Digite seu nome completo.
+
+📝 Ex: Maria Silva`);
+            return;
+        }
+        
+        state.nome = nome;
+        state.step = 'aguardando_email_lead';
+        userState.set(phone, state);
+        
+        await enviarWhatsApp(phone, `😊 Prazer, ${nome}! Agora me diga:
+
+📧 **Qual é o seu e-mail?**
+
+Ex: maria@email.com`);
+        return;
+    }
+    
+    // ============================================================
+    // PASSO 5: AGUARDANDO EMAIL DO LEAD
+    // ============================================================
+    if (state.step === 'aguardando_email_lead') {
+        console.log(`📌 Aguardando email do lead: "${message}"`);
+        const email = message.trim().toLowerCase();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        
+        if (!emailRegex.test(email)) {
+            await enviarWhatsApp(phone, `❌ E-mail inválido! Digite um e-mail válido.
+
+📧 Ex: maria@email.com`);
+            return;
+        }
+        
+        // 🔥 SALVAR LEAD NO SUPABASE
+        console.log(`💾 Salvando lead: ${state.nome} (${email})`);
+        await supabase
+            .from('clientes')
+            .upsert({
+                telefone: phone,
+                nome: state.nome,
+                email: email,
+                tipo_contato: 'lead',
+                status: 'lead',
+                data_contato: new Date().toISOString(),
+                onboarding_completo: true
+            }, { onConflict: 'telefone' });
+        
+        console.log(`✅ Lead salvo: ${state.nome}`);
+        
+        // 🔥 LIMPA O ESTADO
+        userState.delete(phone);
+        
+        // 🔥 MOSTRAR MENU PRINCIPAL
+        const menu = await getMenuPrincipal();
+        await enviarWhatsApp(phone, menu);
+        return;
+    }
+    
+    // ============================================================
+    // FALLBACK - SE ALGO DER ERRADO
+    // ============================================================
+    console.log(`⚠️ Estado desconhecido: ${state.step}, reiniciando`);
+    state.step = 'perguntar_tipo';
+    userState.set(phone, state);
+    await processarTriagemInicial(phone, message);
 }
 
 // ============================================================
@@ -6012,7 +6126,7 @@ async function clientePodeReceberNotificacoes(telefone) {
 }
 
 // ============================================================
-// FUNÇÃO: PROCESSAR MENSAGEM (PRINCIPAL DO BOT) - CORRIGIDA
+// FUNÇÃO: PROCESSAR MENSAGEM (PRINCIPAL)
 // ============================================================
 async function processarMensagem(phone, message) {
     console.log(`📨 processarMensagem: ${phone} -> "${message}"`);
@@ -6024,32 +6138,9 @@ async function processarMensagem(phone, message) {
     }
     
     // ============================================================
-    // 🔥 1. BUSCAR OU CRIAR ESTADO
+    // 1. BUSCAR CLIENTE NO SUPABASE
     // ============================================================
-    let state = userState.get(telefoneLimpo);
-    if (!state) {
-        state = {
-            triagemStep: 'perguntar_tipo',
-            onboardingCompleto: false,
-            nome: null,
-            email: null,
-            nivel: 'triagem',
-            service: null,
-            tipoContato: null,
-            lastActivity: Date.now(),
-            // 🔥 NOVO: controle de reinício
-            reiniciarTriagem: false
-        };
-        userState.set(telefoneLimpo, state);
-    }
-    
-    state.lastActivity = Date.now();
-    userState.set(telefoneLimpo, state);
-    
-    // ============================================================
-    // 🔥 2. VERIFICAR SE O CLIENTE JÁ EXISTE NO SUPABASE
-    // ============================================================
-    let clienteExistente = null;
+    let cliente = null;
     try {
         const { data, error } = await supabase
             .from('clientes')
@@ -6058,72 +6149,46 @@ async function processarMensagem(phone, message) {
             .maybeSingle();
         
         if (!error && data) {
-            clienteExistente = data;
-            console.log(`✅ Cliente encontrado no Supabase: ${clienteExistente.nome}`);
-            console.log(`📌 Tipo de contato: ${clienteExistente.tipo_contato || 'não definido'}`);
+            cliente = data;
+            console.log(`✅ Cliente encontrado: ${cliente.nome} (${cliente.tipo_contato || 'sem tipo'})`);
         }
     } catch (err) {
         console.error('❌ Erro ao buscar cliente:', err);
     }
     
     // ============================================================
-    // 🔥 3. SE É CONTATO PESSOAL, REINICIA A TRIAGEM
+    // 2. SE FOR CONTATO PESSOAL, NÃO RESPONDE
     // ============================================================
-    // 🔥 Se o cliente existe e é contato_pessoal, NÃO RESPONDE AGORA,
-    // mas permite que ele reinicie a triagem na próxima mensagem
-    if (clienteExistente && clienteExistente.tipo_contato === 'contato_pessoal') {
-        console.log(`🔇 Contato pessoal ${telefoneLimpo} - mensagem ignorada, mas permitindo reinício`);
-        
-        // 🔥 Marca para reiniciar a triagem na próxima interação
-        state.reiniciarTriagem = true;
-        state.tipoContato = null;
-        state.triagemStep = 'perguntar_tipo';
-        userState.set(telefoneLimpo, state);
-        
-        // 🔥 NÃO ENVIA NENHUMA MENSAGEM (SILÊNCIO)
+    if (cliente && cliente.tipo_contato === 'contato_pessoal') {
+        console.log(`🔇 Contato pessoal ${telefoneLimpo} - silêncio`);
         return;
     }
     
     // ============================================================
-    // 🔥 4. SE O CLIENTE JÁ EXISTE COMO LEAD OU CLIENTE
+    // 3. SE FOR CLIENTE (com processo), MOSTRA STATUS
     // ============================================================
-    if (clienteExistente && (clienteExistente.tipo_contato === 'lead' || clienteExistente.tipo_contato === 'cliente')) {
-        console.log(`🔄 Cliente já cadastrado como ${clienteExistente.tipo_contato}, processando...`);
-        
-        state.onboardingCompleto = true;
-        state.nome = clienteExistente.nome;
-        state.email = clienteExistente.email;
-        state.nivel = 'principal';
-        state.tipoContato = clienteExistente.tipo_contato;
-        userState.set(telefoneLimpo, state);
-        
-        if (clienteExistente.tipo_contato === 'lead') {
-            await processarLead(telefoneLimpo, message, clienteExistente);
-            return;
-        }
-        
-        if (clienteExistente.tipo_contato === 'cliente') {
-            await processarClienteExistente(telefoneLimpo, message, clienteExistente);
-            return;
-        }
-    }
-    
-    // ============================================================
-    // 🔥 5. SE O CLIENTE NÃO EXISTE OU É CONTATO PESSOAL (REINICIADO)
-    // ============================================================
-    // 🔥 Se o estado está marcado para reiniciar, mostra a triagem
-    if (state.reiniciarTriagem || !clienteExistente) {
-        state.reiniciarTriagem = false;
-        state.triagemStep = 'perguntar_tipo';
-        state.tipoContato = null;
-        userState.set(telefoneLimpo, state);
-        await processarTriagemInicial(telefoneLimpo, message);
+    if (cliente && (cliente.tipo_contato === 'cliente' || 
+        cliente.status === 'formulario_enviado' || 
+        cliente.status === 'agendado_casv' ||
+        cliente.status === 'cliente')) {
+        console.log(`📌 Cliente existente - mostrando status`);
+        await processarClienteExistente(telefoneLimpo, message, cliente);
         return;
     }
     
     // ============================================================
-    // 🔥 6. FALLBACK - FAZER TRIAGEM INICIAL
+    // 4. SE FOR LEAD, MOSTRA MENU PRINCIPAL
     // ============================================================
+    if (cliente && cliente.tipo_contato === 'lead') {
+        console.log(`📌 Lead existente - mostrando menu principal`);
+        await processarLead(telefoneLimpo, message, cliente);
+        return;
+    }
+    
+    // ============================================================
+    // 5. SE NÃO EXISTE, FAZ TRIAGEM
+    // ============================================================
+    console.log(`📌 Novo contato - iniciando triagem`);
     await processarTriagemInicial(telefoneLimpo, message);
 }
 
