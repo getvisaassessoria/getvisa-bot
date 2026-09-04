@@ -5750,13 +5750,21 @@ async function processarTriagemInicial(phone, message) {
     state.lastActivity = Date.now();
     userState.set(phone, state);
     
-    if (state.triagemStep === 'concluido') {
-        // 🔥 Se for cliente, NÃO vai para onboarding, vai para busca por email
-        if (state.tipoContato === 'cliente') {
-            await processarBuscaCliente(phone, message, state);
-            return;
-        }
+    // 🔥 Se já passou da triagem e é cliente, busca por email
+    if (state.triagemStep === 'concluido' && state.tipoContato === 'cliente') {
+        await processarBuscaCliente(phone, message, state);
+        return;
+    }
+    
+    // 🔥 Se já passou da triagem e é lead, vai para onboarding
+    if (state.triagemStep === 'concluido' && state.tipoContato === 'lead') {
         await processarOnboarding(phone, message, state);
+        return;
+    }
+    
+    // 🔥 Se já passou da triagem e é contato pessoal, NÃO RESPONDE
+    if (state.triagemStep === 'concluido' && state.tipoContato === 'contato_pessoal') {
+        console.log(`🔇 Contato pessoal - não responde`);
         return;
     }
     
@@ -5801,7 +5809,7 @@ Ex: maria@email.com`);
                 return;
                 
             case '2':
-                // 🔥 LEAD - Pede nome e email normalmente
+                // 🔥 LEAD - Pede nome e email
                 state.tipoContato = 'lead';
                 state.triagemStep = 'concluido';
                 state.nivel = 'onboarding';
@@ -5822,6 +5830,17 @@ Ex: Maria Silva`);
                 state.nivel = 'finalizado';
                 state.onboardingCompleto = true;
                 userState.set(phone, state);
+                
+                // 🔥 Salva no Supabase para não responder mais
+                await supabase
+                    .from('clientes')
+                    .upsert({
+                        telefone: phone,
+                        tipo_contato: 'contato_pessoal',
+                        status: 'contato_pessoal',
+                        data_contato: new Date().toISOString(),
+                        onboarding_completo: true
+                    }, { onConflict: 'telefone' });
                 
                 console.log(`🔇 Contato pessoal ${phone} - não vai mais responder`);
                 return;
@@ -5853,8 +5872,8 @@ async function processarBuscaCliente(phone, message, state) {
         return;
     }
     
-    // 🔥 BUSCAR CLIENTE NO SUPABASE PELO EMAIL
     try {
+        // 🔥 BUSCAR CLIENTE PELO EMAIL
         const { data: cliente, error } = await supabase
             .from('clientes')
             .select('*')
@@ -5871,33 +5890,32 @@ async function processarBuscaCliente(phone, message, state) {
             console.log(`❌ Cliente não encontrado para o email: ${email}`);
             await enviarWhatsApp(phone, `❌ Nenhum cliente encontrado com este e-mail.
 
-Você quer se cadastrar como lead para receber informações sobre vistos?
-
-Digite *2* para continuar como lead.
-Digite *0* para o menu principal.`);
+📌 Verifique se o e-mail está correto ou cadastre-se como lead digitando *2*.`);
             return;
         }
         
         // ✅ CLIENTE ENCONTRADO
         console.log(`✅ Cliente encontrado: ${cliente.nome}`);
         
-        // Atualizar telefone do cliente
+        // 🔥 ATUALIZAR TELEFONE DO CLIENTE
         await supabase
             .from('clientes')
             .update({
                 telefone: phone,
+                tipo_contato: 'cliente',
                 updated_at: new Date().toISOString()
             })
             .eq('email', email);
         
-        // Atualizar estado
+        // 🔥 ATUALIZAR ESTADO
         state.nome = cliente.nome;
         state.email = cliente.email;
         state.onboardingCompleto = true;
         state.nivel = 'principal';
+        state.tipoContato = 'cliente';
         userState.set(phone, state);
         
-        // 🔥 MOSTRA STATUS DO PROCESSO
+        // 🔥 MOSTRAR STATUS DO PROCESSO
         await processarClienteExistente(phone, '', cliente);
         
     } catch (err) {
@@ -5996,7 +6014,7 @@ async function clientePodeReceberNotificacoes(telefone) {
 }
 
 // ============================================================
-// FUNÇÃO: PROCESSAR MENSAGEM (PRINCIPAL DO BOT)
+// FUNÇÃO: PROCESSAR MENSAGEM (PRINCIPAL DO BOT) - VERSÃO CORRIGIDA
 // ============================================================
 async function processarMensagem(phone, message) {
     console.log(`📨 processarMensagem: ${phone} -> "${message}"`);
@@ -6008,7 +6026,7 @@ async function processarMensagem(phone, message) {
     }
     
     // ============================================================
-    // 🔥 VERIFICAR SE O CLIENTE JÁ EXISTE NO SUPABASE
+    // 🔥 1. VERIFICAR SE O CLIENTE JÁ EXISTE NO SUPABASE
     // ============================================================
     let clienteExistente = null;
     try {
@@ -6022,13 +6040,35 @@ async function processarMensagem(phone, message) {
             clienteExistente = data;
             console.log(`✅ Cliente encontrado no Supabase: ${clienteExistente.nome}`);
             console.log(`📌 Tipo de contato: ${clienteExistente.tipo_contato || 'não definido'}`);
+            console.log(`📌 Status: ${clienteExistente.status}`);
         }
     } catch (err) {
         console.error('❌ Erro ao buscar cliente:', err);
     }
     
     // ============================================================
-    // 🔥 SE FOR CONTATO PESSOAL, NÃO RESPONDE NADA!
+    // 🔥 2. BUSCAR OU CRIAR ESTADO
+    // ============================================================
+    let state = userState.get(telefoneLimpo);
+    if (!state) {
+        state = {
+            triagemStep: 'perguntar_tipo',
+            onboardingCompleto: false,
+            nome: clienteExistente?.nome || null,
+            email: clienteExistente?.email || null,
+            nivel: 'triagem',
+            service: null,
+            tipoContato: clienteExistente?.tipo_contato || null,
+            lastActivity: Date.now()
+        };
+        userState.set(telefoneLimpo, state);
+    }
+    
+    state.lastActivity = Date.now();
+    userState.set(telefoneLimpo, state);
+    
+    // ============================================================
+    // 🔥 3. SE FOR CONTATO PESSOAL, NÃO RESPONDE NADA!
     // ============================================================
     if (clienteExistente && clienteExistente.tipo_contato === 'contato_pessoal') {
         console.log(`🔇 Contato pessoal ${telefoneLimpo} - mensagem ignorada`);
@@ -6036,28 +6076,15 @@ async function processarMensagem(phone, message) {
     }
     
     // ============================================================
-    // SE O CLIENTE JÁ EXISTE
+    // 🔥 4. SE O CLIENTE JÁ EXISTE COMO LEAD OU CLIENTE
     // ============================================================
-    if (clienteExistente) {
-        console.log(`🔄 Cliente já cadastrado (${clienteExistente.nome}), processando...`);
-        
-        let state = userState.get(telefoneLimpo);
-        if (!state) {
-            state = {
-                onboardingCompleto: true,
-                nome: clienteExistente.nome,
-                email: clienteExistente.email,
-                nivel: 'principal',
-                service: null,
-                lastActivity: Date.now()
-            };
-            userState.set(telefoneLimpo, state);
-        }
+    if (clienteExistente && (clienteExistente.tipo_contato === 'lead' || clienteExistente.tipo_contato === 'cliente')) {
+        console.log(`🔄 Cliente já cadastrado como ${clienteExistente.tipo_contato}, processando...`);
         
         state.onboardingCompleto = true;
         state.nome = clienteExistente.nome;
         state.email = clienteExistente.email;
-        state.lastActivity = Date.now();
+        state.nivel = 'principal';
         userState.set(telefoneLimpo, state);
         
         // Se for lead, mostra menu principal
@@ -6074,14 +6101,22 @@ async function processarMensagem(phone, message) {
     }
     
     // ============================================================
-    // SE NÃO EXISTE, FAZER TRIAGEM INICIAL
+    // 🔥 5. SE NÃO EXISTE, FAZER TRIAGEM INICIAL
     // ============================================================
-    await processarTriagemInicial(telefoneLimpo, message);
+    if (!clienteExistente) {
+        await processarTriagemInicial(telefoneLimpo, message);
+        return;
+    }
+    
+    // ============================================================
+    // 🔥 6. SE O CLIENTE EXISTE MAS NÃO TEM TIPO DEFINIDO
+    // ============================================================
+    if (clienteExistente && !clienteExistente.tipo_contato) {
+        await processarTriagemInicial(telefoneLimpo, message);
+        return;
+    }
 }
 
-// ============================================================
-// FUNÇÃO: PROCESSAR LEAD
-// ============================================================
 // ============================================================
 // FUNÇÃO: PROCESSAR LEAD
 // ============================================================
