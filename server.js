@@ -5074,6 +5074,7 @@ app.get('/api/dashboard-data', async (req, res) => {
 // DASHBOARD CENTRAL (APÓS LOGIN)
 // ============================================================
 app.get('/dashboard', auth.verificarAdmin, (req, res) => {
+    // 🔥 USA dashboard-novo.html
     const dashboardPath = path.join(__dirname, 'public', 'dashboard-novo.html');
     if (fs.existsSync(dashboardPath)) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -5081,7 +5082,13 @@ app.get('/dashboard', auth.verificarAdmin, (req, res) => {
         res.setHeader('Expires', '0');
         res.sendFile(dashboardPath);
     } else {
-        res.status(404).send('<h1>📊 Dashboard</h1><p>Arquivo não encontrado.</p>');
+        // Fallback
+        const fallback = path.join(__dirname, 'public', 'dashboard.html');
+        if (fs.existsSync(fallback)) {
+            res.sendFile(fallback);
+        } else {
+            res.status(404).send('<h1>📊 Dashboard</h1><p>Arquivo não encontrado.</p>');
+        }
     }
 });
 
@@ -5557,12 +5564,12 @@ app.get('/simulador-visto-americano/', (req, res) => {
 });
 
 // Dashboard Central (novo nome)
-app.get('/dashboard', (req, res) => {
-    const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
-    console.log(`📊 Servindo dashboard: ${dashboardPath}`);
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(dashboardPath);
-});
+// app.get('/dashboard', (req, res) => {
+  //  const dashboardPath = path.join(__dirname, 'public', 'dashboard.html');
+   //  console.log(`📊 Servindo dashboard: ${dashboardPath}`);
+    // res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    // res.sendFile(dashboardPath);
+// });
 
 // ============================================================
 // ROTA PARA PÁGINA DE OBRIGADO - VISTO NEGADO
