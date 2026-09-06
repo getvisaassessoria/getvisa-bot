@@ -945,7 +945,11 @@ async function mostrarStatusProcesso(phone, cliente) {
         }
     }
     
-    mensagem += `\n\n💪 *Estamos acompanhando seu caso!*\n\nDigite *0* para voltar ao menu principal.`;
+    mensagem += `\n\n💪 *Estamos acompanhando seu caso!*\n\n` +
+                `📌 *Sua pergunta foi respondida?* 😊\n\n` +
+                `Se precisar de ajuda ou quiser falar com um especialista, pode me chamar ou entrar em contato direto pelo WhatsApp:\n` +
+                `[Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+                `Digite *0* para voltar ao menu principal.`;
     
     await enviarWhatsApp(phone, mensagem);
 }
