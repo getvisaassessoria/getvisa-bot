@@ -943,6 +943,7 @@ async function processarLead(phone, message, cliente) {
     const nomeLead = obterNomeExibicao(cliente.nome);
     const msg = message.trim().toLowerCase();
     
+    // Verifica se está em submenu
     const state = userState.get(phone);
     if (state && state.nivel === 'submenu' && state.service) {
         await processarOpcaoNoSubmenu(phone, msg, state);
@@ -955,6 +956,7 @@ async function processarLead(phone, message, cliente) {
         return;
     }
     
+    // Mapeamento de serviços 1-7
     const servicoMap = {
         '1': 'visto_americano',
         '2': 'visto_canadense',
@@ -983,7 +985,15 @@ async function processarLead(phone, message, cliente) {
         return;
     }
     
+    // 🔥 DETECÇÃO DE INTENÇÃO: ANDAMENTO
     const intencao = detectarIntencao(message);
+    
+    if (intencao === 'andamento') {
+        // Já temos o cliente (pelo telefone), então mostra o status
+        await mostrarStatusProcesso(phone, cliente);
+        return;
+    }
+    
     if (intencao && intencao !== 'desconhecida') {
         const resposta = gerarRespostaBot(intencao, cliente.nome, null);
         await enviarWhatsApp(phone, resposta);
@@ -1064,30 +1074,21 @@ async function processarOpcaoNoMenuPrincipal(cleanPhone, messageText, state) {
         }
 
         if (intent === 'andamento') {
-            if (!clienteDB) {
-                await enviarWhatsApp(cleanPhone, '❌ Ainda não encontrei seu cadastro. Digite 0 para o menu principal.');
-                return;
-            }
-            const statusLabels = {
-                'lead': '📋 Cadastro iniciado - aguardando formulário',
-                'formulario_enviado': '📋 Formulário recebido - em análise',
-                'em_analise': '🔍 Em análise pela equipe',
-                'processo_aberto': '📌 Processo aberto - aguardando agendamento',
-                'agendado_casv': '📅 CASV agendado',
-                'agendado_entrevista': '🎤 Entrevista agendada',
-                'treinamento_realizado': '✅ Treinamento concluído',
-                'entrevista_realizada': '🎤 Entrevista realizada - aguardando decisão',
-                'visto_aprovado': '🎉 Visto APROVADO!',
-                'visto_recusado': '😔 Visto recusado - vamos analisar juntos',
-                'passaporte_retornado': '📦 Passaporte disponível para retirada'
-            };
-            const statusAtual = clienteDB.etapa_atual || clienteDB.status || 'lead';
-            const label = statusLabels[statusAtual] || statusAtual;
-            const dataAtualizacao = clienteDB.ultima_atualizacao ? new Date(clienteDB.ultima_atualizacao).toLocaleDateString('pt-BR') : 'Não disponível';
-            const mensagem = `📊 *Olá ${primeiroNome}!*\n\n📍 *Status:* ${label}\n📅 *Atualização:* ${dataAtualizacao}\n${clienteDB.consulado ? `🏛️ *Consulado:* ${clienteDB.consulado}\n` : ''}\n💪 *Estamos com você!*\n\n📱 [Fale com especialista](https://wa.me/5521974601812)\n\nDigite 0 para o menu principal`;
-            await enviarWhatsApp(cleanPhone, mensagem);
-            return;
-        }
+    // Já temos o telefone (cleanPhone), busca o cliente novamente para pegar dados atualizados
+    const { data: clienteAtualizado, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('telefone', cleanPhone)
+        .maybeSingle();
+    
+    if (error || !clienteAtualizado) {
+        await enviarWhatsApp(cleanPhone, '❌ Ainda não encontrei seu cadastro. Digite 0 para o menu principal.');
+        return;
+    }
+    
+    await mostrarStatusProcesso(cleanPhone, clienteAtualizado);
+    return;
+}
 
         if (intent === 'documentos') {
             const resposta = getRespostaSubmenu(servicoCliente, 'documentos');
