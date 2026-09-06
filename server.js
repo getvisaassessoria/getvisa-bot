@@ -902,6 +902,7 @@ async function processarClienteExistente(phone, message, cliente) {
 async function mostrarStatusProcesso(phone, cliente) {
     const primeiroNome = obterNomeExibicao(cliente.nome);
     let etapaAtual = cliente.etapa_atual || cliente.status || 'lead';
+    
     const statusLabels = {
         'lead': '📋 Cadastro iniciado - aguardando formulário',
         'formulario_solicitado': '📋 Formulário DS-160 enviado para você',
@@ -920,10 +921,14 @@ async function mostrarStatusProcesso(phone, cliente) {
         'visto_recusado': '😔 Visto recusado - vamos analisar juntos',
         'passaporte_retornado': '📦 Passaporte disponível para retirada'
     };
+    
     const label = statusLabels[etapaAtual] || etapaAtual;
     const dataAtualizacao = cliente.updated_at || cliente.data_atualizacao || new Date().toISOString();
     const dataFormatada = new Date(dataAtualizacao).toLocaleDateString('pt-BR');
+    
     let mensagem = `📊 *Olá ${primeiroNome}!*\n\n📍 *Status do seu processo:* ${label}\n📅 *Última atualização:* ${dataFormatada}`;
+    
+    // Adiciona detalhes de agendamento se houver
     if (etapaAtual === 'agendado_casv' || etapaAtual === 'agendado_entrevista') {
         const { data: etapaData } = await supabase
             .from('etapas_processo')
@@ -931,11 +936,17 @@ async function mostrarStatusProcesso(phone, cliente) {
             .eq('cliente_telefone', phone)
             .maybeSingle();
         if (etapaData) {
-            if (etapaData.dados_casv?.data) mensagem += `\n\n📅 *CASV:* ${etapaData.dados_casv.data} às ${etapaData.dados_casv.hora || '--:--'}`;
-            if (etapaData.dados_entrevista?.data) mensagem += `\n🎤 *Entrevista:* ${etapaData.dados_entrevista.data} às ${etapaData.dados_entrevista.hora || '--:--'}`;
+            if (etapaData.dados_casv?.data) {
+                mensagem += `\n\n📅 *CASV:* ${etapaData.dados_casv.data} às ${etapaData.dados_casv.hora || '--:--'}`;
+            }
+            if (etapaData.dados_entrevista?.data) {
+                mensagem += `\n🎤 *Entrevista:* ${etapaData.dados_entrevista.data} às ${etapaData.dados_entrevista.hora || '--:--'}`;
+            }
         }
     }
-    mensagem += `\n\n💪 *Estamos acompanhando seu caso!*\n\n📌 *O que você gostaria de fazer?*\n1️⃣ - Ver status novamente\n2️⃣ - Informações sobre o processo\n3️⃣ - Falar com especialista\n\n0️⃣ - Menu principal\n\nDigite o número da opção (1-3) ou *0* para o menu principal.`;
+    
+    mensagem += `\n\n💪 *Estamos acompanhando seu caso!*\n\nDigite *0* para voltar ao menu principal.`;
+    
     await enviarWhatsApp(phone, mensagem);
 }
 
