@@ -714,11 +714,9 @@ function getRespostaSubmenu(servico, opcao) {
 // ============================================================
 
 // 10.1. TRIAGEM INICIAL (GERENCIAMENTO DE ESTADOS)
+
 // ============================================================
-// FUNÇÃO PRINCIPAL DE GERENCIAMENTO DA TRIAGEM (CORRIGIDA)
-// ============================================================
-// ============================================================
-// FUNÇÃO PRINCIPAL DE GERENCIAMENTO DA TRIAGEM (COM FALLBACK PARA ESPECIALISTA)
+// FUNÇÃO PRINCIPAL DE GERENCIAMENTO DA TRIAGEM (COM FALLBACK PARA ESPECIALISTA - SEM LINK DO WHATSAPP)
 // ============================================================
 async function gerenciarTriagem(phone, message, state) {
     console.log(`📌 Triagem - Estado atual: ${state.step}, telefone: ${phone}`);
@@ -741,10 +739,7 @@ async function gerenciarTriagem(phone, message, state) {
     async function encaminharParaEspecialista() {
         const mensagem = `🤔 *Sua demanda será analisada e em breve um especialista entrará em contato.*
 
-📱 Enquanto isso, fale diretamente com nossa equipe:
-[Clique aqui](https://wa.me/5521974601812)
-
-📧 contato@getvisa.com.br
+📧 Caso prefira, envie um e-mail para contato@getvisa.com.br
 
 Digite *0* para recomeçar.`;
         await enviarWhatsApp(phone, mensagem);
@@ -757,9 +752,6 @@ Digite *0* para recomeçar.`;
     }
 
     switch (state.step) {
-        // ----------------------------------------------------------
-        // 1. PERGUNTAR TIPO
-        // ----------------------------------------------------------
         case TRIAGEM_STEPS.PERGUNTAR_TIPO: {
             const msg = `👋 Olá! Seja bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸
 
@@ -778,9 +770,6 @@ Digite o número da opção (1, 2 ou 3)`;
             break;
         }
 
-        // ----------------------------------------------------------
-        // 2. AGUARDANDO RESPOSTA
-        // ----------------------------------------------------------
         case TRIAGEM_STEPS.AGUARDANDO_RESPOSTA: {
             const opcao = message.trim();
             if (!['1','2','3'].includes(opcao)) {
@@ -788,7 +777,6 @@ Digite o número da opção (1, 2 ou 3)`;
                 return;
             }
             if (opcao === '3') {
-                // Contato pessoal: silenciar permanentemente
                 await supabase.from('clientes').upsert({
                     telefone: phone,
                     tipo_contato: 'contato_pessoal',
@@ -817,11 +805,7 @@ Digite o número da opção (1, 2 ou 3)`;
             break;
         }
 
-        // ----------------------------------------------------------
-        // 3. AGUARDANDO EMAIL DO CLIENTE
-        // ----------------------------------------------------------
         case TRIAGEM_STEPS.AGUARDANDO_EMAIL_CLIENTE: {
-            // Comando "2" redireciona para cadastro de lead
             if (msgLower === '2') {
                 state.tipo = 'lead';
                 state.step = TRIAGEM_STEPS.AGUARDANDO_NOME_LEAD;
@@ -829,27 +813,20 @@ Digite o número da opção (1, 2 ou 3)`;
                 await enviarWhatsApp(phone, `📋 Ótimo! Vou te ajudar com todas as informações sobre vistos e viagens!\n\n📌 *Para começar, me diga seu nome completo:*\n\nEx: Maria Silva`);
                 return;
             }
-
             const email = message.trim().toLowerCase();
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                 await encaminharParaEspecialista();
                 return;
             }
-
             const { data: cliente, error } = await supabase
                 .from('clientes')
                 .select('*')
                 .eq('email', email)
                 .maybeSingle();
-
             if (error || !cliente) {
-                // Email não encontrado: oferece a opção de cadastrar como lead
                 await enviarWhatsApp(phone, `❌ Nenhum cliente encontrado com este e-mail.\n\n📌 Verifique se o e-mail está correto ou cadastre-se como lead digitando *2*.`);
-                // Não reinicia, aguarda nova ação
                 return;
             }
-
-            // Cliente encontrado
             await supabase
                 .from('clientes')
                 .update({ telefone: phone, tipo_contato: 'cliente', updated_at: new Date().toISOString() })
@@ -859,9 +836,6 @@ Digite o número da opção (1, 2 ou 3)`;
             break;
         }
 
-        // ----------------------------------------------------------
-        // 4. AGUARDANDO NOME DO LEAD
-        // ----------------------------------------------------------
         case TRIAGEM_STEPS.AGUARDANDO_NOME_LEAD: {
             if (msgLower === '0') {
                 state.step = TRIAGEM_STEPS.PERGUNTAR_TIPO;
@@ -872,7 +846,6 @@ Digite o número da opção (1, 2 ou 3)`;
                 await enviarWhatsApp(phone, `👋 Vamos recomeçar. Digite 1, 2 ou 3.`);
                 return;
             }
-
             const nome = message.trim();
             if (nome.length < 3) {
                 await encaminharParaEspecialista();
@@ -885,9 +858,6 @@ Digite o número da opção (1, 2 ou 3)`;
             break;
         }
 
-        // ----------------------------------------------------------
-        // 5. AGUARDANDO EMAIL DO LEAD
-        // ----------------------------------------------------------
         case TRIAGEM_STEPS.AGUARDANDO_EMAIL_LEAD: {
             if (msgLower === '0') {
                 state.step = TRIAGEM_STEPS.PERGUNTAR_TIPO;
@@ -898,14 +868,11 @@ Digite o número da opção (1, 2 ou 3)`;
                 await enviarWhatsApp(phone, `👋 Vamos recomeçar. Digite 1, 2 ou 3.`);
                 return;
             }
-
             const email = message.trim().toLowerCase();
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                 await encaminharParaEspecialista();
                 return;
             }
-
-            // Salvar lead
             await supabase
                 .from('clientes')
                 .upsert({
@@ -917,7 +884,6 @@ Digite o número da opção (1, 2 ou 3)`;
                     data_contato: new Date().toISOString(),
                     onboarding_completo: true
                 }, { onConflict: 'telefone' });
-
             userState.delete(phone);
             const menu = await getMenuPrincipal();
             await enviarWhatsApp(phone, menu);
@@ -931,6 +897,7 @@ Digite o número da opção (1, 2 ou 3)`;
             await gerenciarTriagem(phone, message, state);
     }
 }
+
 
 // 10.2. PROCESSAR CLIENTE EXISTENTE (com processo)
 async function processarClienteExistente(phone, message, cliente) {
