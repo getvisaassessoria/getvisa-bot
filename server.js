@@ -752,23 +752,24 @@ Digite o número da opção (1, 2 ou 3)`;
                 return;
             }
             if (opcao === '3') {
-                console.log(`🔇 Opção 3 detectada para ${phone}, salvando como contato_pessoal...`);
-                const { data, error } = await supabase.from('clientes').upsert({
-                    telefone: phone,
-                    tipo_contato: 'contato_pessoal',
-                    status: 'contato_pessoal',
-                    data_contato: new Date().toISOString(),
-                    onboarding_completo: true
-                }, { onConflict: 'telefone' });
-                if (error) {
-                    console.error(`❌ Erro ao salvar contato pessoal:`, error);
-                } else {
-                    console.log(`✅ Contato pessoal salvo:`, data);
-                }
-                userState.delete(phone);
-                console.log(`🔇 Contato pessoal ${phone} silenciado.`);
-                return;
+            console.log(`🔇 Opção 3 detectada para ${phone}, salvando como contato_pessoal...`);
+            const { data, error } = await supabase.from('clientes').upsert({
+                telefone: phone,
+                nome: 'Contato Pessoal',  // 🔥 NOME PADRÃO PARA EVITAR NOT NULL
+                tipo_contato: 'contato_pessoal',
+                status: 'contato_pessoal',
+                data_contato: new Date().toISOString(),
+                onboarding_completo: true
+            }, { onConflict: 'telefone' });
+            if (error) {
+                console.error(`❌ Erro ao salvar contato pessoal:`, error);
+            } else {
+                console.log(`✅ Contato pessoal salvo:`, data);
             }
+            userState.delete(phone);
+            console.log(`🔇 Contato pessoal ${phone} silenciado.`);
+            return;
+        }
             if (opcao === '1') {
                 state.tipo = 'cliente';
                 state.step = TRIAGEM_STEPS.AGUARDANDO_EMAIL_CLIENTE;
