@@ -1,4 +1,4 @@
-// server.js - VERSÃO FINAL COM CORREÇÕES DE FALLBACK E SILENCIAMENTO
+// server.js - VERSÃO FINAL (SEM DUPLICAÇÕES)
 console.log('--- 🚀 SERVER.JS INICIADO (VERSÃO FINAL) ---');
 
 // ============================================================
@@ -593,7 +593,7 @@ function gerarRespostaBot(intencao, nome, etapaAtual) {
     const respostas = {
         saudacao: `👋 Olá, ${primeiroNome}!\n\nSou o assistente da GetVisa Assessoria. Estou aqui para ajudar com informações sobre vistos, documentos, prazos e andamento do processo.\n\nComo posso ajudar?`,
         solicitar_ds160: getMensagemFormularioParaBot(primeiroNome),
-        andamento: `Certo, ${primeiroNome}! Para verificar o andamento do seu processo, por favor, me informe o número do seu protocolo ou CPF.`,
+        andamento: `📊 Vou verificar o andamento do seu processo agora mesmo.`,
         documentos: `Para informações sobre documentos, ${primeiroNome}, preciso saber qual visto ou serviço você precisa. Por exemplo, "documentos para visto americano".`,
         prazo: `Os prazos variam bastante, ${primeiroNome}. Para qual visto ou serviço você gostaria de saber o prazo?`,
         pagamento: `Para informações sobre pagamentos, ${primeiroNome}, preciso saber qual serviço ou etapa do processo você se refere. Você pode me dar mais detalhes?`,
@@ -691,10 +691,6 @@ function getRespostaSubmenu(servico, opcao) {
     const resposta = respostas[opcao] && respostas[opcao][servico];
     return resposta || `📋 INFORMAÇÕES EM BREVE\n\nEstamos preparando o conteúdo específico para ${servico.replace('_',' ').toUpperCase()}.\n\nDigite 0 para voltar ao MENU principal`;
 }
-
-// ============================================================
-// 10. FUNÇÕES DE PROCESSAMENTO DAS MENSAGENS (FLUXO PRINCIPAL)
-// ============================================================
 
 // ============================================================
 // 10. FUNÇÕES DE PROCESSAMENTO DAS MENSAGENS (FLUXO PRINCIPAL)
@@ -907,196 +903,6 @@ Digite o número da opção (1, 2 ou 3)`;
             await gerenciarTriagem(phone, message, state);
     }
 }
-
-    // Função para fallback (especialista) – usada apenas na escolha inicial
-    async function encaminharParaEspecialista() {
-        const mensagem = `🤔 *Sua demanda será analisada e em breve um especialista entrará em contato.*
-
-📧 Caso prefira, envie um e-mail para contato@getvisa.com.br
-
-Digite *0* para recomeçar.`;
-        await enviarWhatsApp(phone, mensagem);
-        state.step = TRIAGEM_STEPS.PERGUNTAR_TIPO;
-        state.tipo = null;
-        state.nome = null;
-        state.email = null;
-        userState.set(phone, state);
-    }
-
-    // Função para resetar para a mensagem de boas-vindas (usada quando entrada inválida)
-    async function resetarParaBoasVindas() {
-        state.step = TRIAGEM_STEPS.PERGUNTAR_TIPO;
-        state.tipo = null;
-        state.nome = null;
-        state.email = null;
-        userState.set(phone, state);
-        const msg = `👋 Olá! Seja bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸
-
-Somos especialistas em vistos americanos e viagens internacionais!
-
-Para eu saber como posso te ajudar melhor, me diga:
-
-1️⃣ - Cliente (já estou em processo de visto)
-2️⃣ - Quero informações sobre Vistos, eTA, ESTA, Passaporte
-3️⃣ - Outros assuntos (contato pessoal, fornecedor, etc)
-
-Digite o número da opção (1, 2 ou 3)`;
-        await enviarWhatsApp(phone, msg);
-    }
-
-    switch (state.step) {
-        case TRIAGEM_STEPS.PERGUNTAR_TIPO: {
-            const msg = `👋 Olá! Seja bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸
-
-Somos especialistas em vistos americanos e viagens internacionais!
-
-Para eu saber como posso te ajudar melhor, me diga:
-
-1️⃣ - Cliente (já estou em processo de visto)
-2️⃣ - Quero informações sobre Vistos, eTA, ESTA, Passaporte
-3️⃣ - Outros assuntos (contato pessoal, fornecedor, etc)
-
-Digite o número da opção (1, 2 ou 3)`;
-            await enviarWhatsApp(phone, msg);
-            state.step = TRIAGEM_STEPS.AGUARDANDO_RESPOSTA;
-            userState.set(phone, state);
-            break;
-        }
-
-        case TRIAGEM_STEPS.AGUARDANDO_RESPOSTA: {
-            const opcao = message.trim();
-            if (!['1','2','3'].includes(opcao)) {
-                await encaminharParaEspecialista();
-                return;
-            }
-            if (opcao === '3') {
-                console.log(`🔇 Opção 3 detectada para ${phone}, salvando como contato_pessoal...`);
-                const { data, error } = await supabase.from('clientes').upsert({
-                    telefone: phone,
-                    nome: 'Contato Pessoal',
-                    tipo_contato: 'contato_pessoal',
-                    status: 'contato_pessoal',
-                    data_contato: new Date().toISOString(),
-                    onboarding_completo: true
-                }, { onConflict: 'telefone' });
-                if (error) {
-                    console.error(`❌ Erro ao salvar contato pessoal:`, error);
-                } else {
-                    console.log(`✅ Contato pessoal salvo:`, data);
-                }
-                userState.delete(phone);
-                console.log(`🔇 Contato pessoal ${phone} silenciado.`);
-                return;
-            }
-            if (opcao === '1') {
-                state.tipo = 'cliente';
-                state.step = TRIAGEM_STEPS.AGUARDANDO_EMAIL_CLIENTE;
-                userState.set(phone, state);
-                await enviarWhatsApp(phone, `✅ Entendi! Você já está em processo de visto.\n\nPara verificar o andamento do seu processo, me informe:\n\n📧 **Qual é o seu e-mail cadastrado?**\n\nEx: maria@email.com`);
-                return;
-            }
-            if (opcao === '2') {
-                state.tipo = 'lead';
-                state.step = TRIAGEM_STEPS.AGUARDANDO_NOME_LEAD;
-                userState.set(phone, state);
-                await enviarWhatsApp(phone, `📋 Ótimo! Vou te ajudar com todas as informações sobre vistos e viagens!\n\n📌 *Para começar, me diga seu nome completo:*\n\nEx: Maria Silva`);
-                return;
-            }
-            break;
-        }
-
-        case TRIAGEM_STEPS.AGUARDANDO_EMAIL_CLIENTE: {
-            if (msgLower === '2') {
-                state.tipo = 'lead';
-                state.step = TRIAGEM_STEPS.AGUARDANDO_NOME_LEAD;
-                userState.set(phone, state);
-                await enviarWhatsApp(phone, `📋 Ótimo! Vou te ajudar com todas as informações sobre vistos e viagens!\n\n📌 *Para começar, me diga seu nome completo:*\n\nEx: Maria Silva`);
-                return;
-            }
-            const email = message.trim().toLowerCase();
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                await resetarParaBoasVindas();
-                return;
-            }
-            const { data: cliente, error } = await supabase
-                .from('clientes')
-                .select('*')
-                .eq('email', email)
-                .maybeSingle();
-            if (error || !cliente) {
-                await enviarWhatsApp(phone, `❌ Nenhum cliente encontrado com este e-mail.\n\n📌 Verifique se o e-mail está correto ou cadastre-se como lead digitando *2*.`);
-                return;
-            }
-            await supabase
-                .from('clientes')
-                .update({ telefone: phone, tipo_contato: 'cliente', updated_at: new Date().toISOString() })
-                .eq('email', email);
-            userState.delete(phone);
-            await processarClienteExistente(phone, '', cliente);
-            break;
-        }
-
-        case TRIAGEM_STEPS.AGUARDANDO_NOME_LEAD: {
-            if (msgLower === '0') {
-                state.step = TRIAGEM_STEPS.PERGUNTAR_TIPO;
-                state.tipo = null;
-                state.nome = null;
-                state.email = null;
-                userState.set(phone, state);
-                await enviarWhatsApp(phone, `👋 Vamos recomeçar. Digite 1, 2 ou 3.`);
-                return;
-            }
-            const nome = message.trim();
-            if (nome.length < 3) {
-                await resetarParaBoasVindas();
-                return;
-            }
-            state.nome = nome;
-            state.step = TRIAGEM_STEPS.AGUARDANDO_EMAIL_LEAD;
-            userState.set(phone, state);
-            await enviarWhatsApp(phone, `😊 Prazer, ${nome}! Agora me diga:\n\n📧 **Qual é o seu e-mail?**\n\nEx: maria@email.com`);
-            break;
-        }
-
-        case TRIAGEM_STEPS.AGUARDANDO_EMAIL_LEAD: {
-            if (msgLower === '0') {
-                state.step = TRIAGEM_STEPS.PERGUNTAR_TIPO;
-                state.tipo = null;
-                state.nome = null;
-                state.email = null;
-                userState.set(phone, state);
-                await enviarWhatsApp(phone, `👋 Vamos recomeçar. Digite 1, 2 ou 3.`);
-                return;
-            }
-            const email = message.trim().toLowerCase();
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                await resetarParaBoasVindas();
-                return;
-            }
-            await supabase
-                .from('clientes')
-                .upsert({
-                    telefone: phone,
-                    nome: state.nome,
-                    email: email,
-                    tipo_contato: 'lead',
-                    status: 'lead',
-                    data_contato: new Date().toISOString(),
-                    onboarding_completo: true
-                }, { onConflict: 'telefone' });
-            userState.delete(phone);
-            const menu = await getMenuPrincipal();
-            await enviarWhatsApp(phone, menu);
-            break;
-        }
-
-        default:
-            console.warn(`⚠️ Estado de triagem desconhecido: ${state.step}, reiniciando.`);
-            state.step = TRIAGEM_STEPS.PERGUNTAR_TIPO;
-            userState.set(phone, state);
-            await gerenciarTriagem(phone, message, state);
-    }
-
 
 async function processarClienteExistente(phone, message, cliente) {
     const primeiroNome = obterNomeExibicao(cliente.nome);
