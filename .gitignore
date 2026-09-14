@@ -3,3 +3,5 @@ server.js.backup
 test-email.js
 *.tar.gz
 *.zip
+*.bckup.html
+*.backup.html

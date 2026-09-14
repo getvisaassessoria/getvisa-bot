@@ -1903,9 +1903,31 @@ function validateStep(step) {
 function getFormData() {
     var data = {};
     document.querySelectorAll('#ds160Form input, #ds160Form select, #ds160Form textarea').forEach(function(el) {
-        if (el.name) data[el.name] = el.value;
+        if (!el.name) return;
+
+        // RADIO: só captura se estiver marcado
+        if (el.type === 'radio') {
+            if (el.checked) {
+                data[el.name] = el.value;
+            } else if (!(el.name in data)) {
+                // garante que o campo exista mesmo se nada foi marcado
+                data[el.name] = data[el.name] || '';
+            }
+            return;
+        }
+
+        // CHECKBOX: só captura se marcado
+        if (el.type === 'checkbox') {
+            data[el.name] = el.checked;
+            return;
+        }
+
+        // Demais campos (text, select, textarea, date, etc.)
+        data[el.name] = el.value;
     });
+
     console.log('📌 Ocupação selecionada:', data['radio-occupation']);
+    console.log('📌 Gênero selecionado:', data['radio-genero']);
     return data;
 }
 
