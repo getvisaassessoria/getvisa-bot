@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Processo - GetVisa</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #f0f2f5; 
+            min-height: 100vh;
+            color: #333;
+        }
+        .header {
+            background: #003366;
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .header h1 { font-size: 22px; }
+        .header .user-info { display: flex; align-items: center; gap: 15px; }
+        .header .user-info span { font-size: 14px; opacity: 0.9; }
+        .header button {
+            background: rgba(255,255,255,0.2);
+            color: white; border: none;
+            padding: 10px 20px; border-radius: 8px;
+            cursor: pointer; font-size: 14px;
+            transition: 0.3s;
+        }
+        .header button:hover { background: rgba(255,255,255,0.3); }
+
+        .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+
+        /* LOGIN */
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            max-width: 450px;
+            margin: 60px auto;
+        }
+        .login-card h2 {
+            color: #003366;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+        .login-card .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .field { margin-bottom: 20px; }
+        .field label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #555;
+        }
+        .field input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 15px;
+            transition: border-color 0.2s;
+        }
+        .field input:focus {
+            outline: none;
+            border-color: #003366;
+            box-shadow: 0 0 0 3px rgba(0, 51, 102, 0.1);
+        }
+        .field small {
+            display: block;
+            color: #666;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-primary { background: #003366; color: white; }
+        .btn-primary:hover { background: #004d99; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .erro {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .loading {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #003366;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* PROCESSO */
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .card h3 {
+            color: #003366;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .status-destaque {
+            background: linear-gradient(135deg, #003366, #004d99);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .status-destaque .label {
+            font-size: 13px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .status-destaque .etapa {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .status-destaque .atualizado {
+            font-size: 13px;
+            opacity: 0.85;
+        }
+
+        .timeline { position: relative; padding-left: 30px; }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e9ecef;
+        }
+        .timeline-item {
+            position: relative;
+            padding-bottom: 25px;
+        }
+        .timeline-item:last-child { padding-bottom: 0; }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -25px;
+            top: 4px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #e9ecef;
+            border: 3px solid #f0f2f5;
+        }
+        .timeline-item.concluida::before { background: #28a745; }
+        .timeline-item.atual::before {
+            background: #003366;
+            box-shadow: 0 0 0 4px rgba(0, 51, 102, 0.2);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 4px rgba(0, 51, 102, 0.2); }
+            50% { box-shadow: 0 0 0 8px rgba(0, 51, 102, 0.1); }
+        }
+        .timeline-item .titulo {
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        .timeline-item.concluida .titulo { color: #28a745; }
+        .timeline-item.atual .titulo { color: #003366; font-size: 15px; }
+        .timeline-item.pendente .titulo { color: #adb5bd; }
+        .timeline-item .data {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
+        }
+
+        .agendamento {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #003366;
+            margin-bottom: 12px;
+        }
+        .agendamento .tipo {
+            font-weight: 700;
+            color: #003366;
+            margin-bottom: 8px;
+            font-size: 15px;
+        }
+        .agendamento .linha {
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 4px;
+        }
+        .agendamento .linha strong { color: #333; }
+
+        .btn-whats {
+            display: block;
+            text-align: center;
+            background: #25D366;
+            color: white;
+            padding: 14px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 15px;
+            margin-top: 10px;
+            transition: 0.2s;
+        }
+        .btn-whats:hover { background: #128C7E; }
+
+        .aviso-reenvio {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 6px;
+            color: #856404;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .footer {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            padding: 30px 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- TELA DE LOGIN -->
+    <div id="telaLogin">
+        <div class="container">
+            <div class="login-card">
+                <h2>📋 Meu Processo</h2>
+                <p class="subtitle">Acompanhe o andamento do seu visto</p>
+
+                <div id="loginErro" style="display:none;"></div>
+
+                <div class="field">
+                    <label>Telefone (WhatsApp)</label>
+                    <input type="tel" id="loginTelefone" placeholder="(21) 99999-9999">
+                </div>
+
+                <div class="field">
+                    <label>4 últimos dígitos do CPF</label>
+                    <input type="text" id="loginCpf4" maxlength="4" placeholder="0000" inputmode="numeric">
+                    <small>Usamos pra garantir a segurança dos seus dados.</small>
+                </div>
+
+                <button class="btn btn-primary" id="btnLogin" onclick="fazerLogin()">
+                    🔓 Acessar meu processo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TELA DO PROCESSO -->
+    <div id="telaProcesso" style="display:none;">
+        <div class="header">
+            <h1>📋 Meu Processo</h1>
+            <div class="user-info">
+                <span id="headerNome">-</span>
+                <button onclick="fazerLogout()">🚪 Sair</button>
+            </div>
+        </div>
+
+        <div class="container" id="conteudoProcesso">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Carregando seu processo...</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            GetVisa Assessoria — Seu visto com segurança 🇺🇸
+        </div>
+    </div>
+
+    <script>
+        // Continua na PARTE B
+    </script>
+</body>
+</html>
+
+// ============================================================
+// CONFIG
+// ============================================================
+const WHATSAPP_EQUIPE = '5521974601812';
+const TOKEN_KEY = 'portal_getvisa_token';
+const NOME_KEY = 'portal_getvisa_nome';
+
+let dadosProcesso = null;
+
+// ============================================================
+// HELPERS
+// ============================================================
+function formatarTelefone(tel) {
+    const nums = (tel || '').replace(/\D/g, '');
+    if (nums.length === 11) return `(${nums.slice(0,2)}) ${nums.slice(2,7)}-${nums.slice(7)}`;
+    if (nums.length === 10) return `(${nums.slice(0,2)}) ${nums.slice(2,6)}-${nums.slice(6)}`;
+    return tel || '-';
+}
+
+function formatarData(iso) {
+    if (!iso) return null;
+    const d = new Date(iso);
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function formatarDataHora(iso) {
+    if (!iso) return null;
+    const d = new Date(iso);
+    return d.toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+}
+
+function escapar(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function mascaraTelefone(input) {
+    let v = input.value.replace(/\D/g, '');
+    if (v.length <= 10) {
+        v = v.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
+    } else {
+        v = v.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3');
+    }
+    input.value = v.replace(/-$/, '');
+}
+
+function apenasDigitos(input) {
+    input.value = input.value.replace(/\D/g, '').slice(0, 4);
+}
+
+function mostrarErroLogin(msg) {
+    const el = document.getElementById('loginErro');
+    el.className = 'erro';
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+function esconderErroLogin() {
+    document.getElementById('loginErro').style.display = 'none';
+}
+
+// ============================================================
+// LOGIN
+// ============================================================
+async function fazerLogin() {
+    esconderErroLogin();
+
+    const telefone = document.getElementById('loginTelefone').value.trim();
+    const cpf4 = document.getElementById('loginCpf4').value.trim();
+    const btn = document.getElementById('btnLogin');
+
+    if (!telefone || telefone.replace(/\D/g, '').length < 10) {
+        mostrarErroLogin('Informe um telefone válido.');
+        return;
+    }
+    if (!cpf4 || cpf4.length !== 4) {
+        mostrarErroLogin('Informe os 4 últimos dígitos do CPF.');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '🔒 Verificando...';
+
+    try {
+        const resp = await fetch('/api/portal/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ telefone, cpfUltimos4: cpf4 })
+        });
+
+        const data = await resp.json();
+
+        if (!data.success) {
+            mostrarErroLogin(data.message || 'Não foi possível fazer login.');
+            return;
+        }
+
+        localStorage.setItem(TOKEN_KEY, data.token);
+        localStorage.setItem(NOME_KEY, data.nome || '');
+
+        await carregarProcesso();
+    } catch (err) {
+        console.error(err);
+        mostrarErroLogin('Erro de conexão. Tente novamente.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔓 Acessar meu processo';
+    }
+}
+
+// ============================================================
+// LOGOUT
+// ============================================================
+async function fazerLogout() {
+    if (!confirm('Deseja realmente sair?')) return;
+
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token) {
+        try {
+            await fetch('/api/portal/logout', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+        } catch (e) {}
+    }
+
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(NOME_KEY);
+    location.reload();
+}
+
+// ============================================================
+// CARREGAR PROCESSO
+// ============================================================
+async function carregarProcesso() {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+        mostrarTelaLogin();
+        return;
+    }
+
+    const nome = localStorage.getItem(NOME_KEY) || 'Cliente';
+    document.getElementById('headerNome').textContent = '👤 ' + nome;
+
+    try {
+        const resp = await fetch('/api/portal/meu-processo', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const data = await resp.json();
+
+        if (!data.success) {
+            if (resp.status === 401) {
+                localStorage.removeItem(TOKEN_KEY);
+                localStorage.removeItem(NOME_KEY);
+                mostrarTelaLogin();
+                if (data.message) mostrarErroLogin(data.message);
+                return;
+            }
+            mostrarErroProcesso(data.message || 'Erro ao carregar processo.');
+            return;
+        }
+
+        dadosProcesso = data;
+        renderizarProcesso();
+    } catch (err) {
+        console.error(err);
+        mostrarErroProcesso('Erro de conexão. Tente novamente.');
+    }
+}
+
+// ============================================================
+// RENDERIZAR
+// ============================================================
+function mostrarTelaLogin() {
+    document.getElementById('telaLogin').style.display = 'block';
+    document.getElementById('telaProcesso').style.display = 'none';
+}
+
+function mostrarTelaProcesso() {
+    document.getElementById('telaLogin').style.display = 'none';
+    document.getElementById('telaProcesso').style.display = 'block';
+}
+
+function mostrarErroProcesso(msg) {
+    document.getElementById('conteudoProcesso').innerHTML = `
+        <div class="card">
+            <div class="erro">${escapar(msg)}</div>
+            <button class="btn btn-primary" onclick="location.reload()">🔄 Tentar novamente</button>
+        </div>
+    `;
+}
+
+function renderizarProcesso() {
+    mostrarTelaProcesso();
+    const d = dadosProcesso;
+    const container = document.getElementById('conteudoProcesso');
+
+    let html = '';
+
+    // 1. STATUS DESTAQUE
+    html += `
+        <div class="status-destaque">
+            <div class="label">Etapa atual do seu processo</div>
+            <div class="etapa">${escapar(d.etapa_label)}</div>
+            ${d.formulario?.data_envio ? `<div class="atualizado">Formulário enviado em ${formatarData(d.formulario.data_envio)}</div>` : ''}
+        </div>
+    `;
+
+    // 2. AVISO DE REENVIO (se houver)
+    if (d.reenvios?.total > 0) {
+        html += `
+            <div class="card">
+                <div class="aviso-reenvio">
+                    ⚠️ <strong>Detectamos uma tentativa de alteração no seu DS-160.</strong><br>
+                    Nossa equipe já está ciente e entrará em contato pelo WhatsApp para orientar você.
+                    Por segurança, alterações após o envio precisam ser revisadas por um especialista.
+                </div>
+            </div>
+        `;
+    }
+
+    // 3. TIMELINE
+    html += `
+        <div class="card">
+            <h3>📊 Acompanhe seu processo</h3>
+            <div class="timeline">
+    `;
+
+    if (d.timeline && d.timeline.length > 0) {
+        for (const item of d.timeline) {
+            const data = item.data_conclusao ? formatarDataHora(item.data_conclusao) : null;
+            let labelMostrar = item.label;
+
+            // Remove emoji duplicado se já tiver
+            labelMostrar = labelMostrar.replace(/^[✅❌📋🔍💰🎤📅🎯🎉📦]\s*/, '');
+
+            html += `
+                <div class="timeline-item ${item.status}">
+                    <div class="titulo">${escapar(labelMostrar)}</div>
+                    ${data ? `<div class="data">${data}</div>` : ''}
+                </div>
+            `;
+        }
+    } else {
+        html += '<p style="color:#999;">Nenhuma etapa registrada ainda.</p>';
+    }
+
+    html += `
+            </div>
+        </div>
+    `;
+
+    // 4. AGENDAMENTOS (se houver)
+    const temCasv = d.agendamentos?.casv?.data || d.agendamentos?.casv?.hora || d.agendamentos?.casv?.local;
+    const temEntrevista = d.agendamentos?.entrevista?.data || d.agendamentos?.entrevista?.hora || d.agendamentos?.entrevista?.local;
+
+    if (temCasv || temEntrevista) {
+        html += `<div class="card"><h3>📅 Seus agendamentos</h3>`;
+
+        if (temCasv) {
+            html += `
+                <div class="agendamento">
+                    <div class="tipo">📍 CASV (Coleta Biométrica)</div>
+                    ${d.agendamentos.casv.data ? `<div class="linha"><strong>📅 Data:</strong> ${escapar(d.agendamentos.casv.data)}</div>` : ''}
+                    ${d.agendamentos.casv.hora ? `<div class="linha"><strong>⏰ Horário:</strong> ${escapar(d.agendamentos.casv.hora)}</div>` : ''}
+                    ${d.agendamentos.casv.local ? `<div class="linha"><strong>📍 Local:</strong> ${escapar(d.agendamentos.casv.local)}</div>` : ''}
+                </div>
+            `;
+        }
+
+        if (temEntrevista) {
+            html += `
+                <div class="agendamento">
+                    <div class="tipo">🎤 Entrevista no Consulado</div>
+                    ${d.agendamentos.entrevista.data ? `<div class="linha"><strong>📅 Data:</strong> ${escapar(d.agendamentos.entrevista.data)}</div>` : ''}
+                    ${d.agendamentos.entrevista.hora ? `<div class="linha"><strong>⏰ Horário:</strong> ${escapar(d.agendamentos.entrevista.hora)}</div>` : ''}
+                    ${d.agendamentos.entrevista.local ? `<div class="linha"><strong>📍 Local:</strong> ${escapar(d.agendamentos.entrevista.local)}</div>` : ''}
+                </div>
+            `;
+        }
+
+        html += `
+            <div style="background:#fff3cd; padding:12px; border-radius:6px; margin-top:10px; font-size:13px; color:#856404;">
+                ⚠️ <strong>Importante:</strong> Chegue com 30 minutos de antecedência e leve a <strong>CONFIRMATION IMPRESSA</strong> e seu <strong>PASSAPORTE</strong>.
+            </div>
+        </div>`;
+    }
+
+    // 5. FORMULÁRIO DS-160
+    html += `
+        <div class="card">
+            <h3>📋 Formulário DS-160</h3>
+            <div class="agendamento">
+                <div class="linha">
+                    <strong>Status:</strong>
+                    ${d.formulario?.enviado
+                        ? '<span style="color:#28a745;">✅ Recebido</span>'
+                        : '<span style="color:#dc3545;">⏳ Pendente</span>'}
+                </div>
+                ${d.formulario?.data_envio ? `<div class="linha"><strong>📅 Enviado em:</strong> ${formatarDataHora(d.formulario.data_envio)}</div>` : ''}
+                ${d.cliente?.consulado ? `<div class="linha"><strong>🏛️ Consulado:</strong> ${escapar(d.cliente.consulado)}</div>` : ''}
+            </div>
+        </div>
+    `;
+
+    // 6. BOTÃO WHATSAPP
+    html += `
+        <div class="card">
+            <h3>💬 Precisa de ajuda?</h3>
+            <p style="color:#666; font-size:14px; margin-bottom:15px;">
+                Nossa equipe está pronta pra te ajudar com qualquer dúvida sobre seu processo.
+            </p>
+            <a href="https://wa.me/${WHATSAPP_EQUIPE}?text=${encodeURIComponent('Olá! Sou ' + (d.cliente?.nome || 'cliente') + ' e gostaria de falar sobre meu processo.')}" 
+               target="_blank" 
+               class="btn-whats">
+                💬 Falar com especialista
+            </a>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+// ============================================================
+// INICIALIZAÇÃO
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Máscaras
+    const telInput = document.getElementById('loginTelefone');
+    const cpf4Input = document.getElementById('loginCpf4');
+
+    if (telInput) telInput.addEventListener('input', function() { mascaraTelefone(this); });
+    if (cpf4Input) cpf4Input.addEventListener('input', function() { apenasDigitos(this); });
+
+    // Enter para fazer login
+    [telInput, cpf4Input].forEach(el => {
+        if (!el) return;
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') fazerLogin();
+        });
+    });
+
+    // Verifica se já tem token
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token) {
+        carregarProcesso();
+    } else {
+        mostrarTelaLogin();
+    }
+});

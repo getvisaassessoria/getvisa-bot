@@ -140,9 +140,67 @@ if (!fs.existsSync(publicPath)) fs.mkdirSync(publicPath, { recursive: true });
 app.use(express.static(publicPath));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+
+
+// ============================================================
+// PORTAL DO CLIENTE — Helpers
+// ============================================================
+
+// Rate limit (memória — reseta a cada redeploy, suficiente pro MVP)
+const tentativasLogin = new Map();
+const MAX_TENTATIVAS_LOGIN = 10;
+const JANELA_RATE_LIMIT_MS = 15 * 60 * 1000; // 15 min
+
+function rateLimitLogin(req, res, next) {
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+            || req.socket?.remoteAddress
+            || 'desconhecido';
+    
+    const agora = Date.now();
+    const registro = tentativasLogin.get(ip);
+    
+    if (registro && (agora - registro.primeira) > JANELA_RATE_LIMIT_MS) {
+        tentativasLogin.delete(ip);
+    }
+    
+    const atual = tentativasLogin.get(ip);
+    if (atual && atual.tentativas >= MAX_TENTATIVAS_LOGIN) {
+        const restante = Math.ceil((JANELA_RATE_LIMIT_MS - (agora - atual.primeira)) / 60000);
+        console.log(`🚫 Rate limit login portal: ${ip}`);
+        return res.status(429).json({
+            success: false,
+            message: `Muitas tentativas. Aguarde ${restante} minuto(s).`
+        });
+    }
+    
+    req._ipPortal = ip;
+    next();
+}
+
+function registrarFalhaLogin(ip) {
+    const agora = Date.now();
+    const atual = tentativasLogin.get(ip);
+    if (!atual) tentativasLogin.set(ip, { tentativas: 1, primeira: agora });
+    else atual.tentativas++;
+}
+
+function limparTentativasLogin(ip) {
+    tentativasLogin.delete(ip);
+}
+
+function gerarTokenPortal() {
+    return require('crypto').randomBytes(32).toString('hex');
+}
+
+
+
 // ============================================================
 // 5. FUNÇÕES AUXILIARES GERAIS
 // ============================================================
+
+
+
+
 function limparTelefone(telefone) {
     if (!telefone) return null;
     let limpo = telefone.toString().replace(/\D/g, '');
@@ -1656,6 +1714,14 @@ app.get('/agendamentos', auth.verificarAdmin, (req, res) => {
     else res.status(404).send('<h1>📅 Agendamentos</h1><p>Arquivo admin-login.html não encontrado.</p>');
 });
 
+app.get('/meu-processo', (req, res) => {
+    const p = path.join(__dirname, 'public', 'meu-processo.html');
+    if (fs.existsSync(p)) res.sendFile(p);
+    else res.status(404).send('<h1>Portal não encontrado</h1>');
+});
+
+
+
 app.get('/formulario-ds160', (req, res) => {
     const p = path.join(__dirname, 'public', 'formulario-ds160.html');
     if (fs.existsSync(p)) res.sendFile(p);
@@ -1667,6 +1733,7 @@ function extractFormFields(data) {
     const email = data.email || data['email-1'] || data.emailAddress || '';
     const telefone = data.telefone_whatsapp || data.telefone || data['text-77'] || data['phone-1'] || data.phone || '';
     const consulado = data.consulado_cidade || data.consulado || data['text-88'] || data.consulate || '';
+    const cpf = data.cpf || '';
     let nomeEncontrado = full_name;
     if (!nomeEncontrado) {
         for (const [key, value] of Object.entries(data)) {
@@ -1679,7 +1746,7 @@ function extractFormFields(data) {
             }
         }
     }
-    return { full_name: nomeEncontrado, email, telefone, consulado };
+    return { full_name: nomeEncontrado, email, telefone, consulado, cpf };
 }
 
 
@@ -1865,6 +1932,222 @@ app.get('/api/admin/reenvios/count', auth.verificarAdmin, async (req, res) => {
 });
 
 // ============================================================
+// PORTAL DO CLIENTE — Endpoints
+// ============================================================
+
+// 1. LOGIN — telefone + 4 últimos dígitos do CPF
+app.post('/api/portal/login', rateLimitLogin, async (req, res) => {
+    try {
+        const { telefone, cpfUltimos4 } = req.body || {};
+        
+        if (!telefone || !cpfUltimos4) {
+            return res.status(400).json({ success: false, message: 'Telefone e CPF são obrigatórios' });
+        }
+        
+        const cleanPhone = limparTelefone(telefone);
+        if (!cleanPhone || cleanPhone.length < 10) {
+            registrarFalhaLogin(req._ipPortal);
+            return res.status(400).json({ success: false, message: 'Telefone inválido' });
+        }
+        
+        const { data: cliente } = await supabase
+            .from('clientes')
+            .select('id, nome, telefone, cpf')
+            .eq('telefone', cleanPhone)
+            .maybeSingle();
+        
+        if (!cliente) {
+            registrarFalhaLogin(req._ipPortal);
+            console.log(`❌ Login portal falhou: telefone ${cleanPhone} não encontrado`);
+            return res.status(401).json({ success: false, message: 'Dados não conferem. Verifique e tente novamente.' });
+        }
+        
+        if (!cliente.cpf) {
+            registrarFalhaLogin(req._ipPortal);
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Cadastro incompleto. Entre em contato com nossa equipe pelo WhatsApp.' 
+            });
+        }
+        
+        const cpfLimpo = cliente.cpf.replace(/\D/g, '');
+        const ultimos4Banco = cpfLimpo.slice(-4);
+        const ultimos4Digitado = String(cpfUltimos4).replace(/\D/g, '').slice(-4);
+        
+        if (ultimos4Banco !== ultimos4Digitado) {
+            registrarFalhaLogin(req._ipPortal);
+            console.log(`❌ Login portal falhou: CPF incorreto para ${cleanPhone}`);
+            return res.status(401).json({ success: false, message: 'Dados não conferem. Verifique e tente novamente.' });
+        }
+        
+        // Sucesso — gera token
+        limparTentativasLogin(req._ipPortal);
+        const token = gerarTokenPortal();
+        const expiraEm = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        
+        await supabase.from('portal_acessos').insert({
+            id_cliente: cliente.id,
+            telefone: cleanPhone,
+            token,
+            ip: req._ipPortal,
+            user_agent: req.headers['user-agent'] || 'desconhecido',
+            expira_em: expiraEm,
+            ativo: true
+        });
+        
+        console.log(`✅ Login portal: ${cliente.nome} (${cleanPhone})`);
+        
+        return res.json({
+            success: true,
+            token,
+            nome: cliente.nome,
+            expira_em: expiraEm
+        });
+    } catch (error) {
+        console.error('❌ Erro no login portal:', error);
+        return res.status(500).json({ success: false, message: 'Erro interno' });
+    }
+});
+
+// 2. MEU PROCESSO — dados do cliente (protegido por token)
+app.get('/api/portal/meu-processo', async (req, res) => {
+    try {
+        const authHeader = req.headers['authorization'] || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        
+        if (!token) {
+            return res.status(401).json({ success: false, message: 'Token não fornecido' });
+        }
+        
+        const { data: acesso } = await supabase
+            .from('portal_acessos')
+            .select('id, id_cliente, telefone, expira_em, ativo')
+            .eq('token', token)
+            .eq('ativo', true)
+            .maybeSingle();
+        
+        if (!acesso) {
+            return res.status(401).json({ success: false, message: 'Sessão inválida ou expirada' });
+        }
+        
+        if (new Date(acesso.expira_em) < new Date()) {
+            await supabase.from('portal_acessos').update({ ativo: false }).eq('id', acesso.id);
+            return res.status(401).json({ success: false, message: 'Sessão expirada. Faça login novamente.' });
+        }
+        
+        // Busca dados completos
+        const { data: cliente } = await supabase
+            .from('clientes')
+            .select('id, nome, email, telefone, status, consulado, data_contato, updated_at')
+            .eq('id', acesso.id_cliente)
+            .maybeSingle();
+        
+        const { data: etapa } = await supabase
+            .from('etapas_processo')
+            .select('*')
+            .eq('cliente_telefone', acesso.telefone)
+            .maybeSingle();
+        
+        const { data: form } = await supabase
+            .from('form_ds160')
+            .select('status, created_at, updated_at')
+            .eq('id_cliente', acesso.id_cliente)
+            .maybeSingle();
+        
+        const { count: reenviosCount } = await supabase
+            .from('form_ds160_reenvios')
+            .select('*', { count: 'exact', head: true })
+            .eq('id_cliente', acesso.id_cliente);
+        
+        // Monta timeline
+        const etapaAtual = etapa?.etapa_atual || 'formulario_enviado';
+        const timeline = [];
+        let etapaCursor = 'formulario_enviado';
+        const ordemEtapas = [
+            'formulario_enviado', 'analise_correcoes', 'abertura_processo',
+            'boleto_emitido', 'boleto_pago', 'agendamento_realizado',
+            'treinamento_realizado', 'entrevista_realizada', 'visto_aprovado',
+            'passaporte_retornado'
+        ];
+        
+        const indiceAtual = ordemEtapas.indexOf(etapaAtual);
+        for (const etapaId of ordemEtapas) {
+            const info = ETAPAS[etapaId] || { label: etapaId };
+            const indiceEtapa = ordemEtapas.indexOf(etapaId);
+            const dataConclusao = etapa?.[`data_${etapaId}`] || null;
+            
+            timeline.push({
+                id: etapaId,
+                label: info.label,
+                color: info.color || '#6c757d',
+                status: indiceEtapa < indiceAtual ? 'concluida' 
+                       : indiceEtapa === indiceAtual ? 'atual' 
+                       : 'pendente',
+                data_conclusao: dataConclusao
+            });
+        }
+        
+        // Verifica visto recusado (rota alternativa)
+        if (etapaAtual === 'visto_recusado') {
+            timeline.push({
+                id: 'visto_recusado',
+                label: '❌ Visto Recusado',
+                color: '#ef4444',
+                status: 'atual',
+                data_conclusao: etapa?.data_visto_recusado || null
+            });
+        }
+        
+        return res.json({
+            success: true,
+            cliente: {
+                nome: cliente?.nome || '',
+                email: cliente?.email || '',
+                telefone: cliente?.telefone || '',
+                status: cliente?.status || '',
+                consulado: cliente?.consulado || ''
+            },
+            etapa_atual: etapaAtual,
+            etapa_label: ETAPAS[etapaAtual]?.label || etapaAtual,
+            timeline,
+            agendamentos: {
+                casv: etapa?.dados_casv || null,
+                entrevista: etapa?.dados_entrevista || null
+            },
+            formulario: {
+                enviado: !!form,
+                status: form?.status || null,
+                data_envio: form?.created_at || null
+            },
+            reenvios: {
+                total: reenviosCount || 0,
+                ultimo: null
+            }
+        });
+    } catch (error) {
+        console.error('❌ Erro em /portal/meu-processo:', error);
+        return res.status(500).json({ success: false, message: 'Erro interno' });
+    }
+});
+
+// 3. LOGOUT — invalida token
+app.post('/api/portal/logout', async (req, res) => {
+    try {
+        const authHeader = req.headers['authorization'] || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        
+        if (token) {
+            await supabase.from('portal_acessos').update({ ativo: false }).eq('token', token);
+        }
+        
+        return res.json({ success: true });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Erro interno' });
+    }
+});
+
+
+// ============================================================
 // NOTIFICAÇÃO DE REENVIO DS-160 (feature nova)
 // ============================================================
 async function notificarReenvioDS160(clienteData, nomeValido, emailValido, cleanPhone, formData) {
@@ -1925,7 +2208,7 @@ app.post('/api/submit-ds160', async (req, res) => {
     console.log('🔔 Rota /api/submit-ds160 chamada!');
     try {
         const formData = req.body;
-        const { full_name, email, telefone, consulado } = extractFormFields(formData);
+        const { full_name, email, telefone, consulado, cpf } = extractFormFields(formData);
         let nomeValido = full_name || formData.nome_completo || formData.fullName || '';
         let emailValido = email || formData['email-1'] || '';
         let telefoneValido = telefone || formData['text-77'] || '';
@@ -2027,13 +2310,14 @@ app.post('/api/submit-ds160', async (req, res) => {
         // 4. FLUXO NORMAL (primeira vez OU bloqueio desligado)
         //    Aqui SIM faz upsert em clientes
         // ============================================================
-        const { data: clienteData, error: clienteError } = await supabase
+                const { data: clienteData, error: clienteError } = await supabase
             .from('clientes')
             .upsert({
                 telefone: cleanPhone,
                 nome: nomeValido,
                 email: emailValido,
                 consulado: consulado || '',
+                cpf: cpf || null,
                 data_contato: new Date().toISOString(),
                 status: 'formulario_enviado',
                 onboarding_completo: true,
