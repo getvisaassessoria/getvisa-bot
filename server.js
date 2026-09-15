@@ -1672,6 +1672,50 @@ function extractFormFields(data) {
 }
 
 
+// ============================================================
+// ROTA: VERIFICAR STATUS DS-160 (leve, sem salvar nada)
+// ============================================================
+app.post('/api/check-ds160-status', async (req, res) => {
+    try {
+        const { telefone } = req.body;
+        if (!telefone) {
+            return res.status(400).json({ success: false, message: 'Telefone obrigatório' });
+        }
+
+        const cleanPhone = limparTelefone(telefone);
+        if (!cleanPhone) {
+            return res.status(400).json({ success: false, message: 'Telefone inválido' });
+        }
+
+        const { data: cliente } = await supabase
+            .from('clientes')
+            .select('id, nome')
+            .eq('telefone', cleanPhone)
+            .maybeSingle();
+
+        if (!cliente) {
+            return res.json({ success: true, cliente_existe: false, tem_formulario: false });
+        }
+
+        const { data: form } = await supabase
+            .from('form_ds160')
+            .select('id')
+            .eq('id_cliente', cliente.id)
+            .maybeSingle();
+
+        return res.json({
+            success: true,
+            cliente_existe: true,
+            tem_formulario: !!form,
+            nome_cliente: cliente.nome || null
+        });
+    } catch (error) {
+        console.error('❌ Erro em check-ds160-status:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao verificar status' });
+    }
+});
+
+
 
 // ============================================================
 // NOTIFICAÇÃO DE REENVIO DS-160 (feature nova)
