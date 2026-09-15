@@ -1743,44 +1743,41 @@ app.post('/api/submit-ds160', async (req, res) => {
         if (!nomeValido || !emailValido || !telefoneValido) {
             return res.status(400).json({ success: false, message: 'Nome, email e telefone são obrigatórios.' });
         }
-        const cleanPhone = limparTelefone(telefoneValido);
+                const cleanPhone = limparTelefone(telefoneValido);
         if (!cleanPhone) return res.status(400).json({ success: false, message: 'Número de telefone inválido.' });
 
-        const { data: clienteData, error: clienteError } = await supabase
-            .from('clientes')
-            .upsert({
-                telefone: cleanPhone,
-                nome: nomeValido,
-                email: emailValido,
-                consulado: consulado || '',
-                data_contato: new Date().toISOString(),
-                status: 'formulario_enviado',
-                onboarding_completo: true,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'telefone' })
-            .select('id, telefone')
-            .single();
-        if (clienteError) {
-            console.error('❌ Erro ao salvar cliente:', clienteError);
-            return res.status(500).json({ success: false, message: 'Erro ao salvar cliente', error: clienteError.message });
-        }
-        console.log('✅ Cliente salvo:', clienteData);
-
-                // ============================================================
-        // VERIFICAÇÃO DE REENVIO (feature flag: BLOCK_DS160_RESUBMIT)
-        // ============================================================
         const BLOQUEAR_REENVIO = process.env.BLOCK_DS160_RESUBMIT === 'true';
 
-        const { data: formExistente } = await supabase
-            .from('form_ds160')
-            .select('id, id_cliente')
-            .eq('id_cliente', clienteData.id)
+        // ============================================================
+        // 1. VERIFICA SE CLIENTE JÁ EXISTE (SEM upsert — só SELECT)
+        // ============================================================
+        const { data: clienteExistente } = await supabase
+            .from('clientes')
+            .select('id, telefone')
+            .eq('telefone', cleanPhone)
             .maybeSingle();
 
-        if (formExistente && BLOQUEAR_REENVIO) {
-            console.log('🚨 REENVIO BLOQUEADO - cliente já possui form_ds160:', clienteData.id);
+        // ============================================================
+        // 2. VERIFICA SE JÁ EXISTE FORMULÁRIO DS-160
+        // ============================================================
+        let formExistente = null;
+        if (clienteExistente) {
+            const { data } = await supabase
+                .from('form_ds160')
+                .select('id, id_cliente')
+                .eq('id_cliente', clienteExistente.id)
+                .maybeSingle();
+            formExistente = data;
+        }
 
-            // 1. Registra tentativa em form_ds160_reenvios (histórico)
+        // ============================================================
+        // 3. BLOQUEIO DE REENVIO (feature flag BLOCK_DS160_RESUBMIT)
+        //    ⚠️ Roda ANTES do upsert — NÃO sobrescreve nome/email/consulado
+        // ============================================================
+        if (formExistente && BLOQUEAR_REENVIO) {
+            console.log('🚨 REENVIO BLOQUEADO - cliente já possui form_ds160:', clienteExistente.id);
+
+            // 3.1. Registra tentativa em form_ds160_reenvios (histórico)
             try {
                 const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
                         || req.socket?.remoteAddress
@@ -1790,7 +1787,7 @@ app.post('/api/submit-ds160', async (req, res) => {
                 const { error: reenvioError } = await supabase
                     .from('form_ds160_reenvios')
                     .insert({
-                        id_cliente: clienteData.id,
+                        id_cliente: clienteExistente.id,
                         dados_formulario: formData,
                         ip,
                         user_agent: userAgent
@@ -1805,27 +1802,30 @@ app.post('/api/submit-ds160', async (req, res) => {
                 console.error('❌ Erro ao registrar tentativa de reenvio:', regError);
             }
 
-            // 2. Atualiza APENAS data_contato em clientes (mantém todo o resto)
+            // 3.2. Atualiza APENAS data_contato (PRESERVA nome, email, consulado)
             try {
                 await supabase.from('clientes')
                     .update({
                         data_contato: new Date().toISOString(),
                         updated_at: new Date().toISOString()
                     })
-                    .eq('id', clienteData.id);
-                console.log('✅ data_contato atualizada em clientes');
+                    .eq('id', clienteExistente.id);
+                console.log('✅ data_contato atualizada (nome/email/consulado preservados)');
             } catch (updError) {
                 console.error('❌ Erro ao atualizar data_contato:', updError);
             }
 
-            // 3. Notifica equipe (email + WhatsApp) - sem bloquear resposta
+            // 3.3. Notifica equipe (email + WhatsApp)
             try {
-                await notificarReenvioDS160(clienteData, nomeValido, emailValido, cleanPhone, formData);
+                await notificarReenvioDS160(
+                    { id: clienteExistente.id },
+                    nomeValido, emailValido, cleanPhone, formData
+                );
             } catch (notifError) {
                 console.error('❌ Erro ao notificar equipe sobre reenvio:', notifError);
             }
 
-            // 4. Retorna IMEDIATAMENTE — não envia email de sucesso pro cliente
+            // 3.4. Retorna — NÃO faz upsert, NÃO toca em form_ds160
             return res.status(200).json({
                 success: true,
                 requires_contact: true,
@@ -1834,11 +1834,45 @@ app.post('/api/submit-ds160', async (req, res) => {
             });
         }
 
-        // --- Fluxo normal (primeira vez OU bloqueio desligado) ---
+        // ============================================================
+        // 4. FLUXO NORMAL (primeira vez OU bloqueio desligado)
+        //    Aqui SIM faz upsert em clientes
+        // ============================================================
+        const { data: clienteData, error: clienteError } = await supabase
+            .from('clientes')
+            .upsert({
+                telefone: cleanPhone,
+                nome: nomeValido,
+                email: emailValido,
+                consulado: consulado || '',
+                data_contato: new Date().toISOString(),
+                status: 'formulario_enviado',
+                onboarding_completo: true,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'telefone' })
+            .select('id, telefone')
+            .single();
+
+        if (clienteError) {
+            console.error('❌ Erro ao salvar cliente:', clienteError);
+            return res.status(500).json({ success: false, message: 'Erro ao salvar cliente', error: clienteError.message });
+        }
+        console.log('✅ Cliente salvo:', clienteData);
+
+        // 4.1. Cria/atualiza form_ds160 (só se NÃO foi bloqueado)
         if (formExistente) {
-            await supabase.from('form_ds160').update({ dados_formulario: formData, status: 'rascunho', updated_at: new Date().toISOString() }).eq('id', formExistente.id);
+            await supabase.from('form_ds160')
+                .update({ dados_formulario: formData, status: 'rascunho', updated_at: new Date().toISOString() })
+                .eq('id', formExistente.id);
         } else {
-            await supabase.from('form_ds160').insert({ id_cliente: clienteData.id, dados_formulario: formData, status: 'rascunho', created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+            await supabase.from('form_ds160')
+                .insert({
+                    id_cliente: clienteData.id,
+                    dados_formulario: formData,
+                    status: 'rascunho',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                });
         }
 
         try {
