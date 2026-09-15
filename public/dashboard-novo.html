@@ -210,7 +210,7 @@
         // ============================================================
         async function carregarReenviosPendentes() {
             try {
-                const resp = await fetch('/api/admin/reenvios/count');
+                const resp = await fetch('/api/admin/reenvios/count?api_key=admin123');
                 const data = await resp.json();
 
                 if (data.success && data.count > 0) {
