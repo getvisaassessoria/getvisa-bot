@@ -265,8 +265,16 @@
         <!-- ============================================================ -->
         <!-- PASSO 1: INÍCIO DO PREENCHIMENTO -->
         <!-- ============================================================ -->
-        <div class="form-section active" data-step="1">
+                <div class="form-section active" data-step="1">
             <h2 class="section-title">📍 Início do Preenchimento</h2>
+
+            <div class="field">
+                <label>📱 Telefone (WhatsApp) <span class="required">*</span></label>
+                <input type="tel" id="phone-step1" class="phone-mask" placeholder="(21) 99999-9999" required>
+                <small style="color:#666;font-size:12px;display:block;margin-top:5px;">
+                    Informe o telefone que usaremos para contato. Se você já enviou um DS-160 conosco, avisaremos aqui mesmo.
+                </small>
+            </div>
 
             <div class="field">
                 <label>Localização: Consulado ou Embaixada onde fará a entrevista <span class="required">*</span></label>
@@ -282,7 +290,7 @@
 
             <div class="form-actions">
                 <span></span>
-                <button type="button" class="btn btn-primary" onclick="nextStep(2)">Próximo →</button>
+                <button type="button" class="btn btn-primary" id="btnStep1" onclick="avancarStep1()">Próximo →</button>
             </div>
         </div>
 
@@ -799,17 +807,11 @@
                 </div>
             </div>
 
-            <div class="sub-section-title">📱 Números de Telefone</div>
+                        <div class="sub-section-title">📱 Números de Telefone</div>
 
-            <div class="form-row">
-                <div class="field">
-                    <label>Telefone Principal (Celular) <span class="required">*</span></label>
-                    <input type="tel" name="phone" class="phone-mask" placeholder="(21) 99999-9999" required>
-                </div>
-                <div class="field">
-                    <label>Telefone Secundário (Fixo ou alternativo)</label>
-                    <input type="tel" name="phone_secondary" class="phone-mask" placeholder="(21) 99999-9999">
-                </div>
+            <div class="field" style="max-width:400px;">
+                <label>Telefone Secundário (Fixo ou alternativo)</label>
+                <input type="tel" name="phone_secondary" class="phone-mask" placeholder="(21) 99999-9999">
             </div>
 
             <div class="form-row">
@@ -1853,6 +1855,82 @@ function applyMasks(container) {
 // ============================================================
 // NAVEGAÇÃO
 // ============================================================
+
+// ============================================================
+// PASSO 1 — Valida e checa se cliente já tem DS-160
+// ============================================================
+async function avancarStep1() {
+    const phoneInput = document.getElementById('phone-step1');
+    const consuladoInput = document.querySelector('[name="consulado"]');
+    const btn = document.getElementById('btnStep1');
+
+    // Validação básica
+    if (!phoneInput.value.trim()) {
+        phoneInput.style.borderColor = '#dc3545';
+        showAlert('⚠️ Informe seu telefone.', 'error');
+        phoneInput.focus();
+        return;
+    }
+    if (!consuladoInput.value) {
+        consuladoInput.style.borderColor = '#dc3545';
+        showAlert('⚠️ Selecione o consulado.', 'error');
+        consuladoInput.focus();
+        return;
+    }
+
+    // Loading
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '🔍 Verificando...';
+
+    try {
+        const response = await fetch('/api/check-ds160-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ telefone: phoneInput.value })
+        });
+        const result = await response.json();
+
+        if (result.success && result.tem_formulario) {
+            // 🚨 Cliente já tem DS-160 → bloqueia na hora, sem perder tempo
+            document.getElementById('ds160Form').classList.add('hidden');
+            document.getElementById('resultadoReenvio').classList.remove('hidden');
+
+            const dadosReenvio = document.getElementById('dadosReenvio');
+            const textoConsulado = consuladoInput.options[consuladoInput.selectedIndex].text;
+
+            dadosReenvio.innerHTML = `
+                <p><strong>Telefone:</strong> ${phoneInput.value}</p>
+                <p><strong>Consulado:</strong> ${textoConsulado}</p>
+            `;
+
+            // Ajusta link do WhatsApp com mensagem personalizada
+            const linkZap = document.querySelector('#resultadoReenvio a');
+            if (linkZap) {
+                const msg = encodeURIComponent(
+                    `Olá! Preciso alterar meu DS-160 já enviado. Meu telefone é ${phoneInput.value}.`
+                );
+                linkZap.href = `https://wa.me/5521974601812?text=${msg}`;
+            }
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
+
+        // ✅ Liberado → avança
+        nextStep(2);
+    } catch (err) {
+        console.error('Erro ao verificar status:', err);
+        // Fail-open: se API falhar, deixa o cliente prosseguir
+        // (a validação final ainda vai bloquear se realmente for reenvio)
+        nextStep(2);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+
 function nextStep(step) {
     if (validateStep(currentStep)) {
         showStep(step);
@@ -1949,6 +2027,15 @@ function getFormData() {
         data[el.name] = el.value;
     });
 
+        // Telefone do passo 1 (não tem name pra evitar conflito com phone_secondary)
+    
+        const phoneStep1 = document.getElementById('phone-step1');
+        if (phoneStep1 && phoneStep1.value.trim()) {
+        data['phone'] = phoneStep1.value;
+        data['telefone'] = phoneStep1.value; // alias usado pelo backend
+    }
+
+    
     console.log('📌 Ocupação selecionada:', data['radio-occupation']);
     console.log('📌 Gênero selecionado:', data['radio-genero']);
     return data;
