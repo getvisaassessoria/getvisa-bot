@@ -1,5 +1,9 @@
 // server.js - VERSÃO FINAL (SEM DUPLICAÇÕES)
 console.log('--- 🚀 SERVER.JS INICIADO (VERSÃO FINAL) ---');
+console.log('🔒 BLOCK_DS160_RESUBMIT =', JSON.stringify(process.env.BLOCK_DS160_RESUBMIT));
+console.log('🔒 Tipo:', typeof process.env.BLOCK_DS160_RESUBMIT);
+console.log('🔒 Deve bloquear?', process.env.BLOCK_DS160_RESUBMIT === 'true');
+
 
 // ============================================================
 // 1. DEPENDÊNCIAS E CONFIGURAÇÕES INICIAIS
@@ -1668,6 +1672,8 @@ function extractFormFields(data) {
     }
     return { full_name: nomeEncontrado, email, telefone, consulado };
 }
+
+
 
 // ============================================================
 // NOTIFICAÇÃO DE REENVIO DS-160 (feature nova)
