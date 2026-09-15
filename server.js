@@ -1,8 +1,6 @@
 // server.js - VERSÃO FINAL (SEM DUPLICAÇÕES)
 console.log('--- 🚀 SERVER.JS INICIADO (VERSÃO FINAL) ---');
-console.log('🔒 BLOCK_DS160_RESUBMIT =', JSON.stringify(process.env.BLOCK_DS160_RESUBMIT));
-console.log('🔒 Tipo:', typeof process.env.BLOCK_DS160_RESUBMIT);
-console.log('🔒 Deve bloquear?', process.env.BLOCK_DS160_RESUBMIT === 'true');
+
 
 
 // ============================================================

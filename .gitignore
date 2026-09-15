@@ -5,3 +5,5 @@ test-email.js
 *.zip
 *.bckup.html
 *.backup.html
+*.backup-pre-*
+teste-*.js
