@@ -2628,10 +2628,18 @@ app.post('/api/agendar-treinamento', async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 });
 
-try {
-    const ds160Routes = require('./routes/ds160Routes');
-    app.use('/api', ds160Routes);
-} catch (e) {}
+// ============================================================
+// ⚠️ DESATIVADO em 15/09/2026 — Código morto
+// Motivo: as rotas /api/submit-ds160, /api/buscar/:telefone e /api/test
+// já são cobertas (ou não são usadas) pelo server.js.
+// O handler /submit-ds160 aqui duplicava o do server.js:1924, mas nunca
+// era chamado (Express usa o primeiro registrado).
+// Para reativar: descomentar as 2 linhas abaixo.
+// ============================================================
+// try {
+//     const ds160Routes = require('./routes/ds160Routes');
+//     app.use('/api', ds160Routes);
+// } catch (e) {}
 try {
     const agendamentoRoutes = require('./routes/agendamentoRoutes');
     app.use('/api/admin/agendamentos', auth.verificarApiKey, agendamentoRoutes);

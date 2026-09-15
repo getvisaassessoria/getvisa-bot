@@ -7,3 +7,4 @@ test-email.js
 *.backup.html
 *.backup-pre-*
 teste-*.js
+*.backup-pre-cleanup-*
