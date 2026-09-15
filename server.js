@@ -1593,6 +1593,17 @@ app.get('/painel.html', auth.verificarAdmin, (req, res) => {
     } else res.send('<h1>📊 Painel</h1><p>Arquivo painel-clientes.html não encontrado.</p>');
 });
 
+app.get('/painel-reenvios', auth.verificarAdmin, (req, res) => {
+    const p = path.join(__dirname, 'public', 'painel-reenvios.html');
+    if (fs.existsSync(p)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.sendFile(p);
+    } else {
+        res.status(404).send('<h1>⚠️ Reenvios</h1><p>Arquivo painel-reenvios.html não encontrado.</p>');
+    }
+});
+
+
 app.get('/painel', auth.verificarAdmin, (req, res) => {
     const p = path.join(__dirname, 'public', 'painel-clientes.html');
     if (fs.existsSync(p)) {
@@ -1673,6 +1684,49 @@ function extractFormFields(data) {
 
 
 // ============================================================
+// DIFF: compara form_ds160 atual com o que o cliente tentou reenviar
+// ============================================================
+function calcularDiff(formAntigo, formNovo) {
+    const camposPraComparar = {
+        'full_name': 'Nome Completo',
+        'email': 'E-mail',
+        'phone': 'Telefone',
+        'consulado': 'Consulado',
+        'dob': 'Data de Nascimento',
+        'birth_city': 'Cidade de Nascimento',
+        'birth_state': 'Estado de Nascimento',
+        'passport_number': 'Número do Passaporte',
+        'passport_issue': 'Emissão do Passaporte',
+        'passport_expiry': 'Validade do Passaporte',
+        'address': 'Endereço',
+        'city': 'Cidade',
+        'state': 'Estado',
+        'zip': 'CEP',
+        'marital_status': 'Estado Civil',
+        'radio-occupation': 'Ocupação',
+        'employer_name': 'Empregador',
+        'phone_secondary': 'Telefone Secundário',
+        'us_contact_name': 'Contato nos EUA',
+        'us_contact_address': 'Endereço do Contato nos EUA'
+    };
+
+    const mudancas = [];
+    for (const [campo, label] of Object.entries(camposPraComparar)) {
+        const valorAntigo = (formAntigo[campo] || '').toString().trim();
+        const valorNovo = (formNovo[campo] || '').toString().trim();
+
+        if (valorAntigo !== valorNovo && (valorAntigo || valorNovo)) {
+            mudancas.push({
+                campo: label,
+                de: valorAntigo || '(vazio)',
+                para: valorNovo || '(vazio)'
+            });
+        }
+    }
+    return mudancas;
+}
+
+// ============================================================
 // ROTA: VERIFICAR STATUS DS-160 (leve, sem salvar nada)
 // ============================================================
 app.post('/api/check-ds160-status', async (req, res) => {
@@ -1715,7 +1769,100 @@ app.post('/api/check-ds160-status', async (req, res) => {
     }
 });
 
+// ============================================================
+// ROTA: LISTA DE REENVIOS PENDENTES (painel admin)
+// ============================================================
+app.get('/api/admin/reenvios-pendentes', auth.verificarAdmin, async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('form_ds160_reenvios')
+            .select('*')
+            .eq('tratado', false)
+            .order('created_at', { ascending: false });
 
+        if (error) return res.status(500).json({ success: false, error: error.message });
+
+        // Enriquece com dados do cliente + diff
+        const enriquecidos = await Promise.all(
+            (data || []).map(async (reenvio) => {
+                const { data: cliente } = await supabase
+                    .from('clientes')
+                    .select('id, nome, telefone, email, consulado')
+                    .eq('id', reenvio.id_cliente)
+                    .maybeSingle();
+
+                const { data: formAtual } = await supabase
+                    .from('form_ds160')
+                    .select('dados_formulario')
+                    .eq('id_cliente', reenvio.id_cliente)
+                    .maybeSingle();
+
+                const diff = calcularDiff(
+                    formAtual?.dados_formulario || {},
+                    reenvio.dados_formulario || {}
+                );
+
+                return {
+                    id: reenvio.id,
+                    id_cliente: reenvio.id_cliente,
+                    created_at: reenvio.created_at,
+                    ip: reenvio.ip,
+                    user_agent: reenvio.user_agent,
+                    cliente: cliente || null,
+                    diff: diff,
+                    total_mudancas: diff.length
+                };
+            })
+        );
+
+        res.json({ success: true, reenvios: enriquecidos, total: enriquecidos.length });
+    } catch (error) {
+        console.error('❌ Erro em reenvios-pendentes:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// ROTA: MARCAR REENVIO COMO TRATADO
+// ============================================================
+app.post('/api/admin/reenvios/:id/tratar', auth.verificarAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { observacao } = req.body || {};
+
+        const { error } = await supabase
+            .from('form_ds160_reenvios')
+            .update({
+                tratado: true,
+                tratado_em: new Date().toISOString(),
+                tratado_por: 'admin',
+                observacao_especialista: observacao || ''
+            })
+            .eq('id', id);
+
+        if (error) return res.status(500).json({ success: false, error: error.message });
+        res.json({ success: true, message: 'Reenvio marcado como tratado.' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// ROTA: CONTADOR DE REENVIOS PENDENTES (badge do dashboard)
+// ============================================================
+app.get('/api/admin/reenvios/count', auth.verificarAdmin, async (req, res) => {
+    try {
+        const { count, error } = await supabase
+            .from('form_ds160_reenvios')
+            .select('*', { count: 'exact', head: true })
+            .eq('tratado', false);
+
+        if (error) return res.status(500).json({ success: false, error: error.message });
+        res.json({ success: true, count: count || 0 });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
 // ============================================================
 // NOTIFICAÇÃO DE REENVIO DS-160 (feature nova)
