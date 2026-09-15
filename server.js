@@ -21,6 +21,14 @@ const auth = require('./middleware/auth');
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY || '');
 const PORT = process.env.PORT || 10000;
+const LINK_PORTAL = 'https://app.getvisa.com.br/meu-processo';
+
+function rodapePortal() {
+    return `\n\n━━━━━━━━━━━━━━━━━━━━\n` +
+           `📊 *Acompanhe seu processo online:*\n` +
+           `🔗 ${LINK_PORTAL}\n\n` +
+           `_Entre com seu telefone + os 4 últimos dígitos do CPF_`;
+}
 
 // ============================================================
 // 2. ESTADO GLOBAL E CONSTANTES
@@ -447,9 +455,10 @@ async function enviarNotificacaoStatus(telefone, status, nome) {
         'visto_recusado': `😔 Olá ${nome}!\n\nInfelizmente seu visto foi recusado.\n\n📌 Não desanime! Isso é mais comum do que parece.\n\n🔍 Vamos analisar com você os motivos e planejar uma nova tentativa.\n\n📱 Fale com a gente agora: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n💪 Isso não muda o seu objetivo! Vamos trabalhar juntos para reverter esse cenário!`,
         'passaporte_retornado': `📦 Olá ${nome}!\n\nSeu passaporte com o visto já está disponível para retirada/entrega!\n\n✅ Processo concluído com sucesso!\n\n✈️ Agora é realizar seus sonhos!\n\n🌟 Agradecemos por confiar na GetVisa Assessoria!`
     };
-    const mensagem = mensagens[status] || `🔄 Seu status foi atualizado para: ${status}`;
+        const mensagem = mensagens[status] || `🔄 Seu status foi atualizado para: ${status}`;
+    const mensagemComLink = mensagem + rodapePortal();
     try {
-        await enviarWhatsApp(telefone, mensagem);
+        await enviarWhatsApp(telefone, mensagemComLink);
         console.log(`📱 Notificação de status enviada para ${telefone}: ${status}`);
     } catch (error) {
         console.error('❌ Erro ao enviar notificação de status:', error);
@@ -500,10 +509,11 @@ async function enviarNotificacaoEtapa(telefone, etapa, dadosCliente) {
         'passaporte_retornado': (nome) => `📦 Olá ${nome}!\n\nSeu passaporte com o visto está disponível!\n\n✅ Processo concluído com sucesso!\n\n🌟 Agradecemos por confiar na GetVisa!`,
         'finalizado': (nome) => `🏁 Olá ${nome}!\n\nSeu processo foi finalizado com sucesso!\n\n🌟 Agradecemos por confiar na GetVisa Assessoria!`
     };
-    const nome = dadosCliente?.nome || 'Cliente';
+        const nome = dadosCliente?.nome || 'Cliente';
     const mensagem = mensagens[etapa]?.(nome) || `🔄 Seu processo foi atualizado para: ${ETAPAS[etapa]?.label || etapa}`;
+    const mensagemComLink = mensagem + rodapePortal();
     try {
-        await enviarWhatsApp(telefone, mensagem);
+        await enviarWhatsApp(telefone, mensagemComLink);
         console.log(`📱 Notificação de etapa enviada para ${telefone}: ${etapa}`);
     } catch (error) {
         console.error('❌ Erro ao enviar notificação:', error);
@@ -2348,20 +2358,13 @@ app.post('/api/submit-ds160', async (req, res) => {
                 });
         }
 
-        try {
+            try {
             const primeiroNome = nomeValido.split(' ')[0];
-            const mensagemWhats = `🎉 *Olá ${primeiroNome}!*\n\nRecebemos seu formulário DS-160 com sucesso! ✅\n\n📋 *Dados recebidos:*\n👤 Nome: ${nomeValido}\n📧 Email: ${emailValido}\n📱 Telefone: ${cleanPhone}\n🏛️ Consulado: ${consulado || 'Não informado'}\n\n⏳ *Próximos passos:*\n1️⃣ Nossa equipe fará a análise dos dados\n2️⃣ Você receberá a confirmação por e-mail\n3️⃣ Iniciaremos o agendamento da entrevista\n\n📱 Dúvidas? Fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n🌟 *GetVisa Assessoria - Seu visto americano com segurança!* 🇺🇸`;
+            const mensagemWhats = `🎉 *Olá ${primeiroNome}!*\n\nRecebemos seu formulário DS-160 com sucesso! ✅\n\n📋 *Dados recebidos:*\n👤 Nome: ${nomeValido}\n📧 Email: ${emailValido}\n📱 Telefone: ${cleanPhone}\n🏛️ Consulado: ${consulado || 'Não informado'}\n\n⏳ *Próximos passos:*\n1️⃣ Nossa equipe fará a análise dos dados\n2️⃣ Você receberá a confirmação por e-mail\n3️⃣ Iniciaremos o agendamento da entrevista\n\n📱 Dúvidas? Fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)` +
+                rodapePortal() +
+                `\n\n🌟 *GetVisa Assessoria - Seu visto americano com segurança!* 🇺🇸`;
             await enviarWhatsApp(cleanPhone, mensagemWhats);
         } catch (whatsError) { console.error('❌ Erro ao enviar notificação WhatsApp:', whatsError); }
-
-        let pdfBuffer = null;
-        try {
-            const { data: formDataSaved, error: formError } = await supabase.from('form_ds160').select('*').eq('id_cliente', clienteData.id).maybeSingle();
-            if (!formError && formDataSaved) {
-                const dadosParaPDF = formDataSaved.dados_formulario || formDataSaved;
-                pdfBuffer = await gerarPDF_DS160(dadosParaPDF);
-            }
-        } catch (pdfError) { console.error('❌ Erro ao gerar PDF:', pdfError); }
 
         try {
             const emailEquipe = process.env.EMAIL_DESTINO_EQUIPE || 'contato@getvisa.com.br';
