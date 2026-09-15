@@ -1669,6 +1669,63 @@ function extractFormFields(data) {
     return { full_name: nomeEncontrado, email, telefone, consulado };
 }
 
+// ============================================================
+// NOTIFICAÇÃO DE REENVIO DS-160 (feature nova)
+// ============================================================
+async function notificarReenvioDS160(clienteData, nomeValido, emailValido, cleanPhone, formData) {
+    const dataHora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+    // 1. Email urgente pra equipe
+    try {
+        const emailEquipe = process.env.EMAIL_DESTINO_EQUIPE || 'contato@getvisa.com.br';
+        await resend.emails.send({
+            from: 'GetVisa <contato@getvisa.com.br>',
+            to: emailEquipe,
+            subject: `🚨 REENVIO DS-160 - ${nomeValido} (${cleanPhone})`,
+            html: `
+                <h2 style="color:#c00;">🚨 Cliente tentou reenviar o DS-160</h2>
+                <p style="background:#fff3cd;padding:12px;border-left:4px solid #c00;">
+                    <strong>⚠️ AÇÃO NECESSÁRIA:</strong> Entre em contato com o cliente imediatamente.
+                    Alterações após envio do DS-160 precisam ser feitas por um especialista.
+                </p>
+                <h3>Dados do cliente:</h3>
+                <ul>
+                    <li><strong>Nome:</strong> ${nomeValido}</li>
+                    <li><strong>Telefone:</strong> ${cleanPhone}</li>
+                    <li><strong>Email:</strong> ${emailValido}</li>
+                    <li><strong>ID cliente:</strong> ${clienteData.id}</li>
+                </ul>
+                <h3>Tentativa de reenvio:</h3>
+                <ul>
+                    <li><strong>Data/hora:</strong> ${dataHora}</li>
+                </ul>
+                <hr>
+                <p>📌 Os dados completos da tentativa estão salvos na tabela <code>form_ds160_reenvios</code>.</p>
+                <p>🗂️ <a href="https://app.getvisa.com.br/painel">Acessar painel</a></p>
+            `
+        });
+        console.log('✅ Email de reenvio enviado para equipe');
+    } catch (e) {
+        console.error('❌ Erro ao enviar email de reenvio:', e);
+    }
+
+    // 2. WhatsApp pra equipe
+    try {
+        const zapEquipe = process.env.WHATSAPP_EQUIPE || process.env.ADMIN_PHONE || '5521974601812';
+        const msg = `🚨 *REENVIO DS-160 DETECTADO*\n\n` +
+            `👤 *Cliente:* ${nomeValido}\n` +
+            `📱 *Telefone:* ${cleanPhone}\n` +
+            `📧 *Email:* ${emailValido}\n` +
+            `🕐 *Quando:* ${dataHora}\n\n` +
+            `⚠️ *AÇÃO:* Entrar em contato — cliente tentou alterar formulário já enviado.\n\n` +
+            `📌 Dados salvos em form_ds160_reenvios`;
+        await enviarWhatsApp(zapEquipe, msg);
+        console.log('✅ WhatsApp de reenvio enviado para equipe');
+    } catch (e) {
+        console.error('❌ Erro ao enviar WhatsApp de reenvio:', e);
+    }
+}
+
 app.post('/api/submit-ds160', async (req, res) => {
     console.log('🔔 Rota /api/submit-ds160 chamada!');
     try {
@@ -1703,11 +1760,75 @@ app.post('/api/submit-ds160', async (req, res) => {
         }
         console.log('✅ Cliente salvo:', clienteData);
 
+                // ============================================================
+        // VERIFICAÇÃO DE REENVIO (feature flag: BLOCK_DS160_RESUBMIT)
+        // ============================================================
+        const BLOQUEAR_REENVIO = process.env.BLOCK_DS160_RESUBMIT === 'true';
+
         const { data: formExistente } = await supabase
             .from('form_ds160')
             .select('id, id_cliente')
             .eq('id_cliente', clienteData.id)
             .maybeSingle();
+
+        if (formExistente && BLOQUEAR_REENVIO) {
+            console.log('🚨 REENVIO BLOQUEADO - cliente já possui form_ds160:', clienteData.id);
+
+            // 1. Registra tentativa em form_ds160_reenvios (histórico)
+            try {
+                const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+                        || req.socket?.remoteAddress
+                        || 'desconhecido';
+                const userAgent = req.headers['user-agent'] || 'desconhecido';
+
+                const { error: reenvioError } = await supabase
+                    .from('form_ds160_reenvios')
+                    .insert({
+                        id_cliente: clienteData.id,
+                        dados_formulario: formData,
+                        ip,
+                        user_agent: userAgent
+                    });
+
+                if (reenvioError) {
+                    console.error('❌ Erro ao registrar reenvio:', reenvioError);
+                } else {
+                    console.log('✅ Reenvio registrado em form_ds160_reenvios');
+                }
+            } catch (regError) {
+                console.error('❌ Erro ao registrar tentativa de reenvio:', regError);
+            }
+
+            // 2. Atualiza APENAS data_contato em clientes (mantém todo o resto)
+            try {
+                await supabase.from('clientes')
+                    .update({
+                        data_contato: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', clienteData.id);
+                console.log('✅ data_contato atualizada em clientes');
+            } catch (updError) {
+                console.error('❌ Erro ao atualizar data_contato:', updError);
+            }
+
+            // 3. Notifica equipe (email + WhatsApp) - sem bloquear resposta
+            try {
+                await notificarReenvioDS160(clienteData, nomeValido, emailValido, cleanPhone, formData);
+            } catch (notifError) {
+                console.error('❌ Erro ao notificar equipe sobre reenvio:', notifError);
+            }
+
+            // 4. Retorna IMEDIATAMENTE — não envia email de sucesso pro cliente
+            return res.status(200).json({
+                success: true,
+                requires_contact: true,
+                message: 'Você já possui um formulário DS-160 enviado. Para fazer qualquer alteração, entre em contato com um especialista.',
+                whatsapp: process.env.WHATSAPP_EQUIPE || '5521974601812'
+            });
+        }
+
+        // --- Fluxo normal (primeira vez OU bloqueio desligado) ---
         if (formExistente) {
             await supabase.from('form_ds160').update({ dados_formulario: formData, status: 'rascunho', updated_at: new Date().toISOString() }).eq('id', formExistente.id);
         } else {

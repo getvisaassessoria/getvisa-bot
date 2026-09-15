@@ -1490,13 +1490,36 @@
         <p style="margin-top:10px;">Enviando dados...</p>
     </div>
 
-    <div id="resultado" class="hidden">
+    <        <div id="resultado" class="hidden">
         <div class="alert alert-success">
             <h3>✅ Formulário enviado com sucesso!</h3>
             <p>Obrigado por preencher o formulário. Nossa equipe entrará em contato em breve.</p>
             <p><strong>📱 Fique atento ao WhatsApp!</strong></p>
         </div>
         <button class="btn btn-primary" onclick="location.reload()">📝 Preencher novo formulário</button>
+    </div>
+
+    <!-- Resultado para REENVIO (cliente já enviou DS-160) -->
+    <div id="resultadoReenvio" class="hidden">
+        <div class="alert alert-warning" style="background:#fff3cd;border:1px solid #ffc107;color:#856404;">
+            <h3 style="margin-top:0;">⚠️ Você já possui um formulário DS-160 enviado</h3>
+            <p>Para fazer <strong>qualquer alteração</strong> no seu formulário, é necessário entrar em contato com um especialista.</p>
+            <p><strong>Por que?</strong> O DS-160 é o documento enviado ao consulado americano. Alterações após o envio precisam ser revisadas por um especialista para garantir que seu processo de visto não seja comprometido.</p>
+        </div>
+
+        <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin:20px 0;">
+            <h4 style="margin-top:0;color:#003366;">📋 Dados que você tentou enviar:</h4>
+            <div id="dadosReenvio"></div>
+        </div>
+
+        <div class="form-actions" style="justify-content:center;flex-direction:column;gap:10px;">
+            <a href="https://wa.me/5521974601812?text=Ol%C3%A1%2C%20preciso%20alterar%20meu%20DS-160" 
+               target="_blank" 
+               class="btn btn-success"
+               style="text-decoration:none;display:inline-block;text-align:center;">
+               💬 Falar com especialista no WhatsApp
+            </a>
+        </div>
     </div>
 </div>
 
@@ -2355,7 +2378,31 @@ document.getElementById('ds160Form').addEventListener('submit', async function(e
             body: JSON.stringify(dados)
         });
 
-        var result = await response.json();
+                var result = await response.json();
+
+        // 🚨 NOVO: reenvio bloqueado — cliente já tem DS-160
+        if (result.requires_contact) {
+            document.getElementById('ds160Form').classList.add('hidden');
+            document.getElementById('resultadoReenvio').classList.remove('hidden');
+
+            const dadosReenvio = document.getElementById('dadosReenvio');
+            const whatsappEquipe = result.whatsapp || '5521974601812';
+            const msgZap = encodeURIComponent(
+                `Olá! Sou ${dados.full_name || ''}. Preciso alterar meu DS-160 já enviado.`
+            );
+
+            dadosReenvio.innerHTML = `
+                <p><strong>Nome:</strong> ${dados.full_name || '-'}</p>
+                <p><strong>Email:</strong> ${dados.email || '-'}</p>
+                <p><strong>Telefone:</strong> ${dados.phone || '-'}</p>
+            `;
+
+            const linkZap = document.querySelector('#resultadoReenvio a');
+            if (linkZap) linkZap.href = `https://wa.me/${whatsappEquipe}?text=${msgZap}`;
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
 
         if (result.success) {
             document.getElementById('ds160Form').classList.add('hidden');
