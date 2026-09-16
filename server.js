@@ -442,7 +442,7 @@ async function enviarNotificacaoStatus(telefone, status, nome) {
         'lead': `👋 Olá ${nome}! Seu cadastro foi iniciado. Em breve enviaremos o formulário DS-160.`,
         'formulario_solicitado': `📋 Olá ${nome}! O link do formulário DS-160 foi enviado para você. Preencha com atenção e nos avise quando terminar.`,
         'formulario_enviado': `✅ Olá ${nome}! Recebemos seu formulário DS-160 com sucesso!\n\n📌 Nossa equipe já está analisando seus dados.\n\n⏳ Em até 24h entraremos em contato com os próximos passos.`,
-        'em_analise': `🔍 Olá ${nome}! Estamos analisando seus documentos e formulário com atenção.\n\n📌 Se houver necessidade de correções, entraremos em contato.\n\n⏳ Aguarde nosso retorno em breve!`,
+        'em_analise': `🔍 Olá ${nome}! Estamos analisando seus documentos e formulário com atenção.\n\n📌 Se houver necessidade de correções, o especialista estrará em contato.`,
         'analise_correcoes': `📝 Olá ${nome}! Analisando o formulario, observamos que algumas perguntas merecem esclarecimentos.\n\n📌 Em breve entraremos em contato!`,
         'processo_aberto': `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\n✅ Próximos passos:\n• Pagamento da taxa consular.\n`,
         'boleto_emitido': `💰 Olá ${nome}! O boleto/pix da taxa consular foi enviado.\n\n📌 Verifique seu e-mail/whatsapp para acessar o boleto/pix.\n`,
