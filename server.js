@@ -447,7 +447,7 @@ async function enviarNotificacaoStatus(telefone, status, nome) {
 
         'em_analise': `🔍 Olá ${nome}!\n\nSua documentação está em revisão detalhada pela nossa equipe. Estamos conferindo cada informação com cuidado pra que seu processo siga sem imprevistos.\n\n📌 Assim que a análise terminar, você receberá uma nova atualização por aqui.\n\n✨ Obrigado pela paciência — estamos cuidando de cada detalhe!`,
         'analise_correcoes': `📝 Olá ${nome}! Analisando o formulario, observamos que algumas perguntas merecem esclarecimentos.\n\n📌 Em breve entraremos em contato!`,
-        'processo_aberto': `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\n✅ Próximos passos:\n• Pagamento da taxa consular.\n`,
+                'processo_aberto': `🎯 Olá ${nome}!\n\nFormulário aprovado! ✅ Agora vamos iniciar o processo junto ao consulado.\n\n📌 Próximo passo: você vai receber o boleto da *taxa consular (MRV)* para pagamento.\n\n✨ Qualquer dúvida, é só chamar!`,
         'boleto_emitido': `💰 Olá ${nome}! O boleto/pix da taxa consular foi enviado.\n\n📌 Verifique seu e-mail/whatsapp para acessar o boleto/pix.\n`,
         'boleto_pago': `✅ Olá ${nome}! Confirmamos o pagamento da taxa consular!\n\n📌 Agora vamos prosseguir com o agendamento da sua entrevista.`,
         'agendado_casv': `📅 Olá ${nome}! Seu CASV (coleta biométrica) foi agendado!\n\n📍 Verifique seu e-mail/whatsapp com os detalhes do local e horário.\n\n📌 Não se esqueça de levar:\n• Passaporte original\n• Comprovante de agendamento\n• Documentos pessoais`,
@@ -497,9 +497,9 @@ async function atualizarEtapa(telefone, novaEtapa, dadosAdicionais = {}) {
 
 async function enviarNotificacaoEtapa(telefone, etapa, dadosCliente) {
     const mensagens = {
-                'formulario_enviado': (nome) => `✅ Olá ${nome}!\n\nRecebemos seu formulário DS-160 com sucesso! 🎉\n\n🔍 Nossa equipe já iniciou a revisão dos dados pra garantir que esteja tudo certo antes de seguir pra próxima etapa.\n\n📌 Se identificarmos qualquer ponto que precise da sua ajuda, entraremos em contato por aqui.`,
+        'formulario_enviado': (nome) => `✅ Olá ${nome}!\n\nRecebemos seu formulário DS-160 com sucesso! 🎉\n\n🔍 Nossa equipe já iniciou a revisão dos dados pra garantir que esteja tudo certo antes de seguir pra próxima etapa.\n\n📌 Se identificarmos qualquer ponto que precise da sua ajuda, entraremos em contato por aqui.`,
         'analise_correcoes': (nome) => `🔍 Olá ${nome}! Estamos analisando seus documentos.\n\n📌 Em breve entraremos em contato se houver correções.`,
-        'abertura_processo': (nome) => `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\n✅ Próximos passos:\n• Pagamento da taxa consular\n• Agendamento para procedimentos (CASV/Consulado). `,
+        'abertura_processo': (nome) => `🎯 Olá ${nome}!\n\nFormulário aprovado! ✅ Agora vamos iniciar o processo junto ao consulado.\n\n📌 Próximo passo: você vai receber o boleto da *taxa consular (MRV)* para pagamento.\n\n✨ Qualquer dúvida, é só chamar!`,
         'boleto_emitido': (nome) => `💰 Olá ${nome}! O boleto da taxa consular foi emitido.\n\n📌 Verifique seu e-mail para acessar o boleto.\n`,
         'boleto_pago': (nome) => `✅ Olá ${nome}! Pagamento confirmado!\n\n📌 Agora vamos agendar sua coleta biométrica.`,
         'agendado_casv': (nome) => `📅 Olá ${nome}! Seu CASV foi agendado!\n\n📍 Verifique seu e-mail com os detalhes.\n\n⚠️ Leve a CONFIRMATION IMPRESSA e PASSAPORTE.`,
