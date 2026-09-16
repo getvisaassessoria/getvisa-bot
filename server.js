@@ -1309,6 +1309,18 @@ async function processarOpcaoNoSubmenu(phone, message, state) {
     console.log('=== SUBMENU ATIVO: ' + service + ' ===');
     console.log('Opção recebida: ' + message);
 
+        // ⭐ VOLTAR AO MENU PRINCIPAL
+    if (message === '0' || message === 'menu' || message === 'voltar') {
+        console.log('🔙 Voltando ao menu principal');
+        state.nivel = 'principal';
+        state.service = null;
+        userState.set(phone, state);
+        const menu = await getMenuPrincipal();
+        await enviarWhatsApp(phone, menu);
+        return;
+    }
+
+
     const opcoesSubmenu = {
         '1': 'preco',
         '2': 'prazo', 
