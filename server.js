@@ -637,7 +637,7 @@ function getMensagemFormularioParaBot(nomeCliente) {
            `📱 *Pode preencher pelo celular ou computador*\n\n` +
            `✅ *Depois de preencher:*\n` +
            `• Nossa equipe fará a análise dos dados\n` +
-           `• Você receberá a confirmação por e-mail\n` +
+           `• Você receberá a confirmação no celular\n` +
            `• Iniciaremos o agendamento da entrevista\n\n` +
            `💡 *Dica:* Tenha seu passaporte em mãos para preencher os dados corretamente.\n\n` +
            `📱 Dúvidas? Fale com a gente: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
@@ -654,7 +654,7 @@ function getMensagemFormularioComEspecialista(nomeCliente) {
            `📱 Pode preencher pelo celular ou computador.\n\n` +
            `✅ *Quando terminar:*\n` +
            `• Nossa equipe fará a análise dos dados em até 24h\n` +
-           `• Você receberá a confirmação por e-mail\n` +
+           `• Você receberá a confirmação no whatsapp\n` +
            `• Iniciaremos o agendamento da entrevista\n\n` +
            `💡 *Dica:* Tenha seu passaporte em mãos.\n\n` +
            `📱 Dúvidas? Chame a gente: [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
@@ -2375,7 +2375,7 @@ app.post('/api/submit-ds160', async (req, res) => {
 
             try {
             const primeiroNome = nomeValido.split(' ')[0];
-            const mensagemWhats = `🎉 *Olá ${primeiroNome}!*\n\nRecebemos seu formulário DS-160 com sucesso! ✅\n\n📋 *Dados recebidos:*\n👤 Nome: ${nomeValido}\n📧 Email: ${emailValido}\n📱 Telefone: ${cleanPhone}\n🏛️ Consulado: ${consulado || 'Não informado'}\n\n⏳ *Próximos passos:*\n1️⃣ Nossa equipe fará a análise dos dados\n2️⃣ Você receberá a confirmação por e-mail\n3️⃣ Iniciaremos o agendamento da entrevista\n\n📱 Dúvidas? Fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)` +
+            const mensagemWhats = `🎉 *Olá ${primeiroNome}!*\n\nRecebemos seu formulário DS-160 com sucesso! ✅\n\n📋 *Dados recebidos:*\n👤 Nome: ${nomeValido}\n📧 Email: ${emailValido}\n📱 Telefone: ${cleanPhone}\n🏛️ Consulado: ${consulado || 'Não informado'}\n\n⏳ *Próximos passos:*\n1️⃣ Nossa equipe fará a análise dos dados\n2️⃣ Você receberá a confirmação no Whatsapp\n3️⃣ Iniciaremos o agendamento da entrevista\n\n📱 Dúvidas? Fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)` +
                 rodapePortal() +
                 `\n\n🌟 *GetVisa Assessoria - Seu visto americano com segurança!* 🇺🇸`;
             await enviarWhatsApp(cleanPhone, mensagemWhats);
