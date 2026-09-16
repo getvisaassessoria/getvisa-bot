@@ -885,8 +885,19 @@ Digite o número da opção (1, 2 ou 3)`;
                 await encaminharParaEspecialista();
                 return;
             }
-            if (opcao === '3') {
+                        if (opcao === '3') {
                 console.log(`🔇 Opção 3 detectada para ${phone}, salvando como contato_pessoal...`);
+
+                // 🆕 Última mensagem do bot para este número
+                try {
+                    await enviarWhatsApp(phone,
+                        `Tudo bem! 😊\n\nSua mensagem foi registrada e nossa equipe responderá em breve.\n\nObrigado pelo contato! 🙌`
+                    );
+                    console.log(`📤 Mensagem de despedida enviada para ${phone}`);
+                } catch (e) {
+                    console.error('❌ Erro ao enviar despedida:', e);
+                }
+
                 const { data, error } = await supabase.from('clientes').upsert({
                     telefone: phone,
                     nome: 'Contato Pessoal',
@@ -901,7 +912,7 @@ Digite o número da opção (1, 2 ou 3)`;
                     console.log(`✅ Contato pessoal salvo:`, data);
                 }
                 userState.delete(phone);
-                console.log(`🔇 Contato pessoal ${phone} silenciado.`);
+                console.log(`🔇 Contato pessoal ${phone} silenciado (próximas mensagens não serão respondidas).`);
                 return;
             }
             if (opcao === '1') {
