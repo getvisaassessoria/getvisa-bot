@@ -211,9 +211,29 @@ function gerarTokenPortal() {
 
 function limparTelefone(telefone) {
     if (!telefone) return null;
-    let limpo = telefone.toString().replace(/\D/g, '');
+    const str = telefone.toString().trim();
+
+    // 🆕 Detecta sufixo virtual (ex: 21975524127-01 pra dependentes/família)
+    const match = str.match(/^(\d{10,13})-(\d{1,3})$/);
+    if (match) {
+        let base = match[1];
+        const sufixo = match[2];
+        // Remove DDI 55 se presente
+        if (base.startsWith('55') && base.length > 11) base = base.substring(2);
+        return base + '-' + sufixo;
+    }
+
+    // Telefone normal (sem sufixo)
+    let limpo = str.replace(/\D/g, '');
     if (limpo.startsWith('55')) limpo = limpo.substring(2);
     return limpo;
+}
+
+// 🆕 Extrai o número REAL (sem sufixo virtual) pra envio de WhatsApp
+function telefoneReal(telefone) {
+    const limpo = limparTelefone(telefone);
+    if (!limpo) return null;
+    return limpo.split('-')[0];
 }
 
 function formatarTelefone(telefone) {
@@ -335,8 +355,12 @@ async function enviarWhatsApp(telefone, mensagem, isNotificacao = false) {
             console.log('📨 Mensagem que seria enviada:', mensagem);
             return false;
         }
-        const telefoneLimpo = telefone.toString().replace(/\D/g,'');
+
+        // 🆕 Usa telefone REAL (remove sufixo virtual -01, -02, etc)
+        const telReal = telefoneReal(telefone) || telefone;
+        const telefoneLimpo = telReal.toString().replace(/\D/g,'');
         const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
+
         const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-text`;
         const headers = { 'Content-Type': 'application/json' };
         if (clientToken) headers['Client-Token'] = clientToken;
@@ -365,12 +389,17 @@ async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
         const token = process.env.ZAPI_TOKEN;
         const clientToken = process.env.ZAPI_CLIENT_TOKEN;
         if (!instance || !token) return false;
-        const telefoneLimpo = telefone.toString().replace(/\D/g,'');
+
+        // 🆕 Usa telefone REAL (remove sufixo virtual -01, -02, etc)
+        const telReal = telefoneReal(telefone) || telefone;
+        const telefoneLimpo = telReal.toString().replace(/\D/g,'');
         const telefoneFormatado = telefoneLimpo.startsWith('55') ? telefoneLimpo : '55' + telefoneLimpo;
+
         const base64PDF = pdfBuffer.toString('base64');
         const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-document`;
         const headers = { 'Content-Type': 'application/json' };
         if (clientToken) headers['Client-Token'] = clientToken;
+
         const response = await fetch(url, {
             method: 'POST',
             headers,
@@ -381,12 +410,14 @@ async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
                 mimeType: 'application/pdf'
             })
         });
+
         if (!response.ok) {
             const errorText = await response.text();
             console.error(`❌ Erro Z-API PDF (${response.status}):`, errorText);
             return false;
         }
-        console.log('✅ PDF enviado por WhatsApp com sucesso');
+
+        console.log(`✅ PDF enviado por WhatsApp com sucesso para ${telefoneFormatado}`);
         return true;
     } catch (error) {
         console.error('❌ Erro ao enviar PDF por WhatsApp:', error);
@@ -396,10 +427,12 @@ async function enviarPDFWhatsApp(telefone, pdfBuffer, nomeCliente) {
 
 async function clientePodeReceberNotificacoes(telefone) {
     try {
+        // 🆕 Usa telefone REAL (remove sufixo virtual)
+        const telReal = telefoneReal(telefone) || telefone;
         const { data, error } = await supabase
             .from('clientes')
             .select('tipo_contato, silenciar_notificacoes')
-            .eq('telefone', telefone)
+            .eq('telefone', telReal)
             .maybeSingle();
         if (error || !data) return true;
         if (data.tipo_contato === 'contato_pessoal' || data.silenciar_notificacoes === true) {
@@ -2564,18 +2597,47 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             } catch (textError) {}
         }
 
-        await supabase.from('etapas_processo').upsert({
-            cliente_telefone: telefone,
-            etapa_atual: 'agendado_casv',
-            data_agendado_casv: new Date().toISOString(),
-            dados_casv: casv,
-            dados_entrevista: entrevista,
-            protocolo_ds160: req.protocolo || null,
-            data_atualizacao: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'cliente_telefone' });
+        // ============================================================
+// PROTEÇÃO: nunca regride se entrevista já foi realizada
+// (antes disso, regressão é permitida — ex: cliente faltou e vai reagendar)
+// ============================================================
+const ETAPAS_BLOQUEADAS = [
+    'entrevista_realizada',
+    'visto_aprovado',
+    'visto_recusado',
+    'passaporte_retornado'
+];
 
-        let emailEnviado = false;
+const { data: etapaAtualData } = await supabase
+    .from('etapas_processo')
+    .select('etapa_atual')
+    .eq('cliente_telefone', telefone)
+    .maybeSingle();
+
+const etapaAtualNome = etapaAtualData?.etapa_atual || 'formulario_enviado';
+const estaBloqueada = ETAPAS_BLOQUEADAS.includes(etapaAtualNome);
+
+const etapaParaGravar = estaBloqueada ? etapaAtualNome : 'agendado_casv';
+
+if (estaBloqueada) {
+    console.log(`🛡️ Etapa preservada: ${etapaAtualNome} (entrevista já realizada — não regride)`);
+} else {
+    console.log(`✅ Etapa avança/atualiza para agendado_casv (de: ${etapaAtualNome})`);
+}
+
+// Upsert com etapa protegida
+await supabase.from('etapas_processo').upsert({
+    cliente_telefone: telefone,
+    etapa_atual: etapaParaGravar,
+    data_agendado_casv: new Date().toISOString(),
+    dados_casv: casv,
+    dados_entrevista: entrevista,
+    protocolo_ds160: req.protocolo || null,
+    data_atualizacao: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+}, { onConflict: 'cliente_telefone' });
+
+let emailEnviado = false;
         if (cliente.email) {
             try {
                 const emailOptions = {
@@ -2604,7 +2666,15 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
             whatsEnviado = true;
         } catch (e) {}
 
-        await supabase.from('clientes').update({ status: 'agendado_casv', updated_at: new Date().toISOString() }).eq('telefone', telefone);
+        // Só atualiza status do cliente se não estiver bloqueado
+if (!estaBloqueada) {
+    await supabase.from('clientes')
+        .update({ status: 'agendado_casv', updated_at: new Date().toISOString() })
+        .eq('telefone', telefone);
+    console.log(`✅ Status cliente atualizado para agendado_casv`);
+} else {
+    console.log(`🛡️ Status cliente preservado: ${etapaAtualNome}`);
+}
 
         res.json({ success: true, message: 'PDF processado e enviado com sucesso!', data: { casv, entrevista, protocolo: req.protocolo || null, comunicacoes: { email: emailEnviado, whatsapp: whatsEnviado } } });
     } catch (error) {
