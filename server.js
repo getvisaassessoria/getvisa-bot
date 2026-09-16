@@ -429,6 +429,44 @@ async function atualizarStatusCliente(telefone, novoStatus, dadosAdicionais = {}
             return { success: false, error };
         }
         console.log(`✅ Status atualizado para "${novoStatus}" para ${telefone}`);
+
+        // 🆕 Sincroniza etapas_processo (portal do cliente lê daqui)
+        const mapaStatusParaEtapa = {
+            'lead': 'formulario_enviado',
+            'formulario_solicitado': 'formulario_enviado',
+            'formulario_enviado': 'formulario_enviado',
+            'em_analise': 'analise_correcoes',
+            'analise_correcoes': 'analise_correcoes',
+            'processo_aberto': 'abertura_processo',
+            'boleto_emitido': 'boleto_emitido',
+            'boleto_pago': 'boleto_pago',
+            'agendado_casv': 'agendamento_realizado',
+            'agendamento_realizado': 'agendamento_realizado',
+            'treinamento_realizado': 'treinamento_realizado',
+            'agendado_entrevista': 'agendamento_realizado',
+            'entrevista_realizada': 'entrevista_realizada',
+            'visto_aprovado': 'visto_aprovado',
+            'visto_recusado': 'visto_recusado',
+            'passaporte_retornado': 'passaporte_retornado'
+        };
+
+        const etapaEquivalente = mapaStatusParaEtapa[novoStatus];
+        if (etapaEquivalente) {
+            try {
+                await supabase
+                    .from('etapas_processo')
+                    .upsert({
+                        cliente_telefone: telefone,
+                        etapa_atual: etapaEquivalente,
+                        data_atualizacao: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'cliente_telefone' });
+                console.log(`✅ etapas_processo sincronizada: ${etapaEquivalente}`);
+            } catch (syncError) {
+                console.error('❌ Erro ao sincronizar etapas_processo:', syncError);
+            }
+        }
+
         await enviarNotificacaoStatus(telefone, novoStatus, data.nome);
         return { success: true, data };
     } catch (error) {
@@ -446,7 +484,7 @@ async function enviarNotificacaoStatus(telefone, status, nome) {
         'formulario_enviado': `✅ Olá ${nome}!\n\nRecebemos seu formulário DS-160 com sucesso! 🎉\n\n🔍 Nossa equipe já iniciou a revisão dos dados pra garantir que esteja tudo certo antes de seguir pra próxima etapa.\n\n📌 Se identificarmos qualquer ponto que precise da sua ajuda, entraremos em contato por aqui.`,
 
         'em_analise': `🔍 Olá ${nome}!\n\nSua documentação está em revisão detalhada pela nossa equipe. Estamos conferindo cada informação com cuidado pra que seu processo siga sem imprevistos.\n\n📌 Assim que a análise terminar, você receberá uma nova atualização por aqui.\n\n✨ Obrigado pela paciência — estamos cuidando de cada detalhe!`,
-        'analise_correcoes': `📝 Olá ${nome}! Analisando o formulario, observamos que algumas perguntas merecem esclarecimentos.\n\n📌 Em breve entraremos em contato!`,
+        'analise_correcoes': `📝 Olá ${nome}! Analisando o formulario, surgiram algumas dúvidas.\n\n📌 Em breve entraremos em contato!`,
         'processo_aberto': `🎯 Olá ${nome}!\n\nFormulário aprovado! ✅ Agora vamos iniciar o processo junto ao consulado.\n\n📌 Próximo passo: você vai receber o boleto da *taxa consular (MRV)* para pagamento.\n\n✨ Qualquer dúvida, é só chamar!`,
         'boleto_emitido': `💰 Olá ${nome}!\n\nO boleto/pix da *taxa consular (MRV)* foi emitido e enviado pra você. 📧\n\n📌 Efetue o pagamento e nos avise, por favor, quando concluir.\n\n✨ Assim que confirmarmos, seguimos com o agendamento!`,
         'boleto_pago': `✅ Olá ${nome}! Confirmamos o pagamento da taxa consular!\n\n📌 Agora vamos prosseguir com o agendamento da sua entrevista.`,
@@ -2084,16 +2122,59 @@ app.get('/api/portal/meu-processo', async (req, res) => {
             .select('*', { count: 'exact', head: true })
             .eq('id_cliente', acesso.id_cliente);
         
-        // Monta timeline
-        const etapaAtual = etapa?.etapa_atual || 'formulario_enviado';
-        const timeline = [];
-        let etapaCursor = 'formulario_enviado';
+                // ============================================================
+        // RESOLVE A ETAPA ATUAL — combina etapas_processo + clientes.status
+        // (garante que funciona mesmo se só uma das tabelas foi atualizada)
+        // ============================================================
         const ordemEtapas = [
             'formulario_enviado', 'analise_correcoes', 'abertura_processo',
             'boleto_emitido', 'boleto_pago', 'agendamento_realizado',
             'treinamento_realizado', 'entrevista_realizada', 'visto_aprovado',
             'passaporte_retornado'
         ];
+
+        const mapaStatusParaEtapa = {
+            'lead': 'formulario_enviado',
+            'formulario_solicitado': 'formulario_enviado',
+            'formulario_enviado': 'formulario_enviado',
+            'em_analise': 'analise_correcoes',
+            'analise_correcoes': 'analise_correcoes',
+            'processo_aberto': 'abertura_processo',
+            'boleto_emitido': 'boleto_emitido',
+            'boleto_pago': 'boleto_pago',
+            'agendado_casv': 'agendamento_realizado',
+            'agendamento_realizado': 'agendamento_realizado',
+            'treinamento_realizado': 'treinamento_realizado',
+            'agendado_entrevista': 'agendamento_realizado',
+            'entrevista_realizada': 'entrevista_realizada',
+            'visto_aprovado': 'visto_aprovado',
+            'visto_recusado': 'visto_recusado',
+            'passaporte_retornado': 'passaporte_retornado'
+        };
+
+        const etapaDeEtapas = etapa?.etapa_atual || null;
+        const etapaDeClientes = mapaStatusParaEtapa[cliente?.status] || null;
+
+        // Pega a etapa MAIS AVANÇADA entre as duas fontes
+        let etapaAtual = 'formulario_enviado';
+        const idxEtapas = etapaDeEtapas ? ordemEtapas.indexOf(etapaDeEtapas) : -1;
+        const idxClientes = etapaDeClientes ? ordemEtapas.indexOf(etapaDeClientes) : -1;
+
+        if (idxEtapas >= idxClientes && idxEtapas >= 0) {
+            etapaAtual = etapaDeEtapas;
+        } else if (idxClientes >= 0) {
+            etapaAtual = etapaDeClientes;
+        }
+
+        // Caso especial: visto recusado
+        if (cliente?.status === 'visto_recusado' || etapaDeEtapas === 'visto_recusado') {
+            etapaAtual = 'visto_recusado';
+        }
+
+        console.log(`🔍 Portal etapa: etapas_processo=${etapaDeEtapas}, clientes=${etapaDeClientes}, resolvido=${etapaAtual}`);
+
+        // Monta timeline
+        const timeline = [];
         
         const indiceAtual = ordemEtapas.indexOf(etapaAtual);
         for (const etapaId of ordemEtapas) {
