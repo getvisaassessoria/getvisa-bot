@@ -891,7 +891,7 @@ Digite o número da opção (1, 2 ou 3)`;
                 // 🆕 Última mensagem do bot para este número
                 try {
                     await enviarWhatsApp(phone,
-                        `Tudo bem! 😊\n\nSua mensagem foi registrada e nossa equipe responderá em breve.\n\nObrigado pelo contato! 🙌`
+                        `Tudo bem! 😊\n\ndeixe sua mensagem, em breve retornarei.\n\nObrigado pelo contato! 🙌`
                     );
                     console.log(`📤 Mensagem de despedida enviada para ${phone}`);
                 } catch (e) {
