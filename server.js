@@ -2617,9 +2617,55 @@ app.post('/api/webhook/zapi', async (req, res) => {
     res.status(200).send('OK');
     (async () => {
         try {
-            const telefone = req.body.phone || req.body.from || '';
-            const mensagem = req.body.text?.message || req.body.message || req.body.text || '';
+            const body = req.body || {};
+
+            // ============================================================
+            // 🚨 FILTROS DE SEGURANÇA — ignora tipos de mensagem que NÃO
+            // devem ser processados pelo bot
+            // ============================================================
+
+            // 1. Grupos
+            if (body.isGroup === true) {
+                console.log('🔇 Mensagem de grupo ignorada');
+                return;
+            }
+
+            // 2. Mensagens enviadas pelo próprio bot (evita loop)
+            if (body.fromMe === true) {
+                console.log('🔇 Mensagem do próprio bot ignorada');
+                return;
+            }
+
+            // 3. Status/Stories do WhatsApp
+            if (body.isStatusReply === true) {
+                console.log('🔇 Resposta de status ignorada');
+                return;
+            }
+
+            // 4. Newsletter/Canal
+            if (body.isNewsletter === true) {
+                console.log('🔇 Mensagem de newsletter/canal ignorada');
+                return;
+            }
+
+            // 5. Broadcast (listas de transmissão)
+            if (body.isBroadcast === true || body.broadcast === true) {
+                console.log('🔇 Mensagem de broadcast ignorada');
+                return;
+            }
+
+            // Extrai telefone e mensagem (formato varia por tipo de payload)
+            const telefone = body.phone || body.from || '';
+            const mensagem = body.text?.message || body.message || body.text || '';
+
             if (!telefone || !mensagem) return;
+
+            // Ignora se o telefone tiver sufixo de grupo (defesa extra)
+            if (typeof telefone === 'string' && telefone.includes('-group')) {
+                console.log('🔇 Telefone com sufixo -group ignorado');
+                return;
+            }
+
             const telefoneLimpo = limparTelefone(telefone);
             if (telefoneLimpo) await processarMensagem(telefoneLimpo, mensagem);
         } catch (err) { console.error('❌ Erro no webhook:', err); }
