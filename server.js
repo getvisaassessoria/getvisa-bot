@@ -439,10 +439,13 @@ async function atualizarStatusCliente(telefone, novoStatus, dadosAdicionais = {}
 
 async function enviarNotificacaoStatus(telefone, status, nome) {
     const mensagens = {
-        'lead': `👋 Olá ${nome}! Seu cadastro foi iniciado. Em breve enviaremos o formulário DS-160.`,
-        'formulario_solicitado': `📋 Olá ${nome}! O link do formulário DS-160 foi enviado para você. Preencha com atenção e nos avise quando terminar.`,
-        'formulario_enviado': `✅ Olá ${nome}! Recebemos seu formulário DS-160 com sucesso!\n\n📌 Nossa equipe já está analisando seus dados.\n\n⏳ Em até 24h entraremos em contato com os próximos passos.`,
-        'em_analise': `🔍 Olá ${nome}! Estamos analisando seus documentos e formulário com atenção.\n\n📌 Se houver necessidade de correções, o especialista estrará em contato.`,
+               'lead': `👋 Olá ${nome}!\n\nQue bom ter você por aqui! Seu cadastro foi iniciado com sucesso ✅\n\n📌 Em breve enviaremos o link do formulário DS-160 pra começarmos seu processo.\n\n💡 *Dica:* tenha seu passaporte em mãos quando o link chegar!`,
+
+        'formulario_solicitado': `📋 Olá ${nome}!\n\nO link do formulário DS-160 foi enviado pra você 📲\n\n⚠️ *Preencha com atenção* e confira cada dado antes de enviar — essas informações vão direto pro consulado americano.\n\n✨ Quando você enviar, o sistema avisa nossa equipe automaticamente. Não precisa fazer mais nada!`,
+
+        'formulario_enviado': `✅ Olá ${nome}!\n\nRecebemos seu formulário DS-160 com sucesso! 🎉\n\n🔍 Nossa equipe já iniciou a revisão dos dados pra garantir que esteja tudo certo antes de seguir pra próxima etapa.\n\n📌 Se identificarmos qualquer ponto que precise da sua ajuda, entraremos em contato por aqui.`,
+
+        'em_analise': `🔍 Olá ${nome}!\n\nSua documentação está em revisão detalhada pela nossa equipe. Estamos conferindo cada informação com cuidado pra que seu processo siga sem imprevistos.\n\n📌 Assim que a análise terminar, você receberá uma nova atualização por aqui.\n\n✨ Obrigado pela paciência — estamos cuidando de cada detalhe!`,
         'analise_correcoes': `📝 Olá ${nome}! Analisando o formulario, observamos que algumas perguntas merecem esclarecimentos.\n\n📌 Em breve entraremos em contato!`,
         'processo_aberto': `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\n✅ Próximos passos:\n• Pagamento da taxa consular.\n`,
         'boleto_emitido': `💰 Olá ${nome}! O boleto/pix da taxa consular foi enviado.\n\n📌 Verifique seu e-mail/whatsapp para acessar o boleto/pix.\n`,
@@ -494,7 +497,7 @@ async function atualizarEtapa(telefone, novaEtapa, dadosAdicionais = {}) {
 
 async function enviarNotificacaoEtapa(telefone, etapa, dadosCliente) {
     const mensagens = {
-        'formulario_enviado': (nome) => `✅ Olá ${nome}! Recebemos seu formulário DS-160 com sucesso!\n\n📌 Nossa equipe já está analisando seus dados.\n\n⏳ Em até 24h entraremos em contato.`,
+                'formulario_enviado': (nome) => `✅ Olá ${nome}!\n\nRecebemos seu formulário DS-160 com sucesso! 🎉\n\n🔍 Nossa equipe já iniciou a revisão dos dados pra garantir que esteja tudo certo antes de seguir pra próxima etapa.\n\n📌 Se identificarmos qualquer ponto que precise da sua ajuda, entraremos em contato por aqui.`,
         'analise_correcoes': (nome) => `🔍 Olá ${nome}! Estamos analisando seus documentos.\n\n📌 Em breve entraremos em contato se houver correções.`,
         'abertura_processo': (nome) => `📌 Olá ${nome}! Seu processo foi aberto com sucesso!\n\n✅ Próximos passos:\n• Pagamento da taxa consular\n• Agendamento para procedimentos (CASV/Consulado). `,
         'boleto_emitido': (nome) => `💰 Olá ${nome}! O boleto da taxa consular foi emitido.\n\n📌 Verifique seu e-mail para acessar o boleto.\n`,
