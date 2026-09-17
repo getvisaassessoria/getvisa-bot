@@ -1136,6 +1136,36 @@ async function mostrarStatusProcesso(phone, cliente) {
 async function processarLead(phone, message, cliente) {
     const nomeLead = obterNomeExibicao(cliente.nome);
     const msg = message.trim().toLowerCase();
+        // 🆕 Detecta resposta ao follow-up #2
+    const textoLimpo = message.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (textoLimpo === 'ajuda' || textoLimpo === 'quero ajuda' || textoLimpo === 'preciso de ajuda') {
+        console.log(`🙋 Lead ${phone} pediu AJUDA via follow-up`);
+        
+        // Notifica equipe
+        try {
+            await enviarWhatsApp(process.env.ADMIN_PHONE, 
+                `🙋 *LEAD PEDIU AJUDA*\n\n👤 ${nomeLead}\n📱 ${phone}\n\nEle respondeu ao follow-up pedindo ajuda pra preencher o DS-160.`
+            );
+        } catch (e) {}
+        
+        // Responde o lead
+        await enviarWhatsApp(phone,
+            `Perfeito, ${nomeLead.split(' ')[0]}! 🤝\n\n` +
+            `Vou pedir pra um especialista te chamar em instantes pra te ajudar a preencher.\n\n` +
+            `Enquanto isso, se quiser adiantar:\n` +
+            `👉 https://app.getvisa.com.br/formulario-ds160\n\n` +
+            `Fica tranquilo(a) que vamos te acompanhar! ✨`
+        );
+        
+        // Marca que pediu ajuda
+        try {
+            await supabase.from('clientes')
+                .update({ followup_parar: true, updated_at: new Date().toISOString() })
+                .eq('telefone', phone);
+        } catch (e) {}
+        
+        return;
+    }
     
     // Verifica se está em submenu
     const state = userState.get(phone);
@@ -3250,12 +3280,12 @@ async function processarFollowupLeads() {
                 // Follow-up #2 — 48h+
                 else if (horasDesdeCadastro >= 48 && !lead.followup_2_em) {
                     mensagem = `Oi ${primeiroNome}!\n\n` +
-                        `Você já pensou em fazer seu visto americano? 🇺🇸\n\n` +
-                        `Pra dar andamento, só falta o formulário DS-160. É rápido e posso te ajudar agora.\n\n` +
-                        `Me responde com:\n` +
-                        `1️⃣ Quero ajuda pra preencher\n` +
-                        `2️⃣ Vou preencher sozinho(a)\n` +
-                        `3️⃣ Não tenho mais interesse`;
+                        `Passando aqui pra saber se você ainda tem interesse no seu visto americano 🇺🇸\n\n` +
+                        `Se quiser ajuda pra preencher, é só responder:\n` +
+                        `👉 AJUDA\n\n` +
+                        `Se preferir o link direto pra preencher sozinho(a):\n` +
+                        `👉 https://app.getvisa.com.br/formulario-ds160\n\n` +
+                        `Qualquer coisa, estamos por aqui! 😊`;
                     qualFollowup = 2;
                 }
                 // Follow-up #3 — 72h+ (último)
