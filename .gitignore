@@ -8,3 +8,4 @@ test-email.js
 *.backup-pre-*
 teste-*.js
 *.backup-pre-cleanup-*
+*.backup-*
