@@ -338,8 +338,15 @@ function formatarTelefone(tel) {
 
 function formatarData(iso) {
     if (!iso) return null;
-    const d = new Date(iso);
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    // 🛡️ Parse seguro: se for YYYY-MM-DD (date-only), não deixa timezone interferir
+    const str = String(iso).trim();
+    const match = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+        return `${match[3]}/${match[2]}/${match[1]}`;
+    }
+    // Fallback para timestamps ISO (created_at, updated_at etc)
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? str : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function formatarDataHora(iso) {

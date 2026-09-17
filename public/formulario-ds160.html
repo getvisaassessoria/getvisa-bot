@@ -1526,6 +1526,26 @@
 </div>
 
 <script>
+
+
+// ============================================================
+// 🛡️ FORMATAÇÃO SEGURA DE DATA (evita bug de timezone)
+// ============================================================
+function formatarDataSegura(iso) {
+    if (!iso) return '-';
+    const str = String(iso).trim();
+    
+    // Formato ISO (YYYY-MM-DD ou YYYY-MM-DDTHH:mm) — parse manual
+    const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+        return `${match[3]}/${match[2]}/${match[1]}`;
+    }
+    
+    // Fallback pra outros formatos
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? str : d.toLocaleDateString('pt-BR');
+}
+
 // ============================================================
 // VARIÁVEIS GLOBAIS
 // ============================================================
@@ -2061,7 +2081,7 @@ function updateResumo() {
     html += '<p><strong>Outros Sobrenomes:</strong> ' + (dados.other_surnames || 'Não informado') + '</p>';
     html += '<p><strong>Gênero:</strong> ' + (dados['radio-genero'] === 'MALE' ? 'Masculino' : dados['radio-genero'] === 'FEMALE' ? 'Feminino' : '-') + '</p>';
     html += '<p><strong>Estado Civil:</strong> ' + (dados.marital_status === 'MARRIED' ? 'Casado(a)' : dados.marital_status === 'UNION' ? 'União Estável' : dados.marital_status === 'SINGLE' ? 'Solteiro(a)' : dados.marital_status === 'DIVORCED' ? 'Divorciado(a)' : dados.marital_status === 'WIDOWED' ? 'Viúvo(a)' : dados.marital_status === 'SEPARATED' ? 'Separado(a) Judicialmente' : dados.marital_status === 'OTHER' ? 'Outro' : '-') + '</p>';
-    html += '<p><strong>Data de Nascimento:</strong> ' + (dados.dob ? new Date(dados.dob).toLocaleDateString('pt-BR') : '-') + '</p>';
+    html += '<p><strong>Data de Nascimento:</strong> ' + (dados.dob ? formatarDataSegura(dados.dob) : '-') + '</p>';
     html += '<p><strong>Cidade de Nascimento:</strong> ' + (dados.birth_city || '-') + '</p>';
     html += '<p><strong>Estado/Província:</strong> ' + (dados.birth_state || '-') + '</p>';
     html += '<p><strong>País de Nascimento:</strong> ' + (dados.birth_country || '-') + '</p>';
@@ -2078,7 +2098,7 @@ function updateResumo() {
     html += '<p><strong>Propósito:</strong> ' + (dados.travel_purpose || '-') + '</p>';
     html += '<p><strong>Planos Específicos:</strong> ' + (dados['radio-travel-plans'] === 'one' ? 'Sim' : 'Não') + '</p>';
     if (dados['radio-travel-plans'] === 'one') {
-        html += '<p><strong>Data de Chegada:</strong> ' + (dados.arrival_date ? new Date(dados.arrival_date).toLocaleDateString('pt-BR') : '-') + '</p>';
+        html += '<p><strong>Data de Chegada:</strong> ' + (dados.arrival_date ? formatarDataSegura(dados.arrival_date) : '-') + '</p>';
         html += '<p><strong>Locais a Visitar:</strong> ' + (dados.places_to_visit || '-') + '</p>';
     }
     html += '<p><strong>Pagador:</strong> ' + (dados['radio-payer'] === 'SELF' ? 'Próprio Solicitante' : 'Outra pessoa/empresa/organização') + '</p>';
@@ -2127,7 +2147,7 @@ function updateResumo() {
             html += '<ul>';
             datas.forEach(function(d, i) {
                 if (d) {
-                    html += '<li>' + new Date(d).toLocaleDateString('pt-BR') + ' - ' + (duracoes[i] || '') + ' dias</li>';
+                    html += '<li>' + formatarDataSegura(d) + ' - ' + (duracoes[i] || '') + ' dias</li>';
                 }
             });
             html += '</ul>';
@@ -2141,7 +2161,7 @@ function updateResumo() {
     }
     html += '<p><strong>Visto emitido anteriormente:</strong> ' + (dados['radio-visa-issued'] === 'one' ? 'Sim' : 'Não') + '</p>';
     if (dados['radio-visa-issued'] === 'one') {
-        html += '<p><strong>Data da última emissão:</strong> ' + (dados.visa_issued_date ? new Date(dados.visa_issued_date).toLocaleDateString('pt-BR') : '-') + '</p>';
+        html += '<p><strong>Data da última emissão:</strong> ' + (dados.visa_issued_date ? formatarDataSegura(dados.visa_issued_date) : '-') + '</p>';
         html += '<p><strong>Número do visto:</strong> ' + (dados.visa_number || '-') + '</p>';
         html += '<p><strong>Mesmo tipo de visto:</strong> ' + (dados['radio-same-visa'] === 'YES' ? 'Sim' : 'Não') + '</p>';
         html += '<p><strong>Mesmo país/cidade:</strong> ' + (dados['radio-same-location'] === 'YES' ? 'Sim' : 'Não') + '</p>';
@@ -2190,14 +2210,14 @@ function updateResumo() {
     html += '<p><strong>País/Autoridade Emissora:</strong> ' + (dados.passport_country || '-') + '</p>';
     html += '<p><strong>Cidade de Emissão:</strong> ' + (dados.passport_city || '-') + '</p>';
     html += '<p><strong>Estado de Emissão:</strong> ' + (dados.passport_state || '-') + '</p>';
-    html += '<p><strong>Data de Emissão:</strong> ' + (dados.passport_issue ? new Date(dados.passport_issue).toLocaleDateString('pt-BR') : '-') + '</p>';
-    html += '<p><strong>Data de Validade:</strong> ' + (dados.passport_expiry ? new Date(dados.passport_expiry).toLocaleDateString('pt-BR') : '-') + '</p>';
+    html += '<p><strong>Data de Emissão:</strong> ' + (dados.passport_issue ? formatarDataSegura(dados.passport_issue) : '-') + '</p>';
+    html += '<p><strong>Data de Validade:</strong> ' + (dados.passport_expiry ? formatarDataSegura(dados.passport_expiry) : '-') + '</p>';
     // Passaporte Perdido/Roubado
     html += '<p><strong>Passaporte Perdido/Roubado:</strong> ' + (dados['radio-passport-lost'] === 'SIM' ? 'Sim' : 'Não') + '</p>';
     if (dados['radio-passport-lost'] === 'SIM') {
         html += '<p><strong>Número do BO/Observações:</strong> ' + (dados.passport_lost_obs || 'Não informado') + '</p>';
         html += '<p><strong>Número do Passaporte Perdido:</strong> ' + (dados.passport_lost_number || 'Não informado') + '</p>';
-        html += '<p><strong>Data do Ocorrido:</strong> ' + (dados.passport_lost_date ? new Date(dados.passport_lost_date).toLocaleDateString('pt-BR') : 'Não informado') + '</p>';
+        html += '<p><strong>Data do Ocorrido:</strong> ' + (dados.passport_lost_date ? formatarDataSegura(dados.passport_lost_date) : 'Não informado') + '</p>';
         html += '<p><strong>Local do Ocorrido:</strong> ' + (dados.passport_lost_location || 'Não informado') + '</p>';
     }
     html += '</div>';
@@ -2217,13 +2237,13 @@ function updateResumo() {
     html += '<h4 style="color:#003366;margin-bottom:10px;">👨‍👩‍👧‍👦 Família</h4>';
     html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
     html += '<p><strong>Pai:</strong> ' + (dados.father_name || '-') + '</p>';
-    html += '<p><strong>Data de Nascimento do Pai:</strong> ' + (dados.father_dob ? new Date(dados.father_dob).toLocaleDateString('pt-BR') : 'Não informado') + '</p>';
+    html += '<p><strong>Data de Nascimento do Pai:</strong> ' + (dados.father_dob ? formatarDataSegura(dados.father_dob) : 'Não informado') + '</p>';
     html += '<p><strong>Pai nos EUA:</strong> ' + (dados.father_in_us === 'YES' ? 'Sim' : 'Não') + '</p>';
     if (dados.father_in_us === 'YES') {
         html += '<p><strong>Situação do Pai:</strong> ' + (dados.father_status || 'Não informado') + '</p>';
     }
     html += '<p><strong>Mãe:</strong> ' + (dados.mother_name || '-') + '</p>';
-    html += '<p><strong>Data de Nascimento da Mãe:</strong> ' + (dados.mother_dob ? new Date(dados.mother_dob).toLocaleDateString('pt-BR') : 'Não informado') + '</p>';
+    html += '<p><strong>Data de Nascimento da Mãe:</strong> ' + (dados.mother_dob ? formatarDataSegura(dados.mother_dob) : 'Não informado') + '</p>';
     html += '<p><strong>Mãe nos EUA:</strong> ' + (dados.mother_in_us === 'YES' ? 'Sim' : 'Não') + '</p>';
     if (dados.mother_in_us === 'YES') {
         html += '<p><strong>Situação da Mãe:</strong> ' + (dados.mother_status || 'Não informado') + '</p>';
@@ -2244,7 +2264,7 @@ function updateResumo() {
     html += '<p><strong>Outros Parentes nos EUA:</strong> ' + (dados['radio-other-relatives'] === 'one' ? 'Sim - ' + (dados.other_relatives_desc || '') : 'Não') + '</p>';
     if (dados.marital_status && dados.marital_status !== 'SINGLE') {
         html += '<p><strong>Cônjuge/Ex-Cônjuge:</strong> ' + (dados.spouse_name || 'Não informado') + '</p>';
-        html += '<p><strong>Data de Nascimento do Cônjuge:</strong> ' + (dados.spouse_dob ? new Date(dados.spouse_dob).toLocaleDateString('pt-BR') : 'Não informado') + '</p>';
+        html += '<p><strong>Data de Nascimento do Cônjuge:</strong> ' + (dados.spouse_dob ? formatarDataSegura(dados.spouse_dob) : 'Não informado') + '</p>';
         html += '<p><strong>Nacionalidade do Cônjuge:</strong> ' + (dados.spouse_nationality || 'Não informado') + '</p>';
         html += '<p><strong>Cidade de Nascimento do Cônjuge:</strong> ' + (dados.spouse_birth_city || 'Não informado') + '</p>';
         html += '<p><strong>País de Nascimento do Cônjuge:</strong> ' + (dados.spouse_birth_country || 'Não informado') + '</p>';
@@ -2276,7 +2296,7 @@ function updateResumo() {
         html += '<p><strong>Estado:</strong> ' + (dados.employer_state || '-') + '</p>';
         html += '<p><strong>CEP:</strong> ' + (dados.employer_zip || '-') + '</p>';
         html += '<p><strong>Telefone:</strong> ' + (dados.employer_phone || '-') + '</p>';
-        html += '<p><strong>Data de Início:</strong> ' + (dados.employer_start ? new Date(dados.employer_start).toLocaleDateString('pt-BR') : '-') + '</p>';
+        html += '<p><strong>Data de Início:</strong> ' + (dados.employer_start ? formatarDataSegura(dados.employer_start) : '-') + '</p>';
         html += '<p><strong>Renda Mensal:</strong> ' + (dados.employer_income || '-') + '</p>';
         html += '<p><strong>Descrição das Funções:</strong> ' + (dados.employer_duties || '-') + '</p>';
     } 
@@ -2306,8 +2326,8 @@ function updateResumo() {
             html += '<p><strong>Empregos Anteriores:</strong></p><ul>';
             empNomes.forEach(function(e, i) {
                 if (e) {
-                    var inicio = dados['prev_employer_start[]'] ? new Date(dados['prev_employer_start[]'][i]).toLocaleDateString('pt-BR') : '';
-                    var fim = dados['prev_employer_end[]'] ? new Date(dados['prev_employer_end[]'][i]).toLocaleDateString('pt-BR') : '';
+                    var inicio = dados['prev_employer_start[]'] ? formatarDataSegura(dados['prev_employer_start[]'][i]) : '';
+                    var fim = dados['prev_employer_end[]'] ? formatarDataSegura(dados['prev_employer_end[]'][i]) : '';
                     html += '<li>' + e + ' - ' + (dados['prev_employer_job[]'] ? dados['prev_employer_job[]'][i] : '') + ' (' + inicio + ' - ' + fim + ')</li>';
                 }
             });
@@ -2322,8 +2342,8 @@ function updateResumo() {
             html += '<p><strong>Educação:</strong></p><ul>';
             educInst.forEach(function(e, i) {
                 if (e) {
-                    var inicio = dados['edu_start[]'] ? new Date(dados['edu_start[]'][i]).toLocaleDateString('pt-BR') : '';
-                    var fim = dados['edu_end[]'] ? new Date(dados['edu_end[]'][i]).toLocaleDateString('pt-BR') : '';
+                    var inicio = dados['edu_start[]'] ? formatarDataSegura(dados['edu_start[]'][i]) : '';
+                    var fim = dados['edu_end[]'] ? formatarDataSegura(dados['edu_end[]'][i]) : '';
                     html += '<li>' + e + ' - ' + (dados['edu_course[]'] ? dados['edu_course[]'][i] : '') + ' (' + inicio + ' - ' + fim + ')</li>';
                 }
             });
@@ -2355,8 +2375,8 @@ function updateResumo() {
         html += '<p><strong>Ramo:</strong> ' + (dados.military_branch || '-') + '</p>';
         html += '<p><strong>Patente:</strong> ' + (dados.military_rank || '-') + '</p>';
         html += '<p><strong>Especialidade:</strong> ' + (dados.military_specialty || '-') + '</p>';
-        html += '<p><strong>Data Início:</strong> ' + (dados.military_start ? new Date(dados.military_start).toLocaleDateString('pt-BR') : '-') + '</p>';
-        html += '<p><strong>Data Saída:</strong> ' + (dados.military_end ? new Date(dados.military_end).toLocaleDateString('pt-BR') : '-') + '</p>';
+        html += '<p><strong>Data Início:</strong> ' + (dados.military_start ? formatarDataSegura(dados.military_start) : '-') + '</p>';
+        html += '<p><strong>Data Saída:</strong> ' + (dados.military_end ? formatarDataSegura(dados.military_end) : '-') + '</p>';
     }
     html += '</div>';
     
