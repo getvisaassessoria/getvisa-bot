@@ -1525,6 +1525,14 @@ async function processarMensagem(phone, message) {
         return;
     }
 
+    // 🆕 Para follow-up automático quando o cliente responde
+    try {
+        await supabase.from('clientes')
+            .update({ followup_parar: true })
+            .eq('telefone', telefoneLimpo)
+            .eq('followup_parar', false);
+    } catch (e) {}
+
     let cliente = null;
     try {
         const { data, error } = await supabase
@@ -3162,9 +3170,122 @@ try {
 }
 
 // ============================================================
+// FOLLOW-UP AUTOMÁTICO DE LEADS
+// 3 tentativas: 24h, 48h, 72h após cadastro
+// Para quando: cliente responde OU preenche DS-160
+// ============================================================
+async function processarFollowupLeads() {
+    console.log('📬 Iniciando follow-up automático de leads...');
+    
+    try {
+        // Busca candidatos: leads completos, sem form, sem flag parar
+        const { data: leads, error } = await supabase
+            .from('clientes')
+            .select('id, nome, telefone, email, created_at, followup_1_em, followup_2_em, followup_3_em')
+            .eq('tipo_contato', 'lead')
+            .eq('followup_parar', false)
+            .not('nome', 'is', null)
+            .not('email', 'is', null)
+            .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+        
+        if (error) {
+            console.error('❌ Erro ao buscar leads:', error);
+            return;
+        }
+        
+        if (!leads || leads.length === 0) {
+            console.log('✅ Nenhum lead pendente de follow-up.');
+            return;
+        }
+        
+        console.log(`📋 ${leads.length} leads para verificar`);
+        
+        const agora = Date.now();
+        const HORA = 60 * 60 * 1000;
+        
+        for (const lead of leads) {
+            try {
+                // Verifica se já preencheu o form (se sim, para)
+                const { data: form } = await supabase
+                    .from('form_ds160')
+                    .select('id')
+                    .eq('id_cliente', lead.id)
+                    .maybeSingle();
+                
+                if (form) {
+                    await supabase.from('clientes')
+                        .update({ followup_parar: true })
+                        .eq('id', lead.id);
+                    console.log(`✅ ${lead.nome} já preencheu DS-160 — follow-up cancelado`);
+                    continue;
+                }
+                
+                const criado = new Date(lead.created_at).getTime();
+                const horasDesdeCadastro = (agora - criado) / HORA;
+                const primeiroNome = (lead.nome || 'Cliente').split(' ')[0];
+                
+                let mensagem = null;
+                let qualFollowup = null;
+                
+                // Follow-up #1 — 24h+
+                if (horasDesdeCadastro >= 24 && !lead.followup_1_em) {
+                    mensagem = `Oi ${primeiroNome}! Como vai? 😊\n\n` +
+                        `Notei que você começou seu cadastro com a gente mas não recebi seu formulário DS-160 ainda.\n\n` +
+                        `Tá tudo bem? Teve alguma dificuldade? Ficou com alguma pergunta pendente?\n\n` +
+                        `Se quiser, posso te acompanhar no preenchimento — é rapidinho e garanto que sai tudo certinho ✨\n\n` +
+                        `📋 Link: https://app.getvisa.com.br/formulario-ds160`;
+                    qualFollowup = 1;
+                }
+                // Follow-up #2 — 48h+
+                else if (horasDesdeCadastro >= 48 && !lead.followup_2_em) {
+                    mensagem = `Oi ${primeiroNome}!\n\n` +
+                        `Você já pensou em fazer seu visto americano? 🇺🇸\n\n` +
+                        `Pra dar andamento, só falta o formulário DS-160. É rápido e posso te ajudar agora.\n\n` +
+                        `Me responde com:\n` +
+                        `1️⃣ Quero ajuda pra preencher\n` +
+                        `2️⃣ Vou preencher sozinho(a)\n` +
+                        `3️⃣ Não tenho mais interesse`;
+                    qualFollowup = 2;
+                }
+                // Follow-up #3 — 72h+ (último)
+                else if (horasDesdeCadastro >= 72 && !lead.followup_3_em) {
+                    mensagem = `Oi ${primeiroNome}, tudo bem?\n\n` +
+                        `Esse é meu último contato sobre o formulário do seu visto. 😊\n\n` +
+                        `Se ainda tiver interesse, é só responder por aqui — estamos prontos pra te ajudar!\n\n` +
+                        `Caso contrário, sem problemas. Fica à vontade pra voltar quando quiser. 🙌`;
+                    qualFollowup = 3;
+                }
+                
+                if (mensagem) {
+                    await enviarWhatsApp(lead.telefone, mensagem, true); // isNotificacao=true
+                    
+                    // Marca como enviado
+                    const campo = `followup_${qualFollowup}_em`;
+                    await supabase.from('clientes')
+                        .update({ [campo]: new Date().toISOString() })
+                        .eq('id', lead.id);
+                    
+                    console.log(`✅ Follow-up #${qualFollowup} enviado para ${lead.nome} (${lead.telefone})`);
+                }
+            } catch (err) {
+                console.error(`❌ Erro no follow-up de ${lead.telefone}:`, err);
+            }
+        }
+        
+        console.log('✅ Follow-up concluído.');
+    } catch (error) {
+        console.error('❌ Erro no cron de follow-up:', error);
+    }
+}
+
+// ============================================================
 // 13. CRON JOB E LIMPEZA DE ESTADO
 // ============================================================
-
+// Follow-up automático de leads — roda a cada 6h
+cron.schedule('0 */6 * * *', () => {
+    console.log('⏰ Cron follow-up de leads executado');
+    processarFollowupLeads();
+});
 // Cron job para lembretes (placeholder – pode ser implementado depois)
 cron.schedule('*/5 * * * *', () => {
     console.log('⏰ Cron job executado (lembretes)');
