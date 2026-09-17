@@ -2029,6 +2029,17 @@ app.post('/api/admin/reenvios/:id/tratar', auth.verificarAdmin, async (req, res)
     }
 });
 
+// ⚠️ TEMPORÁRIO — Rota pra testar follow-up manualmente
+app.get('/api/admin/test-followup', auth.verificarAdmin, async (req, res) => {
+    try {
+        await processarFollowupLeads();
+        res.json({ success: true, message: 'Follow-up executado — confere os logs' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
 // ============================================================
 // ROTA: CONTADOR DE REENVIOS PENDENTES (badge do dashboard)
 // ============================================================
