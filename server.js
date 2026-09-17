@@ -3267,16 +3267,27 @@ async function processarFollowupLeads() {
                     qualFollowup = 3;
                 }
                 
-                if (mensagem) {
-                    await enviarWhatsApp(lead.telefone, mensagem, true); // isNotificacao=true
+                                if (mensagem) {
+                    await enviarWhatsApp(lead.telefone, mensagem, true);
+
+                    // Monta objeto explícito (evita problema de computed property no Supabase JS)
+                    const agora = new Date().toISOString();
+                    const updateObj = { updated_at: agora };
                     
-                    // Marca como enviado
-                    const campo = `followup_${qualFollowup}_em`;
-                    await supabase.from('clientes')
-                        .update({ [campo]: new Date().toISOString() })
+                    if (qualFollowup === 1) updateObj.followup_1_em = agora;
+                    if (qualFollowup === 2) updateObj.followup_2_em = agora;
+                    if (qualFollowup === 3) updateObj.followup_3_em = agora;
+
+                    const { error: updateErr } = await supabase
+                        .from('clientes')
+                        .update(updateObj)
                         .eq('id', lead.id);
-                    
-                    console.log(`✅ Follow-up #${qualFollowup} enviado para ${lead.nome} (${lead.telefone})`);
+
+                    if (updateErr) {
+                        console.error(`❌ Erro ao marcar followup_${qualFollowup} para ${lead.telefone}:`, updateErr);
+                    } else {
+                        console.log(`✅ Follow-up #${qualFollowup} enviado e registrado para ${lead.nome}`);
+                    }
                 }
             } catch (err) {
                 console.error(`❌ Erro no follow-up de ${lead.telefone}:`, err);
