@@ -1726,25 +1726,25 @@ async function gerarPDF_DS160(dados) {
             'Descrição das Funções': dados.employer_duties || '',
                         'País do Empregador': dados.employer_country || '',
 
-            'Outras Ocupações': (function() {
+                        'Outras Ocupações': (function() {
                 const nomes = dados['other_employer_name[]'];
                 if (!nomes) return '';
                 const arr = Array.isArray(nomes) ? nomes : [nomes];
                 return arr.map((nome, i) => {
                     if (!nome) return null;
-                    const linhas = [
-                        `📌 ${nome}`,
-                        dados['other_employer_address[]']?.[i] ? `   Endereço: ${dados['other_employer_address[]'][i]}` : null,
-                        dados['other_employer_city[]']?.[i] ? `   Cidade: ${dados['other_employer_city[]'][i]}` : null,
-                        dados['other_employer_state[]']?.[i] ? `   Estado: ${dados['other_employer_state[]'][i]}` : null,
-                        dados['other_employer_zip[]']?.[i] ? `   CEP: ${dados['other_employer_zip[]'][i]}` : null,
-                        dados['other_employer_phone[]']?.[i] ? `   Telefone: ${dados['other_employer_phone[]'][i]}` : null,
-                        dados['other_employer_start[]']?.[i] ? `   Data Início: ${dados['other_employer_start[]'][i]}` : null,
-                        dados['other_employer_income[]']?.[i] ? `   Renda Mensal: ${dados['other_employer_income[]'][i]}` : null,
-                        dados['other_employer_duties[]']?.[i] ? `   Funções: ${dados['other_employer_duties[]'][i]}` : null
+                    const partes = [
+                        nome,
+                        dados['other_employer_address[]']?.[i] ? `Endereço: ${dados['other_employer_address[]'][i]}` : null,
+                        dados['other_employer_city[]']?.[i] ? `Cidade: ${dados['other_employer_city[]'][i]}` : null,
+                        dados['other_employer_state[]']?.[i] ? `Estado: ${dados['other_employer_state[]'][i]}` : null,
+                        dados['other_employer_zip[]']?.[i] ? `CEP: ${dados['other_employer_zip[]'][i]}` : null,
+                        dados['other_employer_phone[]']?.[i] ? `Telefone: ${dados['other_employer_phone[]'][i]}` : null,
+                        dados['other_employer_start[]']?.[i] ? `Data Início: ${formatarDataBR(dados['other_employer_start[]'][i])}` : null,
+                        dados['other_employer_income[]']?.[i] ? `Renda: ${dados['other_employer_income[]'][i]}` : null,
+                        dados['other_employer_duties[]']?.[i] ? `Funções: ${dados['other_employer_duties[]'][i]}` : null
                     ].filter(Boolean);
-                    return linhas.join('\n');
-                }).filter(Boolean).join('\n\n');
+                    return partes.join(' | ');
+                }).filter(Boolean).join('  ///  ');
             })(),
 
             'Empregos Anteriores': (function() {
@@ -1753,21 +1753,21 @@ async function gerarPDF_DS160(dados) {
                 const arr = Array.isArray(nomes) ? nomes : [nomes];
                 return arr.map((nome, i) => {
                     if (!nome) return null;
-                    const linhas = [
-                        `📌 ${nome}`,
-                        dados['prev_employer_address[]']?.[i] ? `   Endereço: ${dados['prev_employer_address[]'][i]}` : null,
-                        dados['prev_employer_city[]']?.[i] ? `   Cidade: ${dados['prev_employer_city[]'][i]}` : null,
-                        dados['prev_employer_state[]']?.[i] ? `   Estado: ${dados['prev_employer_state[]'][i]}` : null,
-                        dados['prev_employer_zip[]']?.[i] ? `   CEP: ${dados['prev_employer_zip[]'][i]}` : null,
-                        dados['prev_employer_phone[]']?.[i] ? `   Telefone: ${dados['prev_employer_phone[]'][i]}` : null,
-                        dados['prev_employer_job[]']?.[i] ? `   Cargo: ${dados['prev_employer_job[]'][i]}` : null,
-                        dados['prev_employer_supervisor[]']?.[i] ? `   Supervisor: ${dados['prev_employer_supervisor[]'][i]}` : null,
-                        dados['prev_employer_start[]']?.[i] ? `   Data Início: ${dados['prev_employer_start[]'][i]}` : null,
-                        dados['prev_employer_end[]']?.[i] ? `   Data Fim: ${dados['prev_employer_end[]'][i]}` : null,
-                        dados['prev_employer_duties[]']?.[i] ? `   Funções: ${dados['prev_employer_duties[]'][i]}` : null
+                    const partes = [
+                        nome,
+                        dados['prev_employer_address[]']?.[i] ? `Endereço: ${dados['prev_employer_address[]'][i]}` : null,
+                        dados['prev_employer_city[]']?.[i] ? `Cidade: ${dados['prev_employer_city[]'][i]}` : null,
+                        dados['prev_employer_state[]']?.[i] ? `Estado: ${dados['prev_employer_state[]'][i]}` : null,
+                        dados['prev_employer_zip[]']?.[i] ? `CEP: ${dados['prev_employer_zip[]'][i]}` : null,
+                        dados['prev_employer_phone[]']?.[i] ? `Telefone: ${dados['prev_employer_phone[]'][i]}` : null,
+                        dados['prev_employer_job[]']?.[i] ? `Cargo: ${dados['prev_employer_job[]'][i]}` : null,
+                        dados['prev_employer_supervisor[]']?.[i] ? `Supervisor: ${dados['prev_employer_supervisor[]'][i]}` : null,
+                        dados['prev_employer_start[]']?.[i] ? `Início: ${formatarDataBR(dados['prev_employer_start[]'][i])}` : null,
+                        dados['prev_employer_end[]']?.[i] ? `Fim: ${formatarDataBR(dados['prev_employer_end[]'][i])}` : null,
+                        dados['prev_employer_duties[]']?.[i] ? `Funções: ${dados['prev_employer_duties[]'][i]}` : null
                     ].filter(Boolean);
-                    return linhas.join('\n');
-                }).filter(Boolean).join('\n\n');
+                    return partes.join(' | ');
+                }).filter(Boolean).join('  ///  ');
             })(),
 
             'Cursos/Educação': (function() {
@@ -1776,17 +1776,17 @@ async function gerarPDF_DS160(dados) {
                 const arr = Array.isArray(nomes) ? nomes : [nomes];
                 return arr.map((nome, i) => {
                     if (!nome) return null;
-                    const linhas = [
-                        `📌 ${nome}`,
-                        dados['edu_address[]']?.[i] ? `   Endereço: ${dados['edu_address[]'][i]}` : null,
-                        dados['edu_city[]']?.[i] ? `   Cidade: ${dados['edu_city[]'][i]}` : null,
-                        dados['edu_state[]']?.[i] ? `   Estado: ${dados['edu_state[]'][i]}` : null,
-                        dados['edu_course[]']?.[i] ? `   Curso: ${dados['edu_course[]'][i]}` : null,
-                        dados['edu_start[]']?.[i] ? `   Data Início: ${dados['edu_start[]'][i]}` : null,
-                        dados['edu_end[]']?.[i] ? `   Data Conclusão: ${dados['edu_end[]'][i]}` : null
+                    const partes = [
+                        nome,
+                        dados['edu_address[]']?.[i] ? `Endereço: ${dados['edu_address[]'][i]}` : null,
+                        dados['edu_city[]']?.[i] ? `Cidade: ${dados['edu_city[]'][i]}` : null,
+                        dados['edu_state[]']?.[i] ? `Estado: ${dados['edu_state[]'][i]}` : null,
+                        dados['edu_course[]']?.[i] ? `Curso: ${dados['edu_course[]'][i]}` : null,
+                        dados['edu_start[]']?.[i] ? `Início: ${formatarDataBR(dados['edu_start[]'][i])}` : null,
+                        dados['edu_end[]']?.[i] ? `Conclusão: ${formatarDataBR(dados['edu_end[]'][i])}` : null
                     ].filter(Boolean);
-                    return linhas.join('\n');
-                }).filter(Boolean).join('\n\n');
+                    return partes.join(' | ');
+                }).filter(Boolean).join('  ///  ');
             })(),
             'Idiomas (além do Português)': Array.isArray(dados['languages[]']) ? dados['languages[]'].filter(Boolean).join(', ') : (dados['languages[]'] || ''),
             'Países Visitados (últimos 5 anos)': Array.isArray(dados['traveled_countries[]']) ? dados['traveled_countries[]'].filter(Boolean).join(', ') : (dados['traveled_countries[]'] || ''),
@@ -1801,7 +1801,7 @@ async function gerarPDF_DS160(dados) {
             'Deportado': dados['radio-deported'] === 'YES' ? `Sim - ${dados.deported_explanation || ''}` : 'Não'
         };
 
-                function writeSection(title, campos) {
+                    function writeSection(title, campos) {
             doc.moveDown(1);
             doc.fontSize(14).fillColor('#003366').text(title, { underline: true });
             doc.moveDown(0.5);
@@ -1810,15 +1810,7 @@ async function gerarPDF_DS160(dados) {
             for (const [label, value] of Object.entries(campos)) {
                 if (value && value !== '' && value !== 'Não informado') {
                     has = true;
-                    // Se tem \n, formata multi-linha
-                    if (String(value).includes('\n')) {
-                        doc.text(`• ${label}:`);
-                        doc.fontSize(9).fillColor('#333333');
-                        doc.text(`   ${value}`);
-                        doc.fontSize(10).fillColor('#000000');
-                    } else {
-                        doc.text(`• ${label}: ${value}`);
-                    }
+                    doc.fontSize(10).fillColor('#000000').text(`• ${label}: ${value}`);
                 }
             }
             if (!has) doc.text('(Nenhuma informação preenchida)');
