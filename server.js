@@ -1599,6 +1599,15 @@ async function processarMensagem(phone, message) {
 // ============================================================
 // 11. FUNÇÕES DE GERAÇÃO DE PDF (DS-160) - (mantido inalterado)
 // ============================================================
+// Helper: converte YYYY-MM-DD → DD/MM/YYYY (evita bug de timezone)
+function formatarDataBR(iso) {
+    if (!iso) return '';
+    const str = String(iso).trim();
+    const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+    return str;
+}
+
 async function gerarPDF_DS160(dados) {
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({ size: 'A4', margin: 40 });
@@ -1616,7 +1625,7 @@ async function gerarPDF_DS160(dados) {
             'Outros Sobrenomes': dados.other_surnames || '',
             'Gênero': dados['radio-genero'] === 'MALE' ? 'Masculino' : dados['radio-genero'] === 'FEMALE' ? 'Feminino' : dados['radio-genero'] || '',
             'Estado Civil': dados.marital_status === 'MARRIED' ? 'Casado(a)' : dados.marital_status === 'UNION' ? 'União Estável' : dados.marital_status === 'SINGLE' ? 'Solteiro(a)' : dados.marital_status === 'DIVORCED' ? 'Divorciado(a)' : dados.marital_status === 'WIDOWED' ? 'Viúvo(a)' : dados.marital_status === 'SEPARATED' ? 'Separado(a) Judicialmente' : dados.marital_status === 'OTHER' ? 'Outro' : dados.marital_status || '',
-            'Data de Nascimento': dados.dob || dados['text-5'] || '',
+            'Data de Nascimento': formatarDataBR(dados.dob || dados['text-5'] || ''),
             'Cidade de Nascimento': dados.birth_city || dados.cidade_nascimento || '',
             'Estado/Província de Nascimento': dados.birth_state || '',
             'País de Nascimento': dados.birth_country || dados.nacionalidade || '',
@@ -1626,7 +1635,7 @@ async function gerarPDF_DS160(dados) {
             'SSN (Seguro Social EUA)': dados.ssn || 'Não informado',
             'Tax ID (ITIN)': dados.tax_id || 'Não informado',
             'Propósito da Viagem': dados.travel_purpose === 'BUSINESS_PLEASURE' ? 'Turismo/Negócios (B1/B2)' : dados.travel_purpose === 'STUDY' ? 'Estudos' : dados.travel_purpose === 'OTHER' ? 'Outros' : dados.travel_purpose || '',
-            'Data de Chegada nos EUA': dados.arrival_date || '',
+            'Data de Chegada nos EUA': formatarDataBR(dados.arrival_date),
             'Locais a Visitar': dados.places_to_visit || '',
             'Responsável pelo Pagamento': dados['radio-payer'] === 'SELF' ? 'Próprio Solicitante' : dados['radio-payer'] === 'OTHER' ? 'Outra pessoa/empresa/organização' : dados['radio-payer'] || '',
             'Nome do Pagador': dados.payer_name || '',
@@ -1647,7 +1656,7 @@ async function gerarPDF_DS160(dados) {
             'Número da Habilitação': dados.us_driver_number || '',
             'Estado da Habilitação': dados.us_driver_state || '',
             'Já teve visto americano': dados['radio-visa-issued'] === 'one' ? 'Sim' : 'Não',
-            'Data da Última Emissão do Visto': dados.visa_issued_date || '',
+            'Data da Última Emissão do Visto': formatarDataBR(dados.visa_issued_date),
             'Número do Visto': dados.visa_number || '',
             'Mesmo tipo de visto': dados['radio-same-visa'] === 'YES' ? 'Sim' : 'Não',
             'Mesmo país/cidade da última aplicação': dados['radio-same-location'] === 'YES' ? 'Sim' : 'Não',
@@ -1672,12 +1681,12 @@ async function gerarPDF_DS160(dados) {
             'País/Autoridade Emissora': dados.passport_country || '',
             'Cidade de Emissão': dados.passport_city || '',
             'Estado de Emissão': dados.passport_state || '',
-            'Data de Emissão': dados.passport_issue || dados['text-21'] || '',
-            'Data de Validade': dados.passport_expiry || dados['text-35'] || '',
+            'Data de Emissão': formatarDataBR(dados.passport_issue || dados['text-21']),
+            'Data de Validade': formatarDataBR(dados.passport_expiry || dados['text-35']),
             'Passaporte Perdido/Roubado': dados['radio-passport-lost'] === 'SIM' ? 'Sim' : 'Não',
             'Número do BO/Observações': dados.passport_lost_obs || '',
             'Número do Passaporte Perdido': dados.passport_lost_number || '',
-            'Data do Ocorrido': dados.passport_lost_date || '',
+            'Data do Ocorrido': formatarDataBR(dados.passport_lost_date),
             'Local do Ocorrido': dados.passport_lost_location || '',
             'Pessoa de Contato nos EUA': dados.us_contact_name || '',
             'Organização nos EUA': dados.us_contact_org || '',
@@ -1686,17 +1695,17 @@ async function gerarPDF_DS160(dados) {
             'Telefone nos EUA': dados.us_contact_phone || '',
             'Email nos EUA': dados.us_contact_email || '',
             'Nome do Pai': dados.father_name || '',
-            'Data de Nascimento do Pai': dados.father_dob || '',
+            'Data de Nascimento do Pai': formatarDataBR(dados.father_dob),
             'Pai nos EUA': dados.father_in_us === 'YES' ? 'Sim' : 'Não',
             'Situação do Pai nos EUA': dados.father_status || '',
             'Nome da Mãe': dados.mother_name || '',
-            'Data de Nascimento da Mãe': dados.mother_dob || '',
+            'Data de Nascimento da Mãe': formatarDataBR(dados.mother_dob),
             'Mãe nos EUA': dados.mother_in_us === 'YES' ? 'Sim' : 'Não',
             'Situação da Mãe nos EUA': dados.mother_status || '',
             'Detalhes dos Parentes Diretos': Array.isArray(dados['immediate_relative_name[]']) ? dados['immediate_relative_name[]'].map((n,i) => `${n} (${dados['immediate_relative_relationship[]']?.[i] || ''} - ${dados['immediate_relative_status[]']?.[i] || ''})`).filter(Boolean).join('; ') : (dados['immediate_relative_name[]'] || ''),
             'Outros Parentes nos EUA': dados['radio-other-relatives'] === 'one' ? `Sim - ${dados.other_relatives_desc || ''}` : 'Não',
             'Nome do Cônjuge/Ex-Cônjuge': dados.spouse_name || '',
-            'Data de Nascimento do Cônjuge': dados.spouse_dob || '',
+            'Data de Nascimento do Cônjuge': formatarDataBR(dados.spouse_dob),
             'Nacionalidade do Cônjuge': dados.spouse_nationality || '',
             'Cidade de Nascimento do Cônjuge': dados.spouse_birth_city || '',
             'País de Nascimento do Cônjuge': dados.spouse_birth_country || '',
@@ -1712,7 +1721,7 @@ async function gerarPDF_DS160(dados) {
             'Estado do Empregador': dados.employer_state || '',
             'CEP do Empregador': dados.employer_zip || '',
             'Telefone do Empregador': dados.employer_phone || '',
-            'Data de Início no Emprego': dados.employer_start || '',
+            'Data de Início no Emprego': formatarDataBR(dados.employer_start),
             'Renda Mensal': dados.employer_income || '',
             'Descrição das Funções': dados.employer_duties || '',
                         'País do Empregador': dados.employer_country || '',
@@ -1786,8 +1795,8 @@ async function gerarPDF_DS160(dados) {
             'Ramo Militar': dados.military_branch || '',
             'Patente Militar': dados.military_rank || '',
             'Especialidade Militar': dados.military_specialty || '',
-            'Data de Início no Serviço Militar': dados.military_start || '',
-            'Data de Saída do Serviço Militar': dados.military_end || '',
+            'Data de Início no Serviço Militar': formatarDataBR(dados.military_start),
+            'Data de Saída do Serviço Militar': formatarDataBR(dados.military_end),
             'Preso ou Condenado': dados['radio-arrested'] === 'YES' ? `Sim - ${dados.arrested_explanation || ''}` : 'Não',
             'Deportado': dados['radio-deported'] === 'YES' ? `Sim - ${dados.deported_explanation || ''}` : 'Não'
         };
