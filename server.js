@@ -1597,18 +1597,6 @@ async function processarMensagem(phone, message) {
 }
 
 // ============================================================
-// 11. FUNÇÕES DE GERAÇÃO DE PDF (DS-160) - (mantido inalterado)
-// ============================================================
-// Helper: converte YYYY-MM-DD → DD/MM/YYYY (evita bug de timezone)
-function formatarDataBR(iso) {
-    if (!iso) return '';
-    const str = String(iso).trim();
-    const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) return `${match[3]}/${match[2]}/${match[1]}`;
-    return str;
-}
-
-// ============================================================
 // HELPERS DE PDF (fora da função, reutilizáveis)
 // ============================================================
 function formatarDataBR(iso) {
@@ -1619,21 +1607,18 @@ function formatarDataBR(iso) {
     return str;
 }
 
-// Pega valor de campo que pode ser ARRAY ou STRING (formulário salva ambos)
 function pegarValor(campo, i) {
     if (campo === null || campo === undefined || campo === '') return null;
     if (Array.isArray(campo)) return campo[i] !== undefined && campo[i] !== '' ? campo[i] : null;
-    return i === 0 ? campo : null;   // se for string, só o índice 0 vale
+    return i === 0 ? campo : null;
 }
 
-// Pega o "tamanho" (quantidade de itens) de um campo array OU string
 function tamanho(campo) {
     if (campo === null || campo === undefined || campo === '') return 0;
     if (Array.isArray(campo)) return campo.length;
     return 1;
 }
 
-// Junta uma lista de campos array/string num único texto
 function juntarSimples(campo, separador = ', ') {
     if (campo === null || campo === undefined || campo === '') return '';
     if (Array.isArray(campo)) return campo.filter(Boolean).join(separador);
@@ -1747,7 +1732,7 @@ async function gerarPDF_DS160(dados) {
                     const h = pegarValor(ids, i);
                     if (p) itens.push(`${p}: ${h || '(sem handle)'}`);
                 }
-                return itens.join(' | ');
+                return itens.join('\n');
             })(),
             'Presença Adicional em Redes Sociais': dados.social_extra || '',
 
@@ -1793,7 +1778,7 @@ async function gerarPDF_DS160(dados) {
                     const st = pegarValor(dados['immediate_relative_status[]'], i) || '';
                     itens.push(`${n} (${rel} - ${st})`);
                 }
-                return itens.join(' | ');
+                return itens.join('\n');
             })(),
             'Outros Parentes nos EUA': dados['radio-other-relatives'] === 'one' ? `Sim - ${dados.other_relatives_desc || ''}` : 'Não',
             'Nome do Cônjuge/Ex-Cônjuge': dados.spouse_name || '',
@@ -1832,8 +1817,8 @@ async function gerarPDF_DS160(dados) {
                 for (let i = 0; i < total; i++) {
                     const nome = pegarValor(nomes, i);
                     if (!nome) continue;
-                    const partes = [
-                        nome,
+                    const linhas = [
+                        `📌 ${nome}`,
                         pegarValor(dados['other_employer_address[]'], i) ? `Endereço: ${pegarValor(dados['other_employer_address[]'], i)}` : null,
                         pegarValor(dados['other_employer_city[]'], i) ? `Cidade: ${pegarValor(dados['other_employer_city[]'], i)}` : null,
                         pegarValor(dados['other_employer_state[]'], i) ? `Estado: ${pegarValor(dados['other_employer_state[]'], i)}` : null,
@@ -1843,9 +1828,9 @@ async function gerarPDF_DS160(dados) {
                         pegarValor(dados['other_employer_income[]'], i) ? `Renda: ${pegarValor(dados['other_employer_income[]'], i)}` : null,
                         pegarValor(dados['other_employer_duties[]'], i) ? `Funções: ${pegarValor(dados['other_employer_duties[]'], i)}` : null
                     ].filter(Boolean);
-                    itens.push(partes.join(' | '));
+                    itens.push(linhas.join('\n'));
                 }
-                return itens.join('  ///  ');
+                return itens.join('\n\n');
             })(),
 
             'Empregos Anteriores': (function() {
@@ -1856,8 +1841,8 @@ async function gerarPDF_DS160(dados) {
                 for (let i = 0; i < total; i++) {
                     const nome = pegarValor(nomes, i);
                     if (!nome) continue;
-                    const partes = [
-                        nome,
+                    const linhas = [
+                        `📌 ${nome}`,
                         pegarValor(dados['prev_employer_address[]'], i) ? `Endereço: ${pegarValor(dados['prev_employer_address[]'], i)}` : null,
                         pegarValor(dados['prev_employer_city[]'], i) ? `Cidade: ${pegarValor(dados['prev_employer_city[]'], i)}` : null,
                         pegarValor(dados['prev_employer_state[]'], i) ? `Estado: ${pegarValor(dados['prev_employer_state[]'], i)}` : null,
@@ -1869,9 +1854,9 @@ async function gerarPDF_DS160(dados) {
                         pegarValor(dados['prev_employer_end[]'], i) ? `Data Fim: ${formatarDataBR(pegarValor(dados['prev_employer_end[]'], i))}` : null,
                         pegarValor(dados['prev_employer_duties[]'], i) ? `Funções: ${pegarValor(dados['prev_employer_duties[]'], i)}` : null
                     ].filter(Boolean);
-                    itens.push(partes.join(' | '));
+                    itens.push(linhas.join('\n'));
                 }
-                return itens.join('  ///  ');
+                return itens.join('\n\n');
             })(),
 
             'Cursos/Educação': (function() {
@@ -1882,8 +1867,8 @@ async function gerarPDF_DS160(dados) {
                 for (let i = 0; i < total; i++) {
                     const nome = pegarValor(nomes, i);
                     if (!nome) continue;
-                    const partes = [
-                        nome,
+                    const linhas = [
+                        `📌 ${nome}`,
                         pegarValor(dados['edu_address[]'], i) ? `Endereço: ${pegarValor(dados['edu_address[]'], i)}` : null,
                         pegarValor(dados['edu_city[]'], i) ? `Cidade: ${pegarValor(dados['edu_city[]'], i)}` : null,
                         pegarValor(dados['edu_state[]'], i) ? `Estado: ${pegarValor(dados['edu_state[]'], i)}` : null,
@@ -1891,9 +1876,9 @@ async function gerarPDF_DS160(dados) {
                         pegarValor(dados['edu_start[]'], i) ? `Data Início: ${formatarDataBR(pegarValor(dados['edu_start[]'], i))}` : null,
                         pegarValor(dados['edu_end[]'], i) ? `Data Conclusão: ${formatarDataBR(pegarValor(dados['edu_end[]'], i))}` : null
                     ].filter(Boolean);
-                    itens.push(partes.join(' | '));
+                    itens.push(linhas.join('\n'));
                 }
-                return itens.join('  ///  ');
+                return itens.join('\n\n');
             })(),
 
             'Idiomas (além do Português)': juntarSimples(dados['languages[]']),
@@ -1912,21 +1897,29 @@ async function gerarPDF_DS160(dados) {
         };
 
         // ============================================================
-        // ESCREVE AS SEÇÕES
+        // ESCREVE AS SEÇÕES (suporta multi-linha nativo do PDFKit)
         // ============================================================
         function writeSection(title, campos) {
             doc.moveDown(1);
             doc.fontSize(14).fillColor('#003366').text(title, { underline: true });
             doc.moveDown(0.5);
-            doc.fontSize(10).fillColor('#000000');
             let has = false;
             for (const [label, value] of Object.entries(campos)) {
-                if (value !== undefined && value !== null && value !== '' && value !== 'Não informado') {
-                    has = true;
-                    doc.fontSize(10).fillColor('#000000').text(`• ${label}: ${value}`);
+                if (value === undefined || value === null || value === '' || value === 'Não informado') continue;
+                has = true;
+
+                const valorStr = String(value);
+                if (valorStr.includes('\n')) {
+                    // Multi-linha: label na sua linha, valores indentados abaixo
+                    doc.fontSize(10).fillColor('#003366').text(`• ${label}:`);
+                    doc.fontSize(10).fillColor('#333333');
+                    doc.text(valorStr.split('\n').map(l => '     ' + l).join('\n'));
+                    doc.moveDown(0.3);
+                } else {
+                    doc.fontSize(10).fillColor('#000000').text(`• ${label}: ${valorStr}`);
                 }
             }
-            if (!has) doc.text('(Nenhuma informação preenchida)');
+            if (!has) doc.fontSize(10).fillColor('#000000').text('(Nenhuma informação preenchida)');
         }
 
         const secoes = {
