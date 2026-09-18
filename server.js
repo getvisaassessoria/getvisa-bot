@@ -1909,11 +1909,18 @@ async function gerarPDF_DS160(dados) {
                 has = true;
 
                 const valorStr = String(value);
-                if (valorStr.includes('\n')) {
-                    // Multi-linha: label em negrito, valores indentados abaixo
+                if (valorStr.indexOf('\n') !== -1) {
+                    // Multi-linha: label em negrito, cada linha renderizada SEPARADAMENTE
                     doc.font('Helvetica-Bold').fontSize(10).fillColor('#003366').text(`• ${label}:`);
-                    doc.font('Helvetica').fontSize(10).fillColor('#333333');
-                    doc.text(valorStr.split('\n').map(l => '     ' + l).join('\n'));
+                    const linhas = valorStr.split('\n');
+                    for (let k = 0; k < linhas.length; k++) {
+                        const linha = linhas[k];
+                        if (linha.trim() === '') {
+                            doc.moveDown(0.2);
+                            continue;
+                        }
+                        doc.font('Helvetica').fontSize(10).fillColor('#000000').text('     ' + linha);
+                    }
                     doc.moveDown(0.3);
                 } else {
                     doc.font('Helvetica').fontSize(10).fillColor('#000000').text(`• ${label}: ${valorStr}`);
