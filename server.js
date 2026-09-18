@@ -1636,7 +1636,7 @@ async function gerarPDF_DS160(dados) {
         doc.on('end', () => resolve(Buffer.concat(buffers)));
         doc.on('error', reject);
 
-        doc.fontSize(18).fillColor('#003366').text('Formulário DS-160 - GetVisa Assessoria', { align: 'center' });
+        doc.font('Helvetica-Bold').fontSize(18).fillColor('#003366').text('Formulário DS-160 - GetVisa Assessoria', { align: 'center' });
         doc.moveDown();
 
         // ============================================================
@@ -1818,7 +1818,7 @@ async function gerarPDF_DS160(dados) {
                     const nome = pegarValor(nomes, i);
                     if (!nome) continue;
                     const linhas = [
-                        `📌 ${nome}`,
+                        `${nome}`,
                         pegarValor(dados['other_employer_address[]'], i) ? `Endereço: ${pegarValor(dados['other_employer_address[]'], i)}` : null,
                         pegarValor(dados['other_employer_city[]'], i) ? `Cidade: ${pegarValor(dados['other_employer_city[]'], i)}` : null,
                         pegarValor(dados['other_employer_state[]'], i) ? `Estado: ${pegarValor(dados['other_employer_state[]'], i)}` : null,
@@ -1842,7 +1842,7 @@ async function gerarPDF_DS160(dados) {
                     const nome = pegarValor(nomes, i);
                     if (!nome) continue;
                     const linhas = [
-                        `📌 ${nome}`,
+                        `${nome}`,
                         pegarValor(dados['prev_employer_address[]'], i) ? `Endereço: ${pegarValor(dados['prev_employer_address[]'], i)}` : null,
                         pegarValor(dados['prev_employer_city[]'], i) ? `Cidade: ${pegarValor(dados['prev_employer_city[]'], i)}` : null,
                         pegarValor(dados['prev_employer_state[]'], i) ? `Estado: ${pegarValor(dados['prev_employer_state[]'], i)}` : null,
@@ -1868,7 +1868,7 @@ async function gerarPDF_DS160(dados) {
                     const nome = pegarValor(nomes, i);
                     if (!nome) continue;
                     const linhas = [
-                        `📌 ${nome}`,
+                        `${nome}`,
                         pegarValor(dados['edu_address[]'], i) ? `Endereço: ${pegarValor(dados['edu_address[]'], i)}` : null,
                         pegarValor(dados['edu_city[]'], i) ? `Cidade: ${pegarValor(dados['edu_city[]'], i)}` : null,
                         pegarValor(dados['edu_state[]'], i) ? `Estado: ${pegarValor(dados['edu_state[]'], i)}` : null,
@@ -1901,7 +1901,7 @@ async function gerarPDF_DS160(dados) {
         // ============================================================
         function writeSection(title, campos) {
             doc.moveDown(1);
-            doc.fontSize(14).fillColor('#003366').text(title, { underline: true });
+            doc.font('Helvetica-Bold').fontSize(14).fillColor('#003366').text(title, { underline: true });
             doc.moveDown(0.5);
             let has = false;
             for (const [label, value] of Object.entries(campos)) {
@@ -1910,16 +1910,16 @@ async function gerarPDF_DS160(dados) {
 
                 const valorStr = String(value);
                 if (valorStr.includes('\n')) {
-                    // Multi-linha: label na sua linha, valores indentados abaixo
-                    doc.fontSize(10).fillColor('#003366').text(`• ${label}:`);
-                    doc.fontSize(10).fillColor('#333333');
+                    // Multi-linha: label em negrito, valores indentados abaixo
+                    doc.font('Helvetica-Bold').fontSize(10).fillColor('#003366').text(`• ${label}:`);
+                    doc.font('Helvetica').fontSize(10).fillColor('#333333');
                     doc.text(valorStr.split('\n').map(l => '     ' + l).join('\n'));
                     doc.moveDown(0.3);
                 } else {
-                    doc.fontSize(10).fillColor('#000000').text(`• ${label}: ${valorStr}`);
+                    doc.font('Helvetica').fontSize(10).fillColor('#000000').text(`• ${label}: ${valorStr}`);
                 }
             }
-            if (!has) doc.fontSize(10).fillColor('#000000').text('(Nenhuma informação preenchida)');
+            if (!has) doc.font('Helvetica').fontSize(10).fillColor('#000000').text('(Nenhuma informação preenchida)');
         }
 
         const secoes = {
