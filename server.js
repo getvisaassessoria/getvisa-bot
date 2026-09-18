@@ -2580,6 +2580,25 @@ app.post('/api/submit-ds160', async (req, res) => {
                 `\n\n🌟 *GetVisa Assessoria - Seu visto americano com segurança!* 🇺🇸`;
             await enviarWhatsApp(cleanPhone, mensagemWhats);
         } catch (whatsError) { console.error('❌ Erro ao enviar notificação WhatsApp:', whatsError); }
+        // GERA PDF DO FORMULÁRIO
+        let pdfBuffer = null;
+        try {
+            const { data: formDataSaved, error: formError } = await supabase
+                .from('form_ds160')
+                .select('*')
+                .eq('id_cliente', clienteData.id)
+                .maybeSingle();
+            if (!formError && formDataSaved) {
+                const dadosParaPDF = formDataSaved.dados_formulario || formDataSaved;
+                pdfBuffer = await gerarPDF_DS160(dadosParaPDF);
+                console.log('✅ PDF gerado com sucesso:', clienteData.id);
+            } else {
+                console.log('⚠️ Form não encontrado:', formError);
+            }
+        } catch (pdfError) {
+            console.error('❌ Erro ao gerar PDF:', pdfError);
+        }
+
 
         try {
             const emailEquipe = process.env.EMAIL_DESTINO_EQUIPE || 'contato@getvisa.com.br';
