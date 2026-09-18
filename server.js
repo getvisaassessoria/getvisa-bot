@@ -2318,6 +2318,43 @@ app.get('/api/portal/meu-processo', async (req, res) => {
     }
 });
 
+// ⚠️ TEMPORÁRIO — Baixa o PDF do DS-160 de um cliente já salvo
+app.get('/api/admin/baixar-pdf/:telefone', auth.verificarAdmin, async (req, res) => {
+    try {
+        const telefone = limparTelefone(req.params.telefone);
+
+        const { data: cliente } = await supabase
+            .from('clientes')
+            .select('id, nome, telefone')
+            .eq('telefone', telefone)
+            .maybeSingle();
+
+        if (!cliente) return res.status(404).send('Cliente não encontrado');
+
+        const { data: form } = await supabase
+            .from('form_ds160')
+            .select('dados_formulario')
+            .eq('id_cliente', cliente.id)
+            .maybeSingle();
+
+        if (!form) return res.status(404).send('Form não encontrado');
+
+        const dados = form.dados_formulario;
+        const nomeCliente = dados.full_name || cliente.nome || 'cliente';
+
+        const pdfBuffer = await gerarPDF_DS160(dados);
+
+        const nomeArquivo = `DS160_${nomeCliente.replace(/[^a-zA-Z0-9]/g,'_')}.pdf`;
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
+        res.send(pdfBuffer);
+    } catch (error) {
+        console.error('❌ Erro ao baixar PDF:', error);
+        res.status(500).send('Erro ao gerar PDF: ' + error.message);
+    }
+});
+
 // 3. LOGOUT — invalida token
 app.post('/api/portal/logout', async (req, res) => {
     try {
