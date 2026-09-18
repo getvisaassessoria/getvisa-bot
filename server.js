@@ -1608,6 +1608,41 @@ function formatarDataBR(iso) {
     return str;
 }
 
+// ============================================================
+// HELPERS DE PDF (fora da função, reutilizáveis)
+// ============================================================
+function formatarDataBR(iso) {
+    if (!iso) return '';
+    const str = String(iso).trim();
+    const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+    return str;
+}
+
+// Pega valor de campo que pode ser ARRAY ou STRING (formulário salva ambos)
+function pegarValor(campo, i) {
+    if (campo === null || campo === undefined || campo === '') return null;
+    if (Array.isArray(campo)) return campo[i] !== undefined && campo[i] !== '' ? campo[i] : null;
+    return i === 0 ? campo : null;   // se for string, só o índice 0 vale
+}
+
+// Pega o "tamanho" (quantidade de itens) de um campo array OU string
+function tamanho(campo) {
+    if (campo === null || campo === undefined || campo === '') return 0;
+    if (Array.isArray(campo)) return campo.length;
+    return 1;
+}
+
+// Junta uma lista de campos array/string num único texto
+function juntarSimples(campo, separador = ', ') {
+    if (campo === null || campo === undefined || campo === '') return '';
+    if (Array.isArray(campo)) return campo.filter(Boolean).join(separador);
+    return String(campo);
+}
+
+// ============================================================
+// GERADOR DE PDF DO DS-160
+// ============================================================
 async function gerarPDF_DS160(dados) {
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({ size: 'A4', margin: 40 });
@@ -1619,25 +1654,45 @@ async function gerarPDF_DS160(dados) {
         doc.fontSize(18).fillColor('#003366').text('Formulário DS-160 - GetVisa Assessoria', { align: 'center' });
         doc.moveDown();
 
+        // ============================================================
+        // MONTA OS CAMPOS DO PDF
+        // ============================================================
         const todosCampos = {
+            // ---- Dados Pessoais ----
             'Consulado/Embaixada': dados.consulado || '',
-            'Nome Completo': dados.full_name || dados['text-84'] || dados.nome || '',
+            'Nome Completo': dados.full_name || dados.nome || '',
             'Outros Sobrenomes': dados.other_surnames || '',
-            'Gênero': dados['radio-genero'] === 'MALE' ? 'Masculino' : dados['radio-genero'] === 'FEMALE' ? 'Feminino' : dados['radio-genero'] || '',
-            'Estado Civil': dados.marital_status === 'MARRIED' ? 'Casado(a)' : dados.marital_status === 'UNION' ? 'União Estável' : dados.marital_status === 'SINGLE' ? 'Solteiro(a)' : dados.marital_status === 'DIVORCED' ? 'Divorciado(a)' : dados.marital_status === 'WIDOWED' ? 'Viúvo(a)' : dados.marital_status === 'SEPARATED' ? 'Separado(a) Judicialmente' : dados.marital_status === 'OTHER' ? 'Outro' : dados.marital_status || '',
-            'Data de Nascimento': formatarDataBR(dados.dob || dados['text-5'] || ''),
-            'Cidade de Nascimento': dados.birth_city || dados.cidade_nascimento || '',
+            'Gênero': dados['radio-genero'] === 'MALE' ? 'Masculino'
+                    : dados['radio-genero'] === 'FEMALE' ? 'Feminino'
+                    : dados['radio-genero'] || '',
+            'Estado Civil': dados.marital_status === 'MARRIED' ? 'Casado(a)'
+                          : dados.marital_status === 'UNION' ? 'União Estável'
+                          : dados.marital_status === 'SINGLE' ? 'Solteiro(a)'
+                          : dados.marital_status === 'DIVORCED' ? 'Divorciado(a)'
+                          : dados.marital_status === 'WIDOWED' ? 'Viúvo(a)'
+                          : dados.marital_status === 'SEPARATED' ? 'Separado(a) Judicialmente'
+                          : dados.marital_status === 'OTHER' ? 'Outro'
+                          : dados.marital_status || '',
+            'Data de Nascimento': formatarDataBR(dados.dob),
+            'Cidade de Nascimento': dados.birth_city || '',
             'Estado/Província de Nascimento': dados.birth_state || '',
-            'País de Nascimento': dados.birth_country || dados.nacionalidade || '',
+            'País de Nascimento': dados.birth_country || '',
             'Outra Nacionalidade': dados.other_nat_country || 'Não informado',
             'Residente Permanente de outro país': dados['radio-resident'] === 'one' ? `Sim - ${dados.resident_country || ''}` : 'Não',
             'CPF': dados.cpf || '',
             'SSN (Seguro Social EUA)': dados.ssn || 'Não informado',
             'Tax ID (ITIN)': dados.tax_id || 'Não informado',
-            'Propósito da Viagem': dados.travel_purpose === 'BUSINESS_PLEASURE' ? 'Turismo/Negócios (B1/B2)' : dados.travel_purpose === 'STUDY' ? 'Estudos' : dados.travel_purpose === 'OTHER' ? 'Outros' : dados.travel_purpose || '',
+
+            // ---- Informações da Viagem ----
+            'Propósito da Viagem': dados.travel_purpose === 'BUSINESS_PLEASURE' ? 'Turismo/Negócios (B1/B2)'
+                                 : dados.travel_purpose === 'STUDY' ? 'Estudos'
+                                 : dados.travel_purpose === 'OTHER' ? 'Outros'
+                                 : dados.travel_purpose || '',
             'Data de Chegada nos EUA': formatarDataBR(dados.arrival_date),
             'Locais a Visitar': dados.places_to_visit || '',
-            'Responsável pelo Pagamento': dados['radio-payer'] === 'SELF' ? 'Próprio Solicitante' : dados['radio-payer'] === 'OTHER' ? 'Outra pessoa/empresa/organização' : dados['radio-payer'] || '',
+            'Responsável pelo Pagamento': dados['radio-payer'] === 'SELF' ? 'Próprio Solicitante'
+                                       : dados['radio-payer'] === 'OTHER' ? 'Outra pessoa/empresa/organização'
+                                       : dados['radio-payer'] || '',
             'Nome do Pagador': dados.payer_name || '',
             'Endereço do Pagador': dados.payer_address || '',
             'Cidade do Pagador': dados.payer_city || '',
@@ -1646,12 +1701,16 @@ async function gerarPDF_DS160(dados) {
             'País do Pagador': dados.payer_country || '',
             'Telefone do Pagador': dados.payer_phone || '',
             'Email do Pagador': dados.payer_email || '',
-            'Acompanhantes': Array.isArray(dados['companion_name[]']) ? dados['companion_name[]'].filter(Boolean).join(', ') : dados['companion_name[]'] || '',
-            'Relação dos Acompanhantes': Array.isArray(dados['companion_relationship[]']) ? dados['companion_relationship[]'].filter(Boolean).join(', ') : dados['companion_relationship[]'] || '',
+
+            // ---- Acompanhantes ----
+            'Acompanhantes': juntarSimples(dados['companion_name[]']),
+            'Relação dos Acompanhantes': juntarSimples(dados['companion_relationship[]']),
             'Nome do Grupo': dados.group_name || '',
+
+            // ---- Viagens Anteriores ----
             'Já esteve nos EUA': dados['radio-us-travel'] === 'one' ? 'Sim' : 'Não',
-            'Viagens Anteriores (datas)': Array.isArray(dados['us_travel_date[]']) ? dados['us_travel_date[]'].filter(Boolean).join(', ') : (dados['us_travel_date[]'] || ''),
-            'Duração das Viagens (dias)': Array.isArray(dados['us_travel_duration[]']) ? dados['us_travel_duration[]'].filter(Boolean).join(', ') : (dados['us_travel_duration[]'] || ''),
+            'Viagens Anteriores (datas)': juntarSimples(dados['us_travel_date[]']),
+            'Duração das Viagens (dias)': juntarSimples(dados['us_travel_duration[]']),
             'Possui Carteira de Habilitação dos EUA': dados['radio-us-driver'] === 'SIM' ? 'Sim' : 'Não',
             'Número da Habilitação': dados.us_driver_number || '',
             'Estado da Habilitação': dados.us_driver_state || '',
@@ -1664,36 +1723,56 @@ async function gerarPDF_DS160(dados) {
             'Visto cancelado/revogado': dados['radio-visa-cancelled'] === 'YES' ? `Sim - ${dados.visa_cancelled_expl || ''}` : 'Não',
             'Visto negado/entrada negada': dados['radio-visa-refused'] === 'one' ? `Sim - ${dados.visa_refused_explanation || ''}` : 'Não',
             'Petição de imigração': dados['radio-petition'] === 'one' ? `Sim - ${dados.petition_details || ''}` : 'Não',
-            'Endereço Residencial': dados.address || dados.endereco || '',
-            'Cidade': dados.city || dados.cidade || '',
-            'Estado/Província': dados.state || dados.estado || '',
-            'CEP': dados.zip || dados.cep || '',
-            'País': dados.country || dados.pais || '',
+
+            // ---- Endereço e Contato ----
+            'Endereço Residencial': dados.address || '',
+            'Cidade': dados.city || '',
+            'Estado/Província': dados.state || '',
+            'CEP': dados.zip || '',
+            'País': dados.country || '',
             'Telefone Principal': dados.phone || dados.telefone || '',
             'Telefone Secundário': dados.phone_secondary || '',
             'Telefone do Trabalho': dados.phone_work || '',
             'Telefones Adicionais': dados.phone_extra || '',
             'E-mail Principal': dados.email || '',
-            'E-mails Adicionais': Array.isArray(dados['emails_extra[]']) ? dados['emails_extra[]'].filter(Boolean).join(', ') : (dados['emails_extra[]'] || ''),
-            'Redes Sociais': Array.isArray(dados['social_plataforma[]']) && Array.isArray(dados['social_identificador[]']) ? dados['social_plataforma[]'].map((p,i) => `${p}: ${dados['social_identificador[]'][i] || ''}`).filter(Boolean).join('; ') : (dados['social_plataforma[]'] || ''),
+            'E-mails Adicionais': juntarSimples(dados['emails_extra[]']),
+            'Redes Sociais': (function() {
+                const plats = dados['social_plataforma[]'];
+                const ids = dados['social_identificador[]'];
+                const total = tamanho(plats);
+                if (total === 0) return '';
+                const itens = [];
+                for (let i = 0; i < total; i++) {
+                    const p = pegarValor(plats, i);
+                    const h = pegarValor(ids, i);
+                    if (p) itens.push(`${p}: ${h || '(sem handle)'}`);
+                }
+                return itens.join(' | ');
+            })(),
             'Presença Adicional em Redes Sociais': dados.social_extra || '',
-            'Número do Passaporte': dados.passport_number || dados['passaporte_numero'] || '',
+
+            // ---- Passaporte ----
+            'Número do Passaporte': dados.passport_number || '',
             'País/Autoridade Emissora': dados.passport_country || '',
             'Cidade de Emissão': dados.passport_city || '',
             'Estado de Emissão': dados.passport_state || '',
-            'Data de Emissão': formatarDataBR(dados.passport_issue || dados['text-21']),
-            'Data de Validade': formatarDataBR(dados.passport_expiry || dados['text-35']),
+            'Data de Emissão': formatarDataBR(dados.passport_issue),
+            'Data de Validade': formatarDataBR(dados.passport_expiry),
             'Passaporte Perdido/Roubado': dados['radio-passport-lost'] === 'SIM' ? 'Sim' : 'Não',
             'Número do BO/Observações': dados.passport_lost_obs || '',
             'Número do Passaporte Perdido': dados.passport_lost_number || '',
             'Data do Ocorrido': formatarDataBR(dados.passport_lost_date),
             'Local do Ocorrido': dados.passport_lost_location || '',
+
+            // ---- Contato nos EUA ----
             'Pessoa de Contato nos EUA': dados.us_contact_name || '',
             'Organização nos EUA': dados.us_contact_org || '',
             'Relação com o Contato': dados.us_contact_relationship || '',
             'Endereço nos EUA': dados.us_contact_address || '',
             'Telefone nos EUA': dados.us_contact_phone || '',
             'Email nos EUA': dados.us_contact_email || '',
+
+            // ---- Informações Familiares ----
             'Nome do Pai': dados.father_name || '',
             'Data de Nascimento do Pai': formatarDataBR(dados.father_dob),
             'Pai nos EUA': dados.father_in_us === 'YES' ? 'Sim' : 'Não',
@@ -1702,7 +1781,20 @@ async function gerarPDF_DS160(dados) {
             'Data de Nascimento da Mãe': formatarDataBR(dados.mother_dob),
             'Mãe nos EUA': dados.mother_in_us === 'YES' ? 'Sim' : 'Não',
             'Situação da Mãe nos EUA': dados.mother_status || '',
-            'Detalhes dos Parentes Diretos': Array.isArray(dados['immediate_relative_name[]']) ? dados['immediate_relative_name[]'].map((n,i) => `${n} (${dados['immediate_relative_relationship[]']?.[i] || ''} - ${dados['immediate_relative_status[]']?.[i] || ''})`).filter(Boolean).join('; ') : (dados['immediate_relative_name[]'] || ''),
+            'Detalhes dos Parentes Diretos': (function() {
+                const nomes = dados['immediate_relative_name[]'];
+                const total = tamanho(nomes);
+                if (total === 0) return '';
+                const itens = [];
+                for (let i = 0; i < total; i++) {
+                    const n = pegarValor(nomes, i);
+                    if (!n) continue;
+                    const rel = pegarValor(dados['immediate_relative_relationship[]'], i) || '';
+                    const st = pegarValor(dados['immediate_relative_status[]'], i) || '';
+                    itens.push(`${n} (${rel} - ${st})`);
+                }
+                return itens.join(' | ');
+            })(),
             'Outros Parentes nos EUA': dados['radio-other-relatives'] === 'one' ? `Sim - ${dados.other_relatives_desc || ''}` : 'Não',
             'Nome do Cônjuge/Ex-Cônjuge': dados.spouse_name || '',
             'Data de Nascimento do Cônjuge': formatarDataBR(dados.spouse_dob),
@@ -1714,82 +1806,98 @@ async function gerarPDF_DS160(dados) {
             'Estado do Cônjuge': dados.spouse_address_state || '',
             'CEP do Cônjuge': dados.spouse_address_zip || '',
             'País do Cônjuge': dados.spouse_address_country || '',
-            'Ocupação Principal': dados['radio-occupation'] === 'Aposentado' ? 'Aposentado(a)' : dados['radio-occupation'] === 'Dona de Casa' ? 'Dona de Casa' : dados['radio-occupation'] === 'Profissional' ? 'Profissional' : dados['radio-occupation'] === 'Estudante' ? 'Estudante' : dados['radio-occupation'] || '',
+
+            // ---- Trabalho e Educação ----
+            'Ocupação Principal': dados['radio-occupation'] === 'Aposentado' ? 'Aposentado(a)'
+                                : dados['radio-occupation'] === 'Dona de Casa' ? 'Dona de Casa'
+                                : dados['radio-occupation'] === 'Profissional' ? 'Profissional'
+                                : dados['radio-occupation'] === 'Estudante' ? 'Estudante'
+                                : dados['radio-occupation'] || '',
             'Empregador/Instituição': dados.employer_name || '',
             'Endereço do Empregador': dados.employer_address || '',
             'Cidade do Empregador': dados.employer_city || '',
             'Estado do Empregador': dados.employer_state || '',
             'CEP do Empregador': dados.employer_zip || '',
+            'País do Empregador': dados.employer_country || '',
             'Telefone do Empregador': dados.employer_phone || '',
             'Data de Início no Emprego': formatarDataBR(dados.employer_start),
             'Renda Mensal': dados.employer_income || '',
             'Descrição das Funções': dados.employer_duties || '',
-                        'País do Empregador': dados.employer_country || '',
 
-                        'Outras Ocupações': (function() {
+            'Outras Ocupações': (function() {
                 const nomes = dados['other_employer_name[]'];
-                if (!nomes) return '';
-                const arr = Array.isArray(nomes) ? nomes : [nomes];
-                return arr.map((nome, i) => {
-                    if (!nome) return null;
+                const total = tamanho(nomes);
+                if (total === 0) return '';
+                const itens = [];
+                for (let i = 0; i < total; i++) {
+                    const nome = pegarValor(nomes, i);
+                    if (!nome) continue;
                     const partes = [
                         nome,
-                        dados['other_employer_address[]']?.[i] ? `Endereço: ${dados['other_employer_address[]'][i]}` : null,
-                        dados['other_employer_city[]']?.[i] ? `Cidade: ${dados['other_employer_city[]'][i]}` : null,
-                        dados['other_employer_state[]']?.[i] ? `Estado: ${dados['other_employer_state[]'][i]}` : null,
-                        dados['other_employer_zip[]']?.[i] ? `CEP: ${dados['other_employer_zip[]'][i]}` : null,
-                        dados['other_employer_phone[]']?.[i] ? `Telefone: ${dados['other_employer_phone[]'][i]}` : null,
-                        dados['other_employer_start[]']?.[i] ? `Data Início: ${formatarDataBR(dados['other_employer_start[]'][i])}` : null,
-                        dados['other_employer_income[]']?.[i] ? `Renda: ${dados['other_employer_income[]'][i]}` : null,
-                        dados['other_employer_duties[]']?.[i] ? `Funções: ${dados['other_employer_duties[]'][i]}` : null
+                        pegarValor(dados['other_employer_address[]'], i) ? `Endereço: ${pegarValor(dados['other_employer_address[]'], i)}` : null,
+                        pegarValor(dados['other_employer_city[]'], i) ? `Cidade: ${pegarValor(dados['other_employer_city[]'], i)}` : null,
+                        pegarValor(dados['other_employer_state[]'], i) ? `Estado: ${pegarValor(dados['other_employer_state[]'], i)}` : null,
+                        pegarValor(dados['other_employer_zip[]'], i) ? `CEP: ${pegarValor(dados['other_employer_zip[]'], i)}` : null,
+                        pegarValor(dados['other_employer_phone[]'], i) ? `Telefone: ${pegarValor(dados['other_employer_phone[]'], i)}` : null,
+                        pegarValor(dados['other_employer_start[]'], i) ? `Data Início: ${formatarDataBR(pegarValor(dados['other_employer_start[]'], i))}` : null,
+                        pegarValor(dados['other_employer_income[]'], i) ? `Renda: ${pegarValor(dados['other_employer_income[]'], i)}` : null,
+                        pegarValor(dados['other_employer_duties[]'], i) ? `Funções: ${pegarValor(dados['other_employer_duties[]'], i)}` : null
                     ].filter(Boolean);
-                    return partes.join(' | ');
-                }).filter(Boolean).join('  ///  ');
+                    itens.push(partes.join(' | '));
+                }
+                return itens.join('  ///  ');
             })(),
 
             'Empregos Anteriores': (function() {
                 const nomes = dados['prev_employer_name[]'];
-                if (!nomes) return '';
-                const arr = Array.isArray(nomes) ? nomes : [nomes];
-                return arr.map((nome, i) => {
-                    if (!nome) return null;
+                const total = tamanho(nomes);
+                if (total === 0) return '';
+                const itens = [];
+                for (let i = 0; i < total; i++) {
+                    const nome = pegarValor(nomes, i);
+                    if (!nome) continue;
                     const partes = [
                         nome,
-                        dados['prev_employer_address[]']?.[i] ? `Endereço: ${dados['prev_employer_address[]'][i]}` : null,
-                        dados['prev_employer_city[]']?.[i] ? `Cidade: ${dados['prev_employer_city[]'][i]}` : null,
-                        dados['prev_employer_state[]']?.[i] ? `Estado: ${dados['prev_employer_state[]'][i]}` : null,
-                        dados['prev_employer_zip[]']?.[i] ? `CEP: ${dados['prev_employer_zip[]'][i]}` : null,
-                        dados['prev_employer_phone[]']?.[i] ? `Telefone: ${dados['prev_employer_phone[]'][i]}` : null,
-                        dados['prev_employer_job[]']?.[i] ? `Cargo: ${dados['prev_employer_job[]'][i]}` : null,
-                        dados['prev_employer_supervisor[]']?.[i] ? `Supervisor: ${dados['prev_employer_supervisor[]'][i]}` : null,
-                        dados['prev_employer_start[]']?.[i] ? `Início: ${formatarDataBR(dados['prev_employer_start[]'][i])}` : null,
-                        dados['prev_employer_end[]']?.[i] ? `Fim: ${formatarDataBR(dados['prev_employer_end[]'][i])}` : null,
-                        dados['prev_employer_duties[]']?.[i] ? `Funções: ${dados['prev_employer_duties[]'][i]}` : null
+                        pegarValor(dados['prev_employer_address[]'], i) ? `Endereço: ${pegarValor(dados['prev_employer_address[]'], i)}` : null,
+                        pegarValor(dados['prev_employer_city[]'], i) ? `Cidade: ${pegarValor(dados['prev_employer_city[]'], i)}` : null,
+                        pegarValor(dados['prev_employer_state[]'], i) ? `Estado: ${pegarValor(dados['prev_employer_state[]'], i)}` : null,
+                        pegarValor(dados['prev_employer_zip[]'], i) ? `CEP: ${pegarValor(dados['prev_employer_zip[]'], i)}` : null,
+                        pegarValor(dados['prev_employer_phone[]'], i) ? `Telefone: ${pegarValor(dados['prev_employer_phone[]'], i)}` : null,
+                        pegarValor(dados['prev_employer_job[]'], i) ? `Cargo: ${pegarValor(dados['prev_employer_job[]'], i)}` : null,
+                        pegarValor(dados['prev_employer_supervisor[]'], i) ? `Supervisor: ${pegarValor(dados['prev_employer_supervisor[]'], i)}` : null,
+                        pegarValor(dados['prev_employer_start[]'], i) ? `Data Início: ${formatarDataBR(pegarValor(dados['prev_employer_start[]'], i))}` : null,
+                        pegarValor(dados['prev_employer_end[]'], i) ? `Data Fim: ${formatarDataBR(pegarValor(dados['prev_employer_end[]'], i))}` : null,
+                        pegarValor(dados['prev_employer_duties[]'], i) ? `Funções: ${pegarValor(dados['prev_employer_duties[]'], i)}` : null
                     ].filter(Boolean);
-                    return partes.join(' | ');
-                }).filter(Boolean).join('  ///  ');
+                    itens.push(partes.join(' | '));
+                }
+                return itens.join('  ///  ');
             })(),
 
             'Cursos/Educação': (function() {
                 const nomes = dados['edu_institution[]'];
-                if (!nomes) return '';
-                const arr = Array.isArray(nomes) ? nomes : [nomes];
-                return arr.map((nome, i) => {
-                    if (!nome) return null;
+                const total = tamanho(nomes);
+                if (total === 0) return '';
+                const itens = [];
+                for (let i = 0; i < total; i++) {
+                    const nome = pegarValor(nomes, i);
+                    if (!nome) continue;
                     const partes = [
                         nome,
-                        dados['edu_address[]']?.[i] ? `Endereço: ${dados['edu_address[]'][i]}` : null,
-                        dados['edu_city[]']?.[i] ? `Cidade: ${dados['edu_city[]'][i]}` : null,
-                        dados['edu_state[]']?.[i] ? `Estado: ${dados['edu_state[]'][i]}` : null,
-                        dados['edu_course[]']?.[i] ? `Curso: ${dados['edu_course[]'][i]}` : null,
-                        dados['edu_start[]']?.[i] ? `Início: ${formatarDataBR(dados['edu_start[]'][i])}` : null,
-                        dados['edu_end[]']?.[i] ? `Conclusão: ${formatarDataBR(dados['edu_end[]'][i])}` : null
+                        pegarValor(dados['edu_address[]'], i) ? `Endereço: ${pegarValor(dados['edu_address[]'], i)}` : null,
+                        pegarValor(dados['edu_city[]'], i) ? `Cidade: ${pegarValor(dados['edu_city[]'], i)}` : null,
+                        pegarValor(dados['edu_state[]'], i) ? `Estado: ${pegarValor(dados['edu_state[]'], i)}` : null,
+                        pegarValor(dados['edu_course[]'], i) ? `Curso: ${pegarValor(dados['edu_course[]'], i)}` : null,
+                        pegarValor(dados['edu_start[]'], i) ? `Data Início: ${formatarDataBR(pegarValor(dados['edu_start[]'], i))}` : null,
+                        pegarValor(dados['edu_end[]'], i) ? `Data Conclusão: ${formatarDataBR(pegarValor(dados['edu_end[]'], i))}` : null
                     ].filter(Boolean);
-                    return partes.join(' | ');
-                }).filter(Boolean).join('  ///  ');
+                    itens.push(partes.join(' | '));
+                }
+                return itens.join('  ///  ');
             })(),
-            'Idiomas (além do Português)': Array.isArray(dados['languages[]']) ? dados['languages[]'].filter(Boolean).join(', ') : (dados['languages[]'] || ''),
-            'Países Visitados (últimos 5 anos)': Array.isArray(dados['traveled_countries[]']) ? dados['traveled_countries[]'].filter(Boolean).join(', ') : (dados['traveled_countries[]'] || ''),
+
+            'Idiomas (além do Português)': juntarSimples(dados['languages[]']),
+            'Países Visitados (últimos 5 anos)': juntarSimples(dados['traveled_countries[]']),
             'Treinamento Especializado': dados['radio-specialized'] === 'YES' ? `Sim - ${dados.specialized_description || ''}` : 'Não',
             'Serviço Militar': dados['radio-military'] === 'YES' ? 'Sim' : 'Não',
             'Ramo Militar': dados.military_branch || '',
@@ -1797,18 +1905,23 @@ async function gerarPDF_DS160(dados) {
             'Especialidade Militar': dados.military_specialty || '',
             'Data de Início no Serviço Militar': formatarDataBR(dados.military_start),
             'Data de Saída do Serviço Militar': formatarDataBR(dados.military_end),
+
+            // ---- Segurança ----
             'Preso ou Condenado': dados['radio-arrested'] === 'YES' ? `Sim - ${dados.arrested_explanation || ''}` : 'Não',
             'Deportado': dados['radio-deported'] === 'YES' ? `Sim - ${dados.deported_explanation || ''}` : 'Não'
         };
 
-                    function writeSection(title, campos) {
+        // ============================================================
+        // ESCREVE AS SEÇÕES
+        // ============================================================
+        function writeSection(title, campos) {
             doc.moveDown(1);
             doc.fontSize(14).fillColor('#003366').text(title, { underline: true });
             doc.moveDown(0.5);
             doc.fontSize(10).fillColor('#000000');
             let has = false;
             for (const [label, value] of Object.entries(campos)) {
-                if (value && value !== '' && value !== 'Não informado') {
+                if (value !== undefined && value !== null && value !== '' && value !== 'Não informado') {
                     has = true;
                     doc.fontSize(10).fillColor('#000000').text(`• ${label}: ${value}`);
                 }
@@ -1825,7 +1938,7 @@ async function gerarPDF_DS160(dados) {
             'Passaporte': ['Número do Passaporte','País/Autoridade Emissora','Cidade de Emissão','Estado de Emissão','Data de Emissão','Data de Validade','Passaporte Perdido/Roubado','Número do BO/Observações','Número do Passaporte Perdido','Data do Ocorrido','Local do Ocorrido'],
             'Contato nos EUA': ['Pessoa de Contato nos EUA','Organização nos EUA','Relação com o Contato','Endereço nos EUA','Telefone nos EUA','Email nos EUA'],
             'Informacoes Familiares': ['Nome do Pai','Data de Nascimento do Pai','Pai nos EUA','Situação do Pai nos EUA','Nome da Mãe','Data de Nascimento da Mãe','Mãe nos EUA','Situação da Mãe nos EUA','Detalhes dos Parentes Diretos','Outros Parentes nos EUA','Nome do Cônjuge/Ex-Cônjuge','Data de Nascimento do Cônjuge','Nacionalidade do Cônjuge','Cidade de Nascimento do Cônjuge','País de Nascimento do Cônjuge','Endereço do Cônjuge','Cidade do Cônjuge','Estado do Cônjuge','CEP do Cônjuge','País do Cônjuge'],
-            'Trabalho e Educacao': ['Ocupação Principal','Empregador/Instituição','Endereço do Empregador','Cidade do Empregador','Estado do Empregador','CEP do Empregador','Telefone do Empregador','Data de Início no Emprego','Renda Mensal','Descrição das Funções','Outras Ocupações','Empregos Anteriores','Cursos/Educação','Idiomas (além do Português)','Países Visitados (últimos 5 anos)','Treinamento Especializado','Serviço Militar','Ramo Militar','Patente Militar','Especialidade Militar','Data de Início no Serviço Militar','Data de Saída do Serviço Militar'],
+            'Trabalho e Educacao': ['Ocupação Principal','Empregador/Instituição','Endereço do Empregador','Cidade do Empregador','Estado do Empregador','CEP do Empregador','País do Empregador','Telefone do Empregador','Data de Início no Emprego','Renda Mensal','Descrição das Funções','Outras Ocupações','Empregos Anteriores','Cursos/Educação','Idiomas (além do Português)','Países Visitados (últimos 5 anos)','Treinamento Especializado','Serviço Militar','Ramo Militar','Patente Militar','Especialidade Militar','Data de Início no Serviço Militar','Data de Saída do Serviço Militar'],
             'Seguranca': ['Preso ou Condenado','Deportado']
         };
 
@@ -1837,6 +1950,7 @@ async function gerarPDF_DS160(dados) {
             writeSection(titulo, filtered);
             doc.moveDown(0.5);
         }
+
         doc.end();
     });
 }
