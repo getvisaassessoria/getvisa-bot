@@ -2193,10 +2193,18 @@ app.get('/api/admin/reenvios-pendentes', auth.verificarAdmin, async (req, res) =
                     .eq('id_cliente', reenvio.id_cliente)
                     .maybeSingle();
 
-                const diff = calcularDiff(
+                                const diff = calcularDiff(
                     formAtual?.dados_formulario || {},
                     reenvio.dados_formulario || {}
                 );
+
+                // 🆕 FASE 2 — Análise automática da ação recomendada
+                let analise = null;
+                try {
+                    analise = await calcularAcaoReenvio(reenvio.id_cliente);
+                } catch (e) {
+                    console.error('Erro ao calcular análise:', e);
+                }
 
                 return {
                     id: reenvio.id,
@@ -2206,7 +2214,8 @@ app.get('/api/admin/reenvios-pendentes', auth.verificarAdmin, async (req, res) =
                     user_agent: reenvio.user_agent,
                     cliente: cliente || null,
                     diff: diff,
-                    total_mudancas: diff.length
+                    total_mudancas: diff.length,
+                    analise: analise
                 };
             })
         );
@@ -2554,6 +2563,194 @@ app.post('/api/portal/logout', async (req, res) => {
         return res.status(500).json({ success: false, message: 'Erro interno' });
     }
 });
+
+
+// ============================================================
+// FASE 2 — ANÁLISE AUTOMÁTICA DE REENVIO
+// ============================================================
+function diasUteisAte(dataAlvo) {
+    if (!dataAlvo) return null;
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    const alvo = new Date(dataAlvo); alvo.setHours(0, 0, 0, 0);
+    if (isNaN(alvo.getTime())) return null;
+
+    const diffMs = alvo - hoje;
+    const diffDias = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+    let uteis = 0;
+    const cursor = new Date(hoje);
+    for (let i = 0; i < Math.abs(diffDias); i++) {
+        cursor.setDate(cursor.getDate() + (diffDias > 0 ? 1 : -1));
+        const dow = cursor.getDay();
+        if (dow !== 0 && dow !== 6) uteis += (diffDias > 0 ? 1 : -1);
+    }
+    return { corridos: diffDias, uteis };
+}
+
+function parseDataBR(str) {
+    if (!str) return null;
+    const s = String(str).trim();
+
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return new Date(iso[1], iso[2] - 1, iso[3]);
+
+    const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (br) return new Date(br[3], br[2] - 1, br[1]);
+
+    const meses = {
+        'janeiro': 0, 'fevereiro': 1, 'março': 2, 'marco': 2, 'abril': 3,
+        'maio': 4, 'junho': 5, 'julho': 6, 'agosto': 7, 'setembro': 8,
+        'outubro': 9, 'novembro': 10, 'dezembro': 11
+    };
+    const m1 = s.match(/(\d{1,2})\s+de\s+([a-zç]+)\s+de\s+(\d{4})/i);
+    if (m1) {
+        const mes = meses[m1[2].toLowerCase()];
+        if (mes !== undefined) return new Date(m1[3], mes, m1[1]);
+    }
+    const m2 = s.match(/(\d{1,2})\s+([a-zç]+),?\s*(\d{4})/i);
+    if (m2) {
+        const mes = meses[m2[2].toLowerCase()];
+        if (mes !== undefined) return new Date(m2[3], mes, m2[1]);
+    }
+    return null;
+}
+
+async function calcularAcaoReenvio(idCliente) {
+    try {
+        const { data: etapa } = await supabase
+            .from('etapas_processo')
+            .select('etapa_atual, dados_casv, dados_entrevista, data_formulario_enviado')
+            .eq('cliente_id', idCliente)
+            .maybeSingle();
+
+        const { data: form } = await supabase
+            .from('form_ds160')
+            .select('created_at, updated_at')
+            .eq('id_cliente', idCliente)
+            .maybeSingle();
+
+        const etapaAtual = etapa?.etapa_atual || null;
+        const dataCasv = parseDataBR(etapa?.dados_casv?.data);
+        const dataEntrevista = parseDataBR(etapa?.dados_entrevista?.data);
+        const dataForm = form?.created_at ? new Date(form.created_at) : null;
+
+        // 🆕 Alerta de expiração: começa aos 6 meses
+        let alertaExpiracao = null;
+        if (dataForm) {
+            const mesesDesdeForm = (Date.now() - dataForm.getTime()) / (1000 * 60 * 60 * 24 * 30.4);
+            if (mesesDesdeForm >= 12) {
+                alertaExpiracao = {
+                    nivel: 'critico',
+                    meses: Math.floor(mesesDesdeForm),
+                    mensagem: `⚠️ CRÍTICO: DS-160 com ${Math.floor(mesesDesdeForm)} meses. Prazo de 12 meses EXPIRADO — refazer OBRIGATÓRIO.`
+                };
+            } else if (mesesDesdeForm >= 6) {
+                alertaExpiracao = {
+                    nivel: 'atencao',
+                    meses: Math.floor(mesesDesdeForm),
+                    mensagem: `⏰ ATENÇÃO: DS-160 com ${Math.floor(mesesDesdeForm)} meses. Faltam ${12 - Math.floor(mesesDesdeForm)} meses para expirar o prazo de reagendamento.`
+                };
+            }
+        }
+
+        // Etapa terminal → encerrado
+        if (['visto_aprovado', 'visto_recusado', 'passaporte_retornado', 'entrevista_realizada'].includes(etapaAtual)) {
+            return {
+                acao: 'ENCERRADO',
+                titulo: 'Processo consolidado',
+                motivo: `Etapa atual: ${etapaAtual}. Não é possível fazer alterações após entrevista realizada.`,
+                cor: 'cinza',
+                contexto: { etapa_atual: etapaAtual, alerta_expiracao: alertaExpiracao }
+            };
+        }
+
+        // CASV no futuro
+        if (dataCasv) {
+            const info = diasUteisAte(dataCasv);
+            if (info && info.corridos > 0) {
+                if (info.corridos >= 5) {
+                    return {
+                        acao: 'PERMITIR',
+                        titulo: 'Permitir novo DS-160',
+                        motivo: `Faltam ${info.corridos} dias (${info.uteis} úteis) para o CASV. Tempo suficiente para refazer o DS-160 e atualizar o AA number.`,
+                        cor: 'verde',
+                        contexto: {
+                            data_casv: etapa.dados_casv?.data,
+                            dias_ate_casv: info.corridos,
+                            dias_uteis_ate_casv: info.uteis,
+                            alerta_expiracao: alertaExpiracao
+                        }
+                    };
+                } else {
+                    return {
+                        acao: 'BLOQUEAR',
+                        titulo: 'Não permitir alteração',
+                        motivo: `Faltam apenas ${info.corridos} dias (${info.uteis} úteis) para o CASV. Abaixo do limite mínimo de 5 dias — não há tempo hábil.`,
+                        cor: 'vermelho',
+                        contexto: {
+                            data_casv: etapa.dados_casv?.data,
+                            dias_ate_casv: info.corridos,
+                            dias_uteis_ate_casv: info.uteis,
+                            alerta_expiracao: alertaExpiracao
+                        }
+                    };
+                }
+            }
+        }
+
+        // CASV passou, entrevista futura
+        if (dataCasv && dataEntrevista) {
+            const infoEntrevista = diasUteisAte(dataEntrevista);
+            if (infoEntrevista && infoEntrevista.corridos > 0) {
+                return {
+                    acao: 'AGUARDAR_48H',
+                    titulo: 'Aguardar 48h após CASV',
+                    motivo: `CASV já passou. Entrevista em ${infoEntrevista.corridos} dias. Alterações só após 48h do CASV.`,
+                    cor: 'amarelo',
+                    contexto: {
+                        data_casv: etapa.dados_casv?.data,
+                        data_entrevista: etapa.dados_entrevista?.data,
+                        dias_ate_entrevista: infoEntrevista.corridos,
+                        alerta_expiracao: alertaExpiracao
+                    }
+                };
+            }
+        }
+
+        // Tudo passou → reagendar
+        if (dataEntrevista && diasUteisAte(dataEntrevista)?.corridos <= 0) {
+            return {
+                acao: 'REAGENDAR',
+                titulo: 'Reagendar CASV e Entrevista',
+                motivo: `Entrevista já passou. Novo DS-160 + reagendamento obrigatório.`,
+                cor: 'amarelo',
+                contexto: {
+                    data_entrevista: etapa.dados_entrevista?.data,
+                    alerta_expiracao: alertaExpiracao
+                }
+            };
+        }
+
+        // Sem agendamento
+        return {
+            acao: 'PERMITIR',
+            titulo: 'Permitir novo DS-160',
+            motivo: `Sem agendamento ativo no momento. Cliente pode refazer o DS-160 livremente.`,
+            cor: 'verde',
+            contexto: { alerta_expiracao: alertaExpiracao }
+        };
+
+    } catch (error) {
+        console.error('❌ Erro em calcularAcaoReenvio:', error);
+        return {
+            acao: 'ERRO',
+            titulo: 'Erro na análise',
+            motivo: 'Não foi possível calcular automaticamente.',
+            cor: 'cinza',
+            contexto: {}
+        };
+    }
+}
 
 
 // ============================================================

@@ -58,6 +58,61 @@
             color: #666; font-size: 13px; display: flex; flex-wrap: wrap; gap: 15px;
         }
 
+        /* Card de análise automática */
+        .analise-card {
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-left: 5px solid #6c757d;
+            background: #f8f9fa;
+        }
+        .analise-card.verde { border-left-color: #28a745; background: #f0fdf4; }
+        .analise-card.vermelho { border-left-color: #dc3545; background: #fef2f2; }
+        .analise-card.amarelo { border-left-color: #ffc107; background: #fffbeb; }
+        .analise-card.cinza { border-left-color: #6c757d; background: #f8f9fa; }
+
+        .analise-card .titulo-analise {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #888;
+        }
+        .analise-card .acao-titulo {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .analise-card.verde .acao-titulo { color: #155724; }
+        .analise-card.vermelho .acao-titulo { color: #721c24; }
+        .analise-card.amarelo .acao-titulo { color: #856404; }
+        .analise-card.cinza .acao-titulo { color: #495057; }
+
+        .analise-card .motivo {
+            font-size: 13px;
+            color: #555;
+            line-height: 1.5;
+        }
+        .analise-card .alerta-expiracao {
+            margin-top: 10px;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .analise-card .alerta-expiracao.atencao {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
+        }
+        .analise-card .alerta-expiracao.critico {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #dc3545;
+        }
+
+        /* Diff */
         .diff {
             background: #f8f9fa; border-radius: 8px; padding: 15px;
             margin: 15px 0; border: 1px solid #e9ecef;
@@ -84,6 +139,7 @@
         }
         .diff-item .seta { color: #999; }
 
+        /* Ações */
         .acoes-card {
             display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;
         }
@@ -101,6 +157,7 @@
 
         .loading { text-align: center; padding: 40px; color: #666; }
 
+        /* Modal */
         .modal-overlay {
             display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.5); z-index: 1000; align-items: center;
@@ -171,7 +228,7 @@
                 }
 
                 reenviosAtuais = data.reenvios || [];
-                document.getElementById('contador').textContent = 
+                document.getElementById('contador').textContent =
                     reenviosAtuais.length + (reenviosAtuais.length === 1 ? ' pendente' : ' pendentes');
 
                 renderizar();
@@ -227,6 +284,29 @@
             );
             const linkZap = `https://wa.me/${telZapComDDI}?text=${msgZap}`;
 
+            // Bloco de análise automática (Fase 2)
+            let analiseHtml = '';
+            if (r.analise) {
+                const a = r.analise;
+                const cor = a.cor || 'cinza';
+
+                let alertaHtml = '';
+                if (a.contexto && a.contexto.alerta_expiracao) {
+                    const ae = a.contexto.alerta_expiracao;
+                    alertaHtml = `<div class="alerta-expiracao ${ae.nivel}">${escapeHtml(ae.mensagem)}</div>`;
+                }
+
+                analiseHtml = `
+                    <div class="analise-card ${cor}">
+                        <div class="titulo-analise">🎯 Análise automática</div>
+                        <div class="acao-titulo">${escapeHtml(a.titulo)}</div>
+                        <div class="motivo">${escapeHtml(a.motivo)}</div>
+                        ${alertaHtml}
+                    </div>
+                `;
+            }
+
+            // Bloco de diff
             let diffHtml = '';
             if (r.diff && r.diff.length > 0) {
                 diffHtml = `
@@ -267,6 +347,8 @@
                             </div>
                         </div>
                     </div>
+
+                    ${analiseHtml}
 
                     ${diffHtml}
 
@@ -315,7 +397,7 @@
                 if (data.success) {
                     fecharModal();
                     reenviosAtuais = reenviosAtuais.filter(r => r.id !== reenvioEmTratamento);
-                    document.getElementById('contador').textContent = 
+                    document.getElementById('contador').textContent =
                         reenviosAtuais.length + (reenviosAtuais.length === 1 ? ' pendente' : ' pendentes');
                     renderizar();
                 } else {
