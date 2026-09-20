@@ -204,8 +204,11 @@ Anexei o arquivo PROMPT-INICIAL.md com o contexto. Se precisar de detalhe técni
 
 **IMPORTANTE — Antes de agir:**
 1. Confirme que entendeu o contexto
-2. Se faltar informação, me peça o doc específico
+2. Se faltar informação técnica, me peça pra colar o doc específico (handoff-vol1, handoff-vol2, continuacao-17set, continuacao-19set, continuacao-20set)
 3. Sugira um plano antes de executar qualquer mudança
+4. **Nunca invente** informação que não esteja nos docs. Se não souber, pergunte.
+
+---
 
 ---
 
