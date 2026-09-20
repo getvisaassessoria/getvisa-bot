@@ -3172,6 +3172,12 @@ app.get('/api/admin/solicitacoes-campo', auth.verificarAdmin, async (req, res) =
     }
 });
 
+
+// TEMPORÁRIO — testar ping do watchdog
+app.get('/api/admin/test-watchdog-ping', auth.verificarAdmin, async (req, res) => {
+    await watchdogPingCompleto();
+    res.json({ success: true, message: 'Ping disparado — olhe WhatsApp em ~2 min' });
+});
 // Contador pro badge do dashboard
 app.get('/api/admin/solicitacoes-campo/count', auth.verificarAdmin, async (req, res) => {
     try {
