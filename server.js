@@ -3469,9 +3469,14 @@ async function watchdogZapi() {
             return;
         }
 
-        // Chama endpoint de status da Z-API
+       
+        // Chama endpoint de status da Z-API (exige Client-Token)
+        const clientToken = process.env.ZAPI_CLIENT_TOKEN;
         const url = `https://api.z-api.io/instances/${instance}/token/${token}/status`;
-        const resp = await fetch(url, { method: 'GET' });
+        const headers = {};
+        if (clientToken) headers['Client-Token'] = clientToken;
+
+        const resp = await fetch(url, { method: 'GET', headers });
 
         if (!resp.ok) {
             watchdogEstado.zapi_falhas++;
