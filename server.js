@@ -1972,8 +1972,8 @@ async function gerarPDF_DS160(dados) {
 
                 doc.font('Helvetica').fontSize(10).fillColor('#000000');
                 doc.text(`• Campo: ${h.campo_label || h.campo}`);
-                doc.text(`• Valor original: ${h.de || '(vazio)'}`);
-                doc.text(`• Valor novo: ${h.para || '(vazio)'}`);
+                doc.text(`• Valor original: ${h.de ? formatarDataBR(h.de) : '(vazio)'}`);
+                doc.text(`• Valor novo: ${formatarDataBR(h.para) || '(vazio)'}`);
 
                 if (h.motivo) {
                     doc.text(`• Motivo informado pelo cliente: ${h.motivo}`);
@@ -1994,14 +1994,7 @@ async function gerarPDF_DS160(dados) {
                 doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor('#e9ecef').stroke();
                 doc.moveDown(0.5);
             });
-
-            // Rodapé do apêndice
-            doc.moveDown(1);
-            doc.font('Helvetica-Bold').fontSize(11).fillColor('#003366')
-                .text('⚠️ Importante', { underline: true });
-            doc.moveDown(0.3);
-            doc.font('Helvetica').fontSize(9).fillColor('#555')
-                .text('Este apêndice faz parte integrante do formulário DS-160. Deve ser apresentado junto com o documento principal no CASV e/ou consulado.', { align: 'justify' });
+            
         }
 
         doc.end();
