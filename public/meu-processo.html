@@ -567,6 +567,15 @@ function formatarDataHora(iso) {
     });
 }
 
+function formatarValorExibicao(campoKey, valor) {
+    if (valor === null || valor === undefined || valor === '') return '(vazio)';
+    const str = String(valor).trim();
+    const m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+    return str;
+}
+
+
 function escapar(str) {
     if (str === null || str === undefined) return '';
     return String(str)
@@ -1033,7 +1042,7 @@ function renderizarProcesso() {
             const info = CAMPOS_EDITAVEIS[campo];
 
             const elAtual = document.getElementById('valorAtual');
-            elAtual.innerHTML = `<strong>Valor atual:</strong> ${valorAtual || '(vazio)'}`;
+            elAtual.innerHTML = `<strong>Valor atual:</strong> ${formatarValorExibicao(campo, valorAtual)}`;
             elAtual.style.display = 'block';
 
             const aviso = document.getElementById('avisoComplexidade');
@@ -1113,7 +1122,7 @@ function renderizarProcesso() {
             }
         }
 
-        async function carregarSolicitacoes() {
+                async function carregarSolicitacoes() {
             const token = localStorage.getItem(TOKEN_KEY);
             if (!token) return;
 
@@ -1132,6 +1141,7 @@ function renderizarProcesso() {
                 }
 
                 card.style.display = 'block';
+
                 lista.innerHTML = data.solicitacoes.map(s => {
                     const statusClass = s.status;
                     const statusLabel = {
@@ -1141,6 +1151,8 @@ function renderizarProcesso() {
                     }[s.status] || s.status;
 
                     const dataCriado = new Date(s.created_at).toLocaleDateString('pt-BR');
+                    const valorAntigoFmt = formatarValorExibicao(s.campo, s.valor_antigo);
+                    const valorNovoFmt = formatarValorExibicao(s.campo, s.valor_novo);
 
                     return `
                         <div class="solicitacao-item ${statusClass}">
@@ -1149,9 +1161,9 @@ function renderizarProcesso() {
                                 <span class="badge-status ${statusClass}">${statusLabel}</span>
                             </div>
                             <div class="valores">
-                                <s>${escapar(s.valor_antigo || '(vazio)')}</s>
+                                <s>${escapar(valorAntigoFmt)}</s>
                                 →
-                                <strong>${escapar(s.valor_novo)}</strong>
+                                <strong>${escapar(valorNovoFmt)}</strong>
                             </div>
                             ${s.motivo ? `<div class="valores" style="font-size:12px;color:#888;">Motivo: ${escapar(s.motivo)}</div>` : ''}
                             ${s.observacao_especialista ? `<div class="obs">💬 ${escapar(s.observacao_especialista)}</div>` : ''}

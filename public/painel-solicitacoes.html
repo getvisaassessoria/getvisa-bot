@@ -352,17 +352,18 @@
                         </div>
                     </div>
 
-                    <div class="comparacao">
+                                        <div class="comparacao">
                         <div class="campo-nome">📝 ${escapar(s.campo_label)}</div>
                         <div class="bloco">
                             <div class="label">Valor atual</div>
-                            <div class="valor antigo">${escapar(s.valor_antigo || '(vazio)')}</div>
+                            <div class="valor antigo">${escapar(formatarValorExibicao(s.campo, s.valor_antigo))}</div>
                         </div>
                         <div class="seta">→</div>
                         <div class="bloco">
                             <div class="label">Novo valor</div>
-                            <div class="valor novo">${escapar(s.valor_novo)}</div>
+                            <div class="valor novo">${escapar(formatarValorExibicao(s.campo, s.valor_novo))}</div>
                         </div>
+                    
                     </div>
 
                     ${s.motivo ? `
@@ -485,6 +486,16 @@
                 hour: '2-digit', minute: '2-digit'
             });
         }
+
+        function formatarValorExibicao(campoKey, valor) {
+            if (valor === null || valor === undefined || valor === '') return '(vazio)';
+            const str = String(valor).trim();
+            // Se for YYYY-MM-DD (só data), converte pra DD/MM/YYYY
+            const m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+            return str;
+        }
+
 
         function escapar(str) {
             if (str === null || str === undefined) return '';
