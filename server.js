@@ -3383,6 +3383,191 @@ app.post('/api/admin/solicitacoes-campo/:id/rejeitar', auth.verificarAdmin, asyn
     }
 });
 
+// ============================================================
+// WATCHDOG — MONITOR DE SAÚDE DO SISTEMA
+// ============================================================
+
+const WATCHDOG_ALERTA_PHONE = process.env.WATCHDOG_PHONE || '21985234917';
+const WATCHDOG_FALHAS_CONSECUTIVAS = 3;
+
+// Estado em memória (perde no restart, mas serve pro propósito)
+const watchdogEstado = {
+    health_falhas: 0,
+    zapi_falhas: 0,
+    ping_falhas: 0
+};
+
+// Registra evento no banco
+async function registrarWatchdog(tipo, status, detalhes = {}) {
+    try {
+        await supabase.from('watchdog_logs').insert({
+            tipo,
+            status,
+            detalhes
+        });
+    } catch (e) {
+        console.error('❌ Erro ao registrar watchdog:', e);
+    }
+}
+
+// Alerta equipe (só quando atinge o limite)
+async function alertarWatchdog(mensagem, tipo) {
+    try {
+        const msg = `🐕 *WATCHDOG — ALERTA*\n\n` +
+            `⚠️ Tipo: ${tipo}\n` +
+            `🕐 ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n\n` +
+            `${mensagem}\n\n` +
+            `🔧 *Ação:* verificar sistema em https://railway.app`;
+
+        await enviarWhatsApp(WATCHDOG_ALERTA_PHONE, msg);
+        console.log(`🚨 Watchdog alertou: ${tipo}`);
+
+        await registrarWatchdog('alerta_enviado', 'ok', { tipo, mensagem });
+    } catch (e) {
+        console.error('❌ Erro ao enviar alerta watchdog:', e);
+    }
+}
+
+// ---- CHECK 1: Health do próprio servidor + Supabase ----
+async function watchdogHealth() {
+    try {
+        // Verifica se Supabase responde
+        const { error } = await supabase.from('clientes').select('id').limit(1);
+
+        if (error) {
+            watchdogEstado.health_falhas++;
+            await registrarWatchdog('health', 'falha', { erro: error.message, tentativa: watchdogEstado.health_falhas });
+
+            if (watchdogEstado.health_falhas >= WATCHDOG_FALHAS_CONSECUTIVAS) {
+                await alertarWatchdog(`Supabase não está respondendo.\n\nErro: ${error.message}`, 'health_supabase');
+                watchdogEstado.health_falhas = 0;
+            }
+            return;
+        }
+
+        // Tudo OK
+        if (watchdogEstado.health_falhas > 0) {
+            console.log(`✅ Watchdog health: recuperado após ${watchdogEstado.health_falhas} falha(s)`);
+        }
+        watchdogEstado.health_falhas = 0;
+        await registrarWatchdog('health', 'ok', {});
+    } catch (error) {
+        watchdogEstado.health_falhas++;
+        await registrarWatchdog('health', 'falha', { erro: error.message, tentativa: watchdogEstado.health_falhas });
+        console.error('❌ Watchdog health erro:', error);
+    }
+}
+
+// ---- CHECK 2: Status da Z-API (leve, sem enviar msg) ----
+async function watchdogZapi() {
+    try {
+        const instance = process.env.ZAPI_INSTANCE;
+        const token = process.env.ZAPI_TOKEN;
+
+        if (!instance || !token) {
+            await registrarWatchdog('zapi', 'falha', { erro: 'ZAPI não configurada' });
+            return;
+        }
+
+        // Chama endpoint de status da Z-API
+        const url = `https://api.z-api.io/instances/${instance}/token/${token}/status`;
+        const resp = await fetch(url, { method: 'GET' });
+
+        if (!resp.ok) {
+            watchdogEstado.zapi_falhas++;
+            await registrarWatchdog('zapi', 'falha', { status: resp.status, tentativa: watchdogEstado.zapi_falhas });
+
+            if (watchdogEstado.zapi_falhas >= WATCHDOG_FALHAS_CONSECUTIVAS) {
+                await alertarWatchdog(`Z-API não responde ao status.\n\nHTTP: ${resp.status}`, 'zapi_status');
+                watchdogEstado.zapi_falhas = 0;
+            }
+            return;
+        }
+
+        const data = await resp.json();
+
+        // Verifica se está conectada
+        const conectada = data.connected === true || data.status === 'connected';
+        if (!conectada) {
+            watchdogEstado.zapi_falhas++;
+            await registrarWatchdog('zapi', 'falha', { resp: data, tentativa: watchdogEstado.zapi_falhas });
+
+            if (watchdogEstado.zapi_falhas >= WATCHDOG_FALHAS_CONSECUTIVAS) {
+                await alertarWatchdog(`Z-API está desconectada.\n\nStatus: ${JSON.stringify(data)}`, 'zapi_desconectada');
+                watchdogEstado.zapi_falhas = 0;
+            }
+            return;
+        }
+
+        // Tudo OK
+        if (watchdogEstado.zapi_falhas > 0) {
+            console.log(`✅ Watchdog Z-API: recuperada após ${watchdogEstado.zapi_falhas} falha(s)`);
+        }
+        watchdogEstado.zapi_falhas = 0;
+        await registrarWatchdog('zapi', 'ok', { connected: true });
+    } catch (error) {
+        watchdogEstado.zapi_falhas++;
+        await registrarWatchdog('zapi', 'falha', { erro: error.message, tentativa: watchdogEstado.zapi_falhas });
+        console.error('❌ Watchdog Z-API erro:', error);
+    }
+}
+
+// ---- CHECK 3: Ping completo (envia msg real e verifica webhook) ----
+// Marca timestamp de envio pra confirmar recebimento
+let watchdogUltimoPingEnviado = null;
+let watchdogUltimoPingRecebido = null;
+
+async function watchdogPingCompleto() {
+    try {
+        const agora = Date.now();
+        watchdogUltimoPingEnviado = agora;
+
+        const msg = `🐕 Watchdog ping ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
+
+        // Envia mensagem real
+        const enviado = await enviarWhatsApp(WATCHDOG_ALERTA_PHONE, msg);
+
+        if (!enviado) {
+            watchdogEstado.ping_falhas++;
+            await registrarWatchdog('ping_completo', 'falha', { etapa: 'envio', tentativa: watchdogEstado.ping_falhas });
+
+            if (watchdogEstado.ping_falhas >= WATCHDOG_FALHAS_CONSECUTIVAS) {
+                await alertarWatchdog(`Ping completo: envio falhou 3x seguidas. Z-API pode estar comprometida.`, 'ping_envio');
+                watchdogEstado.ping_falhas = 0;
+            }
+            return;
+        }
+
+        // Aguarda 2 minutos e verifica se chegou de volta
+        setTimeout(async () => {
+            const recebido = watchdogUltimoPingRecebido && watchdogUltimoPingRecebido > agora - 5000;
+
+            if (recebido) {
+                console.log('✅ Watchdog ping completo: mensagem chegou de volta');
+                watchdogEstado.ping_falhas = 0;
+                await registrarWatchdog('ping_completo', 'ok', { enviado_em: agora, recebido_em: watchdogUltimoPingRecebido });
+            } else {
+                watchdogEstado.ping_falhas++;
+                await registrarWatchdog('ping_completo', 'falha', { etapa: 'recebimento', tentativa: watchdogEstado.ping_falhas });
+
+                if (watchdogEstado.ping_falhas >= WATCHDOG_FALHAS_CONSECUTIVAS) {
+                    await alertarWatchdog(
+                        `Ping completo: mensagem enviada mas NÃO chegou de volta.\n\n` +
+                        `⚠️ Possível sessão zumbi (Z-API status verde mas sem sessão ativa).\n\n` +
+                        `🔧 *Ação:* reconectar Z-API (painel → Conectar → QR Code)`,
+                        'ping_recebimento'
+                    );
+                    watchdogEstado.ping_falhas = 0;
+                }
+            }
+        }, 2 * 60 * 1000);
+
+    } catch (error) {
+        console.error('❌ Watchdog ping completo erro:', error);
+    }
+}
+
+
 
 // ============================================================
 // NOTIFICAÇÃO DE REENVIO DS-160 (feature nova)
@@ -3794,6 +3979,14 @@ app.post('/api/webhook/zapi', async (req, res) => {
     (async () => {
         try {
             const body = req.body || {};
+                        // 🐕 Watchdog: detecta se o ping voltou
+            const msgBody = body.text?.message || body.message || body.text || '';
+            if (typeof msgBody === 'string' && msgBody.startsWith('🐕 Watchdog ping')) {
+                watchdogUltimoPingRecebido = Date.now();
+                console.log('🐕 Watchdog: ping detectado de volta!');
+                return;
+            }
+
 
             // ============================================================
             // 🚨 FILTROS DE SEGURANÇA — ignora tipos de mensagem que NÃO
@@ -4395,6 +4588,20 @@ cron.schedule('0 */6 * * *', () => {
     console.log('⏰ Cron follow-up de leads executado');
     processarFollowupLeads();
 });
+
+// Watchdog — checks leves a cada 30 min
+cron.schedule('*/30 * * * *', () => {
+    console.log('🐕 Watchdog: checando saúde do sistema...');
+    watchdogHealth();
+    watchdogZapi();
+});
+
+// Watchdog — ping completo 1x por dia às 9h (horário comercial)
+cron.schedule('0 9 * * *', () => {
+    console.log('🐕 Watchdog: ping completo diário');
+    watchdogPingCompleto();
+});
+
 // Cron job para lembretes (placeholder – pode ser implementado depois)
 cron.schedule('*/5 * * * *', () => {
     console.log('⏰ Cron job executado (lembretes)');
