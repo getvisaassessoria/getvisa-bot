@@ -3172,12 +3172,6 @@ app.get('/api/admin/solicitacoes-campo', auth.verificarAdmin, async (req, res) =
     }
 });
 
-
-// TEMPORÁRIO — testar ping do watchdog
-app.get('/api/admin/test-watchdog-ping', auth.verificarAdmin, async (req, res) => {
-    await watchdogPingCompleto();
-    res.json({ success: true, message: 'Ping disparado — olhe WhatsApp em ~2 min' });
-});
 // Contador pro badge do dashboard
 app.get('/api/admin/solicitacoes-campo/count', auth.verificarAdmin, async (req, res) => {
     try {
@@ -3522,63 +3516,6 @@ async function watchdogZapi() {
         console.error('❌ Watchdog Z-API erro:', error);
     }
 }
-
-// ---- CHECK 3: Ping completo (envia msg real e verifica webhook) ----
-// Marca timestamp de envio pra confirmar recebimento
-let watchdogUltimoPingEnviado = null;
-let watchdogUltimoPingRecebido = null;
-
-async function watchdogPingCompleto() {
-    try {
-        const agora = Date.now();
-        watchdogUltimoPingEnviado = agora;
-
-        const msg = `🐕 Watchdog ping ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
-
-        // Envia mensagem real
-        const enviado = await enviarWhatsApp(WATCHDOG_ALERTA_PHONE, msg);
-
-        if (!enviado) {
-            watchdogEstado.ping_falhas++;
-            await registrarWatchdog('ping_completo', 'falha', { etapa: 'envio', tentativa: watchdogEstado.ping_falhas });
-
-            if (watchdogEstado.ping_falhas >= WATCHDOG_FALHAS_CONSECUTIVAS) {
-                await alertarWatchdog(`Ping completo: envio falhou 3x seguidas. Z-API pode estar comprometida.`, 'ping_envio');
-                watchdogEstado.ping_falhas = 0;
-            }
-            return;
-        }
-
-        // Aguarda 2 minutos e verifica se chegou de volta
-        setTimeout(async () => {
-            const recebido = watchdogUltimoPingRecebido && watchdogUltimoPingRecebido > agora - 5000;
-
-            if (recebido) {
-                console.log('✅ Watchdog ping completo: mensagem chegou de volta');
-                watchdogEstado.ping_falhas = 0;
-                await registrarWatchdog('ping_completo', 'ok', { enviado_em: agora, recebido_em: watchdogUltimoPingRecebido });
-            } else {
-                watchdogEstado.ping_falhas++;
-                await registrarWatchdog('ping_completo', 'falha', { etapa: 'recebimento', tentativa: watchdogEstado.ping_falhas });
-
-                if (watchdogEstado.ping_falhas >= WATCHDOG_FALHAS_CONSECUTIVAS) {
-                    await alertarWatchdog(
-                        `Ping completo: mensagem enviada mas NÃO chegou de volta.\n\n` +
-                        `⚠️ Possível sessão zumbi (Z-API status verde mas sem sessão ativa).\n\n` +
-                        `🔧 *Ação:* reconectar Z-API (painel → Conectar → QR Code)`,
-                        'ping_recebimento'
-                    );
-                    watchdogEstado.ping_falhas = 0;
-                }
-            }
-        }, 2 * 60 * 1000);
-
-    } catch (error) {
-        console.error('❌ Watchdog ping completo erro:', error);
-    }
-}
-
-
 
 // ============================================================
 // NOTIFICAÇÃO DE REENVIO DS-160 (feature nova)
@@ -3990,14 +3927,6 @@ app.post('/api/webhook/zapi', async (req, res) => {
     (async () => {
         try {
             const body = req.body || {};
-                        // 🐕 Watchdog: detecta se o ping voltou
-            const msgBody = body.text?.message || body.message || body.text || '';
-            if (typeof msgBody === 'string' && msgBody.startsWith('🐕 Watchdog ping')) {
-                watchdogUltimoPingRecebido = Date.now();
-                console.log('🐕 Watchdog: ping detectado de volta!');
-                return;
-            }
-
 
             // ============================================================
             // 🚨 FILTROS DE SEGURANÇA — ignora tipos de mensagem que NÃO
@@ -4605,12 +4534,6 @@ cron.schedule('*/30 * * * *', () => {
     console.log('🐕 Watchdog: checando saúde do sistema...');
     watchdogHealth();
     watchdogZapi();
-});
-
-// Watchdog — ping completo 1x por dia às 9h (horário comercial)
-cron.schedule('0 9 * * *', () => {
-    console.log('🐕 Watchdog: ping completo diário');
-    watchdogPingCompleto();
 });
 
 // Cron job para lembretes (placeholder – pode ser implementado depois)
