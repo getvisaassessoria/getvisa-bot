@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solicitações de Alteração - GetVisa</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; min-height: 100vh; }
+        .header {
+            background: #003366; color: white; padding: 20px 30px;
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 10px;
+        }
+        .header h1 { font-size: 22px; }
+        .header a {
+            background: rgba(255,255,255,0.2); color: white;
+            padding: 10px 20px; border-radius: 8px;
+            font-size: 14px; text-decoration: none; transition: 0.3s;
+        }
+        .header a:hover { background: rgba(255,255,255,0.3); }
+
+        .container { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
+
+        .topo-info {
+            background: white; padding: 20px 25px; border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 25px;
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 15px;
+        }
+        .topo-info h2 { color: #003366; font-size: 20px; }
+        .contador {
+            background: #dc3545; color: white; padding: 8px 20px;
+            border-radius: 20px; font-weight: 600; font-size: 16px;
+        }
+
+        .vazio {
+            background: white; padding: 60px 30px; border-radius: 12px;
+            text-align: center; color: #666; box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        .vazio .emoji { font-size: 60px; margin-bottom: 15px; }
+        .vazio h3 { color: #28a745; margin-bottom: 10px; }
+
+        .solicitacao-card {
+            background: white; border-radius: 12px; padding: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 20px;
+            border-left: 5px solid #ffc107;
+        }
+        .solicitacao-card .cabecalho {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            flex-wrap: wrap; gap: 10px; margin-bottom: 15px;
+        }
+        .solicitacao-card h3 { color: #003366; font-size: 18px; margin-bottom: 5px; }
+        .solicitacao-card .meta {
+            color: #666; font-size: 13px; display: flex; flex-wrap: wrap; gap: 15px;
+        }
+
+        .alerta-complexidade {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            font-size: 13px;
+            color: #856404;
+            font-weight: 600;
+        }
+
+        .comparacao {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 15px;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .comparacao .bloco {
+            text-align: center;
+        }
+        .comparacao .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #888;
+            margin-bottom: 6px;
+            font-weight: 700;
+        }
+        .comparacao .valor {
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 14px;
+            word-break: break-word;
+        }
+        .comparacao .valor.antigo {
+            background: #f8d7da;
+            color: #721c24;
+            text-decoration: line-through;
+        }
+        .comparacao .valor.novo {
+            background: #d4edda;
+            color: #155724;
+            font-weight: 700;
+        }
+        .comparacao .seta {
+            font-size: 24px;
+            color: #999;
+        }
+        .comparacao .campo-nome {
+            grid-column: 1 / -1;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 700;
+            color: #003366;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e9ecef;
+            margin-bottom: 10px;
+        }
+
+        .motivo-box {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 12px 15px;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+        .motivo-box strong { color: #003366; }
+
+        .acoes-card {
+            display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;
+        }
+        .btn {
+            padding: 10px 20px; border-radius: 8px; border: none;
+            cursor: pointer; font-size: 14px; font-weight: 500;
+            text-decoration: none; display: inline-flex; align-items: center;
+            gap: 6px; transition: 0.2s;
+        }
+        .btn-aprovar { background: #28a745; color: white; }
+        .btn-aprovar:hover { background: #218838; }
+        .btn-rejeitar { background: #dc3545; color: white; }
+        .btn-rejeitar:hover { background: #c82333; }
+        .btn-whats { background: #25D366; color: white; }
+        .btn-whats:hover { background: #128C7E; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .loading { text-align: center; padding: 40px; color: #666; }
+
+        /* Modal */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 1000; align-items: center;
+            justify-content: center; padding: 20px;
+        }
+        .modal-overlay.ativo { display: flex; }
+        .modal {
+            background: white; border-radius: 12px; padding: 30px;
+            max-width: 500px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .modal h3 { color: #003366; margin-bottom: 15px; }
+        .modal textarea {
+            width: 100%; min-height: 100px; padding: 12px; border: 1px solid #ddd;
+            border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;
+        }
+        .modal textarea:focus { outline: none; border-color: #003366; }
+        .modal-acoes { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .btn-cancelar { background: #6c757d; color: white; }
+        .btn-cancelar:hover { background: #5a6268; }
+        .btn-confirmar-aprovar { background: #28a745; color: white; }
+        .btn-confirmar-rejeitar { background: #dc3545; color: white; }
+
+        /* Filtros */
+        .filtros {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .filtro-btn {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 2px solid #ddd;
+            background: white;
+            color: #666;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+        .filtro-btn:hover { border-color: #003366; color: #003366; }
+        .filtro-btn.ativo { background: #003366; color: white; border-color: #003366; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>✏️ Solicitações de Alteração</h1>
+        <div class="acoes">
+            <a href="/dashboard?api_key=admin123">← Voltar ao Dashboard</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="topo-info">
+            <h2>📋 Solicitações aguardando análise</h2>
+            <div class="contador" id="contador">0 pendentes</div>
+        </div>
+
+        <div class="filtros">
+            <button class="filtro-btn ativo" data-status="pendente" onclick="mudarFiltro('pendente', this)">⏳ Pendentes</button>
+            <button class="filtro-btn" data-status="aprovada" onclick="mudarFiltro('aprovada', this)">✅ Aprovadas</button>
+            <button class="filtro-btn" data-status="rejeitada" onclick="mudarFiltro('rejeitada', this)">❌ Rejeitadas</button>
+            <button class="filtro-btn" data-status="todas" onclick="mudarFiltro('todas', this)">📋 Todas</button>
+        </div>
+
+        <div id="conteudo">
+            <div class="loading">Carregando...</div>
+        </div>
+    </div>
+
+    <!-- Modal aprovar/rejeitar -->
+    <div class="modal-overlay" id="modalAcao">
+        <div class="modal">
+            <h3 id="modalTitulo">Confirmar</h3>
+            <p id="modalDesc" style="color:#666; font-size:14px; margin-bottom:15px;"></p>
+            <textarea id="modalObservacao" placeholder="Observação (opcional para aprovar, obrigatória para rejeitar)..."></textarea>
+            <div class="modal-acoes">
+                <button class="btn btn-cancelar" onclick="fecharModal()">Cancelar</button>
+                <button class="btn" id="btnConfirmarModal" onclick="confirmarAcao()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = new URLSearchParams(window.location.search).get('api_key') || 'admin123';
+        let statusAtual = 'pendente';
+        let solicitacoesAtuais = [];
+        let acaoPendente = null;
+        let idPendente = null;
+
+        async function carregarSolicitacoes() {
+            try {
+                const resp = await fetch(`/api/admin/solicitacoes-campo?status=${statusAtual}&api_key=${API_KEY}`);
+                const data = await resp.json();
+
+                if (!data.success) {
+                    mostrarErro(data.error || 'Erro ao carregar');
+                    return;
+                }
+
+                solicitacoesAtuais = data.solicitacoes || [];
+                atualizarContador();
+                renderizar();
+            } catch (err) {
+                console.error(err);
+                mostrarErro('Erro de conexão');
+            }
+        }
+
+        async function atualizarContador() {
+            try {
+                const resp = await fetch(`/api/admin/solicitacoes-campo/count?api_key=${API_KEY}`);
+                const data = await resp.json();
+                if (data.success) {
+                    document.getElementById('contador').textContent = 
+                        data.count + (data.count === 1 ? ' pendente' : ' pendentes');
+                }
+            } catch (e) {}
+        }
+
+        function mudarFiltro(status, btn) {
+            statusAtual = status;
+            document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('ativo'));
+            btn.classList.add('ativo');
+            carregarSolicitacoes();
+        }
+
+        function mostrarErro(msg) {
+            document.getElementById('conteudo').innerHTML = `
+                <div class="vazio">
+                    <div class="emoji">❌</div>
+                    <h3 style="color:#dc3545;">Erro</h3>
+                    <p>${msg}</p>
+                </div>
+            `;
+        }
+
+        function renderizar() {
+            const container = document.getElementById('conteudo');
+
+            if (solicitacoesAtuais.length === 0) {
+                const msgs = {
+                    'pendente': { emoji: '🎉', titulo: 'Tudo em dia!', texto: 'Nenhuma solicitação pendente.' },
+                    'aprovada': { emoji: '📋', titulo: 'Sem histórico', texto: 'Nenhuma solicitação aprovada ainda.' },
+                    'rejeitada': { emoji: '📋', titulo: 'Sem histórico', texto: 'Nenhuma solicitação rejeitada ainda.' },
+                    'todas': { emoji: '📋', titulo: 'Sem histórico', texto: 'Nenhuma solicitação registrada ainda.' }
+                };
+                const m = msgs[statusAtual] || msgs.pendente;
+                container.innerHTML = `
+                    <div class="vazio">
+                        <div class="emoji">${m.emoji}</div>
+                        <h3>${m.titulo}</h3>
+                        <p>${m.texto}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            for (const s of solicitacoesAtuais) {
+                html += renderizarCard(s);
+            }
+            container.innerHTML = html;
+        }
+
+        function renderizarCard(s) {
+            const cliente = s.cliente || {};
+            const nome = cliente.nome || 'Cliente';
+            const telefone = cliente.telefone || '-';
+            const telefoneFormatado = formatarTelefone(telefone);
+            const dataCriado = formatarData(s.created_at);
+
+            const telZap = telefone.replace(/\D/g, '');
+            const telZapComDDI = telZap.startsWith('55') ? telZap : '55' + telZap;
+            const msgZap = encodeURIComponent(`Olá ${nome.split(' ')[0]}! Recebemos sua solicitação de alteração no DS-160. Vamos analisar juntos.`);
+            const linkZap = `https://wa.me/${telZapComDDI}?text=${msgZap}`;
+
+            const alertaHtml = s.alerta_mensagem 
+                ? `<div class="alerta-complexidade">${escapar(s.alerta_mensagem)}</div>` 
+                : '';
+
+            let acoesHtml = '';
+            if (s.status === 'pendente') {
+                acoesHtml = `
+                    <button class="btn btn-aprovar" onclick="abrirModalAprovar('${s.id}')">
+                        ✅ Aprovar e aplicar
+                    </button>
+                    <button class="btn btn-rejeitar" onclick="abrirModalRejeitar('${s.id}')">
+                        ❌ Rejeitar
+                    </button>
+                `;
+            }
+
+            return `
+                <div class="solicitacao-card">
+                    <div class="cabecalho">
+                        <div>
+                            <h3>👤 ${escapar(nome)}</h3>
+                            <div class="meta">
+                                <span>📱 ${telefoneFormatado}</span>
+                                <span>📅 ${dataCriado}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="comparacao">
+                        <div class="campo-nome">📝 ${escapar(s.campo_label)}</div>
+                        <div class="bloco">
+                            <div class="label">Valor atual</div>
+                            <div class="valor antigo">${escapar(s.valor_antigo || '(vazio)')}</div>
+                        </div>
+                        <div class="seta">→</div>
+                        <div class="bloco">
+                            <div class="label">Novo valor</div>
+                            <div class="valor novo">${escapar(s.valor_novo)}</div>
+                        </div>
+                    </div>
+
+                    ${s.motivo ? `
+                        <div class="motivo-box">
+                            <strong>💬 Motivo do cliente:</strong> ${escapar(s.motivo)}
+                        </div>
+                    ` : ''}
+
+                    ${alertaHtml}
+
+                    ${s.observacao_especialista ? `
+                        <div class="motivo-box">
+                            <strong>📝 Observação do especialista:</strong> ${escapar(s.observacao_especialista)}
+                        </div>
+                    ` : ''}
+
+                    <div class="acoes-card">
+                        ${acoesHtml}
+                        <a href="${linkZap}" target="_blank" class="btn btn-whats">
+                            💬 WhatsApp
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+
+        function abrirModalAprovar(id) {
+            idPendente = id;
+            acaoPendente = 'aprovar';
+            document.getElementById('modalTitulo').textContent = '✅ Aprovar alteração';
+            document.getElementById('modalDesc').textContent = 'A mudança será aplicada no formulário do cliente imediatamente e ele será notificado.';
+            document.getElementById('modalObservacao').placeholder = 'Observação (opcional)...';
+            document.getElementById('modalObservacao').value = '';
+            document.getElementById('btnConfirmarModal').className = 'btn btn-confirmar-aprovar';
+            document.getElementById('btnConfirmarModal').textContent = '✅ Aprovar e aplicar';
+            document.getElementById('modalAcao').classList.add('ativo');
+        }
+
+        function abrirModalRejeitar(id) {
+            idPendente = id;
+            acaoPendente = 'rejeitar';
+            document.getElementById('modalTitulo').textContent = '❌ Rejeitar alteração';
+            document.getElementById('modalDesc').textContent = 'Informe o motivo — ele será enviado ao cliente por WhatsApp.';
+            document.getElementById('modalObservacao').placeholder = 'Motivo da rejeição (obrigatório)...';
+            document.getElementById('modalObservacao').value = '';
+            document.getElementById('btnConfirmarModal').className = 'btn btn-confirmar-rejeitar';
+            document.getElementById('btnConfirmarModal').textContent = '❌ Rejeitar';
+            document.getElementById('modalAcao').classList.add('ativo');
+        }
+
+        function fecharModal() {
+            document.getElementById('modalAcao').classList.remove('ativo');
+            idPendente = null;
+            acaoPendente = null;
+        }
+
+        async function confirmarAcao() {
+            if (!idPendente || !acaoPendente) return;
+
+            const btn = document.getElementById('btnConfirmarModal');
+            const observacao = document.getElementById('modalObservacao').value.trim();
+
+            if (acaoPendente === 'rejeitar' && !observacao) {
+                alert('Informe o motivo da rejeição.');
+                return;
+            }
+
+            btn.disabled = true;
+            const textoOriginal = btn.textContent;
+            btn.textContent = 'Processando...';
+
+            try {
+                const endpoint = acaoPendente === 'aprovar' 
+                    ? `/api/admin/solicitacoes-campo/${idPendente}/aprovar?api_key=${API_KEY}`
+                    : `/api/admin/solicitacoes-campo/${idPendente}/rejeitar?api_key=${API_KEY}`;
+
+                const resp = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ observacao })
+                });
+
+                const data = await resp.json();
+
+                if (data.success) {
+                    fecharModal();
+                    carregarSolicitacoes();
+                } else {
+                    alert('Erro: ' + (data.message || 'desconhecido'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Erro de conexão');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = textoOriginal;
+            }
+        }
+
+        document.getElementById('modalAcao').addEventListener('click', function(e) {
+            if (e.target === this) fecharModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') fecharModal();
+        });
+
+        function formatarTelefone(tel) {
+            const nums = (tel || '').replace(/\D/g, '');
+            if (nums.length === 11) return `(${nums.slice(0,2)}) ${nums.slice(2,7)}-${nums.slice(7)}`;
+            if (nums.length === 10) return `(${nums.slice(0,2)}) ${nums.slice(2,6)}-${nums.slice(6)}`;
+            return tel || '-';
+        }
+
+        function formatarData(iso) {
+            if (!iso) return '-';
+            const d = new Date(iso);
+            return d.toLocaleString('pt-BR', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+        }
+
+        function escapar(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        carregarSolicitacoes();
+    </script>
+</body>
+</html>

@@ -1942,13 +1942,66 @@ async function gerarPDF_DS160(dados) {
             'Seguranca': ['Preso ou Condenado','Deportado']
         };
 
-        for (const [titulo, campos] of Object.entries(secoes)) {
+                for (const [titulo, campos] of Object.entries(secoes)) {
             const filtered = {};
             for (const campo of campos) {
                 if (todosCampos[campo]) filtered[campo] = todosCampos[campo];
             }
             writeSection(titulo, filtered);
             doc.moveDown(0.5);
+        }
+
+        // ============================================================
+        // APÊNDICE — HISTÓRICO DE ALTERAÇÕES (Fase 3)
+        // ============================================================
+        const historico = dados.__historico_alteracoes;
+        if (Array.isArray(historico) && historico.length > 0) {
+            doc.addPage();
+
+            doc.font('Helvetica-Bold').fontSize(16).fillColor('#003366')
+                .text('APÊNDICE — Histórico de Alterações', { align: 'center' });
+            doc.moveDown(0.3);
+            doc.font('Helvetica').fontSize(10).fillColor('#666')
+                .text('Documento complementar ao DS-160. Lista as alterações aprovadas após o envio original.', { align: 'center' });
+            doc.moveDown(1);
+
+            historico.forEach((h, idx) => {
+                doc.font('Helvetica-Bold').fontSize(12).fillColor('#003366')
+                    .text(`Alteração #${idx + 1} — ${h.campo_label || h.campo}`);
+                doc.moveDown(0.3);
+
+                doc.font('Helvetica').fontSize(10).fillColor('#000000');
+                doc.text(`• Campo: ${h.campo_label || h.campo}`);
+                doc.text(`• Valor original: ${h.de || '(vazio)'}`);
+                doc.text(`• Valor novo: ${h.para || '(vazio)'}`);
+
+                if (h.motivo) {
+                    doc.text(`• Motivo informado pelo cliente: ${h.motivo}`);
+                }
+
+                if (h.observacao_especialista) {
+                    doc.text(`• Observação do especialista: ${h.observacao_especialista}`);
+                }
+
+                if (h.aprovado_em) {
+                    const data = new Date(h.aprovado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+                    doc.text(`• Aprovado em: ${data}`);
+                }
+
+                doc.moveDown(0.8);
+
+                // Linha separadora
+                doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor('#e9ecef').stroke();
+                doc.moveDown(0.5);
+            });
+
+            // Rodapé do apêndice
+            doc.moveDown(1);
+            doc.font('Helvetica-Bold').fontSize(11).fillColor('#003366')
+                .text('⚠️ Importante', { underline: true });
+            doc.moveDown(0.3);
+            doc.font('Helvetica').fontSize(9).fillColor('#555')
+                .text('Este apêndice faz parte integrante do formulário DS-160. Deve ser apresentado junto com o documento principal no CASV e/ou consulado.', { align: 'justify' });
         }
 
         doc.end();
@@ -1979,6 +2032,17 @@ app.get('/painel.html', auth.verificarAdmin, (req, res) => {
         res.sendFile(p);
     } else res.send('<h1>📊 Painel</h1><p>Arquivo painel-clientes.html não encontrado.</p>');
 });
+
+app.get('/painel-solicitacoes', auth.verificarAdmin, (req, res) => {
+    const p = path.join(__dirname, 'public', 'painel-solicitacoes.html');
+    if (fs.existsSync(p)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.sendFile(p);
+    } else {
+        res.status(404).send('<h1>✏️ Solicitações</h1><p>Arquivo painel-solicitacoes.html não encontrado.</p>');
+    }
+});
+
 
 app.get('/painel-reenvios', auth.verificarAdmin, (req, res) => {
     const p = path.join(__dirname, 'public', 'painel-reenvios.html');
@@ -2496,9 +2560,10 @@ app.get('/api/portal/meu-processo', async (req, res) => {
                 entrevista: etapa?.dados_entrevista || null
             },
             formulario: {
-                enviado: !!form,
+                                enviado: !!form,
                 status: form?.status || null,
-                data_envio: form?.created_at || null
+                data_envio: form?.created_at || null,
+                dados: form?.dados_formulario || null
             },
             reenvios: {
                 total: reenviosCount || 0,
@@ -2526,8 +2591,8 @@ app.get('/api/admin/baixar-pdf/:telefone', auth.verificarAdmin, async (req, res)
 
         const { data: form } = await supabase
             .from('form_ds160')
-            .select('dados_formulario')
-            .eq('id_cliente', cliente.id)
+            .select('status, created_at, updated_at, dados_formulario')
+            .eq('id_cliente', acesso.id_cliente)
             .maybeSingle();
 
         if (!form) return res.status(404).send('Form não encontrado');
@@ -2751,6 +2816,511 @@ async function calcularAcaoReenvio(idCliente) {
         };
     }
 }
+
+
+// ============================================================
+// FASE 3 — ALTERAÇÃO PONTUAL DE CAMPO DO DS-160
+// ============================================================
+
+// Campos editáveis (só os críticos)
+const CAMPOS_EDITAVEIS = {
+    'full_name':        { label: 'Nome Completo', tipo: 'text', sensivel: true },
+    'dob':              { label: 'Data de Nascimento', tipo: 'date', sensivel: true },
+    'cpf':              { label: 'CPF', tipo: 'text', sensivel: false },
+    'email':            { label: 'E-mail', tipo: 'email', sensivel: false },
+    'phone':            { label: 'Telefone Principal', tipo: 'tel', sensivel: false },
+    'passport_number':  { label: 'Número do Passaporte', tipo: 'text', sensivel: true },
+    'passport_issue':   { label: 'Emissão do Passaporte', tipo: 'date', sensivel: false },
+    'passport_expiry':  { label: 'Validade do Passaporte', tipo: 'date', sensivel: false },
+    'address':          { label: 'Endereço', tipo: 'text', sensivel: false },
+    'city':             { label: 'Cidade', tipo: 'text', sensivel: false },
+    'state':            { label: 'Estado/Província', tipo: 'text', sensivel: false },
+    'zip':              { label: 'CEP', tipo: 'text', sensivel: false },
+    'birth_city':       { label: 'Cidade de Nascimento', tipo: 'text', sensivel: false },
+    'birth_state':      { label: 'Estado de Nascimento', tipo: 'text', sensivel: false },
+    'mother_name':      { label: 'Nome da Mãe', tipo: 'text', sensivel: false },
+    'father_name':      { label: 'Nome do Pai', tipo: 'text', sensivel: false },
+    'marital_status':   { label: 'Estado Civil', tipo: 'text', sensivel: false },
+    'consulado':        { label: 'Consulado', tipo: 'text', sensivel: true }
+};
+
+// Campos que geram alerta de complexidade
+function detectarComplexidade(campo) {
+    if (campo === 'consulado') return 'consulado';
+    if (campo === 'full_name') return 'nome';
+    if (campo === 'dob') return 'dob';
+    if (campo === 'passport_number') return 'passaporte';
+    return null;
+}
+
+// Mensagens de alerta
+function mensagemAlerta(complexidade) {
+    const alertas = {
+        'consulado': '⚠️ Mudança de consulado pode exigir reagendamento completo. Avaliar antes de aprovar.',
+        'nome': '⚠️ Mudança de nome pode exigir retificação junto ao consulado. Avaliar com cuidado.',
+        'dob': '⚠️ Mudança de data de nascimento é sensível. Confirmar com o cliente antes.',
+        'passaporte': '⚠️ Mudança de passaporte pode exigir atualização no sistema do consulado (AIS).'
+    };
+    return alertas[complexidade] || null;
+}
+
+// Notificação pra equipe
+async function notificarSolicitacaoAlteracao(cliente, campo, valorAntigo, valorNovo, motivo, complexidade) {
+    const dataHora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const labelCampo = CAMPOS_EDITAVEIS[campo]?.label || campo;
+    const alerta = mensagemAlerta(complexidade);
+
+    // Email
+    try {
+        const emailEquipe = process.env.EMAIL_DESTINO_EQUIPE || 'contato@getvisa.com.br';
+        await resend.emails.send({
+            from: 'GetVisa <contato@getvisa.com.br>',
+            to: emailEquipe,
+            subject: `✏️ Solicitação de alteração - ${cliente.nome} (${labelCampo})`,
+            html: `
+                <h2 style="color:#003366;">✏️ Cliente solicitou alteração de campo</h2>
+                ${alerta ? `<p style="background:#fff3cd;padding:12px;border-left:4px solid #ffc107;">${alerta}</p>` : ''}
+                <h3>Dados:</h3>
+                <ul>
+                    <li><strong>Cliente:</strong> ${cliente.nome}</li>
+                    <li><strong>Telefone:</strong> ${cliente.telefone}</li>
+                    <li><strong>Campo:</strong> ${labelCampo}</li>
+                    <li><strong>De:</strong> ${valorAntigo || '(vazio)'}</li>
+                    <li><strong>Para:</strong> ${valorNovo}</li>
+                    <li><strong>Motivo:</strong> ${motivo || '(não informado)'}</li>
+                    <li><strong>Data:</strong> ${dataHora}</li>
+                </ul>
+                <p>🗂️ <a href="https://app.getvisa.com.br/painel-solicitacoes?api_key=admin123">Analisar no painel</a></p>
+            `
+        });
+    } catch (e) { console.error('Erro email solicitação:', e); }
+
+    // WhatsApp equipe
+    try {
+        const zapEquipe = process.env.WHATSAPP_EQUIPE || process.env.ADMIN_PHONE || '5521974601812';
+        const msg = `✏️ *SOLICITAÇÃO DE ALTERAÇÃO*\n\n` +
+            `👤 ${cliente.nome}\n` +
+            `📱 ${cliente.telefone}\n\n` +
+            `*Campo:* ${labelCampo}\n` +
+            `*De:* ${valorAntigo || '(vazio)'}\n` +
+            `*Para:* ${valorNovo}\n` +
+            `*Motivo:* ${motivo || '(não informado)'}\n\n` +
+            `${alerta || ''}\n\n` +
+            `Analisar: https://app.getvisa.com.br/painel-solicitacoes?api_key=admin123`;
+        await enviarWhatsApp(zapEquipe, msg);
+    } catch (e) { console.error('Erro WhatsApp solicitação:', e); }
+}
+
+// Endpoint 1 — Cliente solicita alteração
+app.post('/api/portal/solicitar-alteracao-campo', async (req, res) => {
+    try {
+        const authHeader = req.headers['authorization'] || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        if (!token) return res.status(401).json({ success: false, message: 'Token não fornecido' });
+
+        const { data: acesso } = await supabase
+            .from('portal_acessos')
+            .select('id, id_cliente, telefone, expira_em, ativo')
+            .eq('token', token)
+            .eq('ativo', true)
+            .maybeSingle();
+
+        if (!acesso) return res.status(401).json({ success: false, message: 'Sessão inválida' });
+        if (new Date(acesso.expira_em) < new Date()) {
+            await supabase.from('portal_acessos').update({ ativo: false }).eq('id', acesso.id);
+            return res.status(401).json({ success: false, message: 'Sessão expirada' });
+        }
+
+        const { campo, valor_novo, motivo } = req.body || {};
+        if (!campo || !valor_novo) {
+            return res.status(400).json({ success: false, message: 'Campo e valor novo são obrigatórios' });
+        }
+        if (!CAMPOS_EDITAVEIS[campo]) {
+            return res.status(400).json({ success: false, message: 'Campo não editável' });
+        }
+
+        // Verifica se já tem solicitação pendente pro mesmo campo
+        const { data: pendenteExistente } = await supabase
+            .from('solicitacoes_alteracao_campo')
+            .select('id')
+            .eq('id_cliente', acesso.id_cliente)
+            .eq('campo', campo)
+            .eq('status', 'pendente')
+            .maybeSingle();
+
+        if (pendenteExistente) {
+            return res.status(400).json({
+                success: false,
+                message: 'Você já tem uma solicitação pendente para este campo. Aguarde a análise.'
+            });
+        }
+
+        // Pega o valor antigo
+        const { data: form } = await supabase
+            .from('form_ds160')
+            .select('dados_formulario')
+            .eq('id_cliente', acesso.id_cliente)
+            .maybeSingle();
+
+        const valorAntigo = form?.dados_formulario?.[campo] || null;
+        const complexidade = detectarComplexidade(campo);
+
+        // Salva solicitação
+        const { data: solicitacao, error } = await supabase
+            .from('solicitacoes_alteracao_campo')
+            .insert({
+                id_cliente: acesso.id_cliente,
+                campo,
+                valor_antigo: String(valorAntigo || ''),
+                valor_novo: String(valor_novo),
+                motivo: motivo || '',
+                alerta_complexidade: complexidade
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Erro ao salvar solicitação:', error);
+            return res.status(500).json({ success: false, message: 'Erro ao salvar' });
+        }
+
+        // Busca dados do cliente pra notificação
+        const { data: cliente } = await supabase
+            .from('clientes')
+            .select('id, nome, telefone, email')
+            .eq('id', acesso.id_cliente)
+            .maybeSingle();
+
+        // Notifica equipe (sem bloquear resposta)
+        notificarSolicitacaoAlteracao(cliente, campo, valorAntigo, valor_novo, motivo, complexidade).catch(console.error);
+
+        return res.json({
+            success: true,
+            message: 'Solicitação enviada! Nossa equipe vai analisar em breve.',
+            solicitacao: {
+                id: solicitacao.id,
+                campo,
+                valor_antigo: valorAntigo,
+                valor_novo,
+                status: 'pendente'
+            }
+        });
+
+    } catch (error) {
+        console.error('Erro em /solicitar-alteracao-campo:', error);
+        return res.status(500).json({ success: false, message: 'Erro interno' });
+    }
+});
+
+// Endpoint 2 — Cliente vê suas solicitações
+app.get('/api/portal/minhas-solicitacoes', async (req, res) => {
+    try {
+        const authHeader = req.headers['authorization'] || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        if (!token) return res.status(401).json({ success: false, message: 'Token não fornecido' });
+
+        const { data: acesso } = await supabase
+            .from('portal_acessos')
+            .select('id_cliente, expira_em, ativo')
+            .eq('token', token)
+            .eq('ativo', true)
+            .maybeSingle();
+
+        if (!acesso) return res.status(401).json({ success: false, message: 'Sessão inválida' });
+
+        const { data: solicitacoes } = await supabase
+            .from('solicitacoes_alteracao_campo')
+            .select('*')
+            .eq('id_cliente', acesso.id_cliente)
+            .order('created_at', { ascending: false });
+
+        return res.json({
+            success: true,
+            solicitacoes: (solicitacoes || []).map(s => ({
+                id: s.id,
+                campo: s.campo,
+                campo_label: CAMPOS_EDITAVEIS[s.campo]?.label || s.campo,
+                valor_antigo: s.valor_antigo,
+                valor_novo: s.valor_novo,
+                motivo: s.motivo,
+                status: s.status,
+                observacao_especialista: s.observacao_especialista,
+                created_at: s.created_at,
+                tratado_em: s.tratado_em
+            }))
+        });
+    } catch (error) {
+        console.error('Erro em /minhas-solicitacoes:', error);
+        return res.status(500).json({ success: false, message: 'Erro interno' });
+    }
+});
+
+
+// ============================================================
+// FASE 3 — ENDPOINTS ADMIN (solicitações de alteração)
+// ============================================================
+
+// Lista todas as solicitações (com dados do cliente)
+app.get('/api/admin/solicitacoes-campo', auth.verificarAdmin, async (req, res) => {
+    try {
+        const statusFiltro = req.query.status || 'pendente';
+
+        let query = supabase
+            .from('solicitacoes_alteracao_campo')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (statusFiltro !== 'todas') {
+            query = query.eq('status', statusFiltro);
+        }
+
+        const { data, error } = await query;
+        if (error) return res.status(500).json({ success: false, error: error.message });
+
+        // Enriquece com dados do cliente
+        const enriquecidos = await Promise.all(
+            (data || []).map(async (s) => {
+                const { data: cliente } = await supabase
+                    .from('clientes')
+                    .select('id, nome, telefone, email')
+                    .eq('id', s.id_cliente)
+                    .maybeSingle();
+
+                return {
+                    id: s.id,
+                    campo: s.campo,
+                    campo_label: CAMPOS_EDITAVEIS[s.campo]?.label || s.campo,
+                    valor_antigo: s.valor_antigo,
+                    valor_novo: s.valor_novo,
+                    motivo: s.motivo,
+                    status: s.status,
+                    observacao_especialista: s.observacao_especialista,
+                    alerta_complexidade: s.alerta_complexidade,
+                    alerta_mensagem: mensagemAlerta(s.alerta_complexidade),
+                    created_at: s.created_at,
+                    tratado_em: s.tratado_em,
+                    cliente: cliente || null
+                };
+            })
+        );
+
+        res.json({ success: true, solicitacoes: enriquecidos, total: enriquecidos.length });
+    } catch (error) {
+        console.error('Erro em /admin/solicitacoes-campo:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Contador pro badge do dashboard
+app.get('/api/admin/solicitacoes-campo/count', auth.verificarAdmin, async (req, res) => {
+    try {
+        const { count, error } = await supabase
+            .from('solicitacoes_alteracao_campo')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'pendente');
+
+        if (error) return res.status(500).json({ success: false, error: error.message });
+        res.json({ success: true, count: count || 0 });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Aprovar solicitação → aplica mudança no form
+app.post('/api/admin/solicitacoes-campo/:id/aprovar', auth.verificarAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { observacao } = req.body || {};
+
+        // 1. Busca a solicitação
+        const { data: sol } = await supabase
+            .from('solicitacoes_alteracao_campo')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (!sol) return res.status(404).json({ success: false, message: 'Solicitação não encontrada' });
+        if (sol.status !== 'pendente') {
+            return res.status(400).json({ success: false, message: 'Solicitação já foi tratada' });
+        }
+
+        // 2. Busca o form atual
+        const { data: formAtual } = await supabase
+            .from('form_ds160')
+            .select('id, dados_formulario')
+            .eq('id_cliente', sol.id_cliente)
+            .maybeSingle();
+
+        if (!formAtual) return res.status(404).json({ success: false, message: 'Formulário não encontrado' });
+
+        // 3. Aplica a alteração no JSONB
+        const dadosNovos = { ...(formAtual.dados_formulario || {}) };
+        const valorAntigoReal = dadosNovos[sol.campo];
+        dadosNovos[sol.campo] = sol.valor_novo;
+
+        // 4. Adiciona no histórico interno (apêndice)
+        if (!dadosNovos.__historico_alteracoes) dadosNovos.__historico_alteracoes = [];
+        dadosNovos.__historico_alteracoes.push({
+            campo: sol.campo,
+            campo_label: CAMPOS_EDITAVEIS[sol.campo]?.label || sol.campo,
+            de: valorAntigoReal || '',
+            para: sol.valor_novo,
+            motivo: sol.motivo || '',
+            aprovado_em: new Date().toISOString(),
+            observacao_especialista: observacao || ''
+        });
+
+        // 5. Atualiza form_ds160
+        const { error: updateError } = await supabase
+            .from('form_ds160')
+            .update({
+                dados_formulario: dadosNovos,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', formAtual.id);
+
+        if (updateError) {
+            console.error('Erro ao aplicar alteração:', updateError);
+            return res.status(500).json({ success: false, message: 'Erro ao aplicar alteração' });
+        }
+
+        // 6. Atualiza status da solicitação
+        await supabase
+            .from('solicitacoes_alteracao_campo')
+            .update({
+                status: 'aprovada',
+                observacao_especialista: observacao || '',
+                tratado_em: new Date().toISOString(),
+                tratado_por: 'admin',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id);
+
+        // 7. Notifica cliente (não bloqueia resposta)
+        try {
+            const { data: cliente } = await supabase
+                .from('clientes')
+                .select('nome, telefone, email')
+                .eq('id', sol.id_cliente)
+                .maybeSingle();
+
+            const nome = cliente?.nome?.split(' ')[0] || 'Cliente';
+            const labelCampo = CAMPOS_EDITAVEIS[sol.campo]?.label || sol.campo;
+
+            // WhatsApp cliente
+            try {
+                const msgWhats = `✅ *Alteração aprovada!*\n\nOlá ${nome}!\n\nSua solicitação para alterar *${labelCampo}* foi aprovada.\n\n📌 De: ${valorAntigoReal || '(vazio)'}\n📌 Para: ${sol.valor_novo}\n\n✏️ Seu formulário foi atualizado automaticamente.\n\n📊 Acompanhe: https://app.getvisa.com.br/meu-processo`;
+                await enviarWhatsApp(cliente.telefone, msgWhats);
+            } catch (e) { console.error('Erro WhatsApp cliente aprovação:', e); }
+
+            // Email cliente
+            try {
+                if (cliente?.email) {
+                    await resend.emails.send({
+                        from: 'GetVisa <contato@getvisa.com.br>',
+                        to: cliente.email,
+                        subject: `✅ Alteração aprovada - ${labelCampo}`,
+                        html: `<h2 style="color:#16a34a;">✅ Alteração aprovada!</h2>
+                               <p>Olá ${nome},</p>
+                               <p>Sua solicitação de alteração foi <strong>aprovada</strong>.</p>
+                               <table style="border-collapse:collapse;margin:15px 0;">
+                                   <tr><td style="padding:5px 15px 5px 0;"><strong>Campo:</strong></td><td>${labelCampo}</td></tr>
+                                   <tr><td style="padding:5px 15px 5px 0;"><strong>De:</strong></td><td>${valorAntigoReal || '(vazio)'}</td></tr>
+                                   <tr><td style="padding:5px 15px 5px 0;"><strong>Para:</strong></td><td>${sol.valor_novo}</td></tr>
+                                   ${observacao ? `<tr><td style="padding:5px 15px 5px 0;"><strong>Observação:</strong></td><td>${observacao}</td></tr>` : ''}
+                               </table>
+                               <p>Seu formulário foi atualizado automaticamente.</p>
+                               <p>📊 <a href="https://app.getvisa.com.br/meu-processo">Acessar portal</a></p>`
+                    });
+                }
+            } catch (e) { console.error('Erro email cliente aprovação:', e); }
+
+            // Notifica equipe
+            try {
+                const emailEquipe = process.env.EMAIL_DESTINO_EQUIPE || 'contato@getvisa.com.br';
+                await resend.emails.send({
+                    from: 'GetVisa <contato@getvisa.com.br>',
+                    to: emailEquipe,
+                    subject: `✅ Alteração aplicada - ${cliente?.nome || 'Cliente'} (${labelCampo})`,
+                    html: `<h3 style="color:#16a34a;">✅ Alteração aplicada com sucesso</h3>
+                           <ul>
+                               <li><strong>Cliente:</strong> ${cliente?.nome}</li>
+                               <li><strong>Campo:</strong> ${labelCampo}</li>
+                               <li><strong>De:</strong> ${valorAntigoReal || '(vazio)'}</li>
+                               <li><strong>Para:</strong> ${sol.valor_novo}</li>
+                               ${observacao ? `<li><strong>Observação:</strong> ${observacao}</li>` : ''}
+                           </ul>
+                           <p>Formulário DS-160 atualizado no sistema.</p>`
+                });
+            } catch (e) { console.error('Erro email equipe aprovação:', e); }
+        } catch (notifError) {
+            console.error('Erro geral notificação aprovação:', notifError);
+        }
+
+        console.log(`✅ Solicitação ${id} aprovada — campo ${sol.campo} atualizado`);
+        res.json({ success: true, message: 'Alteração aplicada e cliente notificado' });
+
+    } catch (error) {
+        console.error('Erro em /aprovar:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Rejeitar solicitação
+app.post('/api/admin/solicitacoes-campo/:id/rejeitar', auth.verificarAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { observacao } = req.body || {};
+
+        if (!observacao || !observacao.trim()) {
+            return res.status(400).json({ success: false, message: 'Motivo da rejeição é obrigatório' });
+        }
+
+        const { data: sol } = await supabase
+            .from('solicitacoes_alteracao_campo')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (!sol) return res.status(404).json({ success: false, message: 'Solicitação não encontrada' });
+        if (sol.status !== 'pendente') {
+            return res.status(400).json({ success: false, message: 'Solicitação já foi tratada' });
+        }
+
+        await supabase
+            .from('solicitacoes_alteracao_campo')
+            .update({
+                status: 'rejeitada',
+                observacao_especialista: observacao,
+                tratado_em: new Date().toISOString(),
+                tratado_por: 'admin',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id);
+
+        // Notifica cliente
+        try {
+            const { data: cliente } = await supabase
+                .from('clientes')
+                .select('nome, telefone')
+                .eq('id', sol.id_cliente)
+                .maybeSingle();
+
+            const nome = cliente?.nome?.split(' ')[0] || 'Cliente';
+            const labelCampo = CAMPOS_EDITAVEIS[sol.campo]?.label || sol.campo;
+
+            const msgWhats = `📋 *Sobre sua solicitação*\n\nOlá ${nome}!\n\nAnalisamos seu pedido de alteração em *${labelCampo}* e no momento não foi possível aprovar.\n\n📌 *Motivo:* ${observacao}\n\n💬 Se tiver dúvidas, fale com um especialista:\n👉 https://wa.me/5521974601812`;
+            await enviarWhatsApp(cliente?.telefone, msgWhats);
+        } catch (e) { console.error('Erro WhatsApp rejeição:', e); }
+
+        console.log(`❌ Solicitação ${id} rejeitada`);
+        res.json({ success: true, message: 'Solicitação rejeitada e cliente notificado' });
+
+    } catch (error) {
+        console.error('Erro em /rejeitar:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
 
 // ============================================================

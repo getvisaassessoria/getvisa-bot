@@ -256,6 +256,162 @@
             font-size: 14px;
             margin-bottom: 15px;
         }
+                /* Ações (botões de correção) */
+        .acoes-rapidas {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 15px 0;
+        }
+        .btn-acao {
+            flex: 1;
+            min-width: 200px;
+            padding: 14px 20px;
+            border-radius: 8px;
+            border: 2px solid #003366;
+            background: white;
+            color: #003366;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: 0.2s;
+            text-align: center;
+        }
+        .btn-acao:hover { background: #f0f4f8; }
+        .btn-acao.primario { background: #003366; color: white; }
+        .btn-acao.primario:hover { background: #004d99; }
+
+        /* Lista de solicitações */
+        .solicitacao-item {
+            background: #f8f9fa;
+            border-left: 4px solid #6c757d;
+            padding: 12px 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+        .solicitacao-item.pendente { border-left-color: #ffc107; background: #fffbeb; }
+        .solicitacao-item.aprovada { border-left-color: #28a745; background: #f0fdf4; }
+        .solicitacao-item.rejeitada { border-left-color: #dc3545; background: #fef2f2; }
+
+        .solicitacao-item .cabec {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .solicitacao-item .campo-nome {
+            font-weight: 700;
+            color: #003366;
+        }
+        .solicitacao-item .badge-status {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .badge-status.pendente { background: #ffc107; color: #856404; }
+        .badge-status.aprovada { background: #28a745; color: white; }
+        .badge-status.rejeitada { background: #dc3545; color: white; }
+        .solicitacao-item .valores { color: #555; margin: 4px 0; }
+        .solicitacao-item .valores s { color: #dc3545; }
+        .solicitacao-item .valores strong { color: #28a745; }
+        .solicitacao-item .obs { color: #666; font-style: italic; margin-top: 6px; font-size: 12px; }
+
+        /* Modal de correção */
+        .modal-full {
+            display: none;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center; justify-content: center;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .modal-full.ativo { display: flex; }
+        .modal-full .caixa {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .modal-full h3 { color: #003366; margin-bottom: 10px; }
+        .modal-full .desc { color: #666; font-size: 14px; margin-bottom: 20px; }
+        .modal-full .field { margin-bottom: 18px; }
+        .modal-full .field label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: #555;
+        }
+        .modal-full .field select,
+        .modal-full .field input,
+        .modal-full .field textarea {
+            width: 100%;
+            padding: 11px 14px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        .modal-full .field textarea { min-height: 80px; resize: vertical; }
+        .modal-full .field .atual {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #666;
+            margin-top: 6px;
+        }
+        .modal-full .aviso {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #856404;
+            margin-bottom: 18px;
+            display: none;
+        }
+        .modal-full .aviso.ativo { display: block; }
+        .modal-full .botoes {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        .modal-full .btn {
+            padding: 11px 22px;
+            border-radius: 6px;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .modal-full .btn-cancelar { background: #6c757d; color: white; }
+        .modal-full .btn-enviar { background: #003366; color: white; }
+        .modal-full .btn-enviar:hover { background: #004d99; }
+        .modal-full .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .msg-feedback {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            display: none;
+        }
+        .msg-feedback.ativo { display: block; }
+        .msg-feedback.sucesso { background: #d4edda; color: #155724; }
+        .msg-feedback.erro { background: #f8d7da; color: #721c24; }
+
 
         .footer {
             text-align: center;
@@ -309,12 +465,65 @@
                 <p>Carregando seu processo...</p>
             </div>
         </div>
+                <!-- NOVA SEÇÃO — Correção e histórico -->
+        <div id="secaoCorrecao" style="display: none;">
+            <div class="card">
+                <h3>✏️ Precisa corrigir alguma informação?</h3>
+                <p style="color:#666; font-size:14px; margin-bottom:15px;">
+                    Se você identificou algum dado errado no seu DS-160, pode solicitar a correção
+                    aqui mesmo. Nossa equipe vai analisar e aprovar rapidamente.
+                </p>
 
+                <div class="acoes-rapidas">
+                    <button class="btn-acao primario" onclick="abrirModalCorrecao()">
+                        ✏️ Corrigir 1 campo específico
+                    </button>
+                </div>
+            </div>
+
+            <div class="card" id="cardHistorico" style="display: none;">
+                <h3>📋 Suas solicitações</h3>
+                <div id="listaSolicitacoes"></div>
+            </div>
+        </div>
         <div class="footer">
             GetVisa Assessoria — Seu visto com segurança 🇺🇸
         </div>
     </div>
+        <!-- Modal de correção de campo -->
+    <div class="modal-full" id="modalCorrecao">
+        <div class="caixa">
+            <h3>✏️ Corrigir campo do DS-160</h3>
+            <p class="desc">Selecione o campo que você quer corrigir e informe o valor correto.</p>
 
+            <div class="msg-feedback" id="feedbackModal"></div>
+
+            <div class="field">
+                <label>Qual campo você quer corrigir? *</label>
+                <select id="selectCampo" onchange="aoSelecionarCampo()">
+                    <option value="">Selecione o campo...</option>
+                </select>
+                <div class="atual" id="valorAtual" style="display:none;"></div>
+            </div>
+
+            <div class="aviso" id="avisoComplexidade"></div>
+
+            <div class="field" id="fieldNovoValor" style="display: none;">
+                <label>Novo valor *</label>
+                <input type="text" id="inputNovoValor" placeholder="Digite o valor correto">
+            </div>
+
+            <div class="field" id="fieldMotivo" style="display: none;">
+                <label>Motivo da alteração *</label>
+                <textarea id="inputMotivo" placeholder="Ex: data correta é 1973, não 1972"></textarea>
+            </div>
+
+            <div class="botoes">
+                <button class="btn btn-cancelar" onclick="fecharModalCorrecao()">Cancelar</button>
+                <button class="btn btn-enviar" id="btnEnviarSolicitacao" onclick="enviarSolicitacao()">Enviar solicitação</button>
+            </div>
+        </div>
+    </div>
     <script>
         
 // ============================================================
@@ -531,6 +740,9 @@ function renderizarProcesso() {
     const container = document.getElementById('conteudoProcesso');
 
     let html = '';
+            // Salva dados do form pro modal de correção
+            dadosDoForm = d.formulario?.dados || null;
+
 
     // 1. STATUS DESTAQUE
     html += `
@@ -584,6 +796,15 @@ function renderizarProcesso() {
             </div>
         </div>
     `;
+
+                // Salva os dados do form para uso no modal
+            dadosDoForm = d.formulario?.dados || null;
+
+            // Mostra seção de correção (só se form foi enviado)
+            if (d.formulario?.enviado) {
+                document.getElementById('secaoCorrecao').style.display = 'block';
+                carregarSolicitacoes();
+            }
 
     // 4. AGENDAMENTOS (se houver)
     const temCasv = d.agendamentos?.casv?.data || d.agendamentos?.casv?.hora || d.agendamentos?.casv?.local;
@@ -653,8 +874,230 @@ function renderizarProcesso() {
         </div>
     `;
 
-    container.innerHTML = html;
+                container.innerHTML = html;
+
+            // FASE 3 — Mostra seção de correção (só se form foi enviado)
+            if (d.formulario && d.formulario.enviado) {
+                const secao = document.getElementById('secaoCorrecao');
+                if (secao) {
+                    secao.style.display = 'block';
+                    carregarSolicitacoes();
+                }
+            }
+        
 }
+
+        // ============================================================
+        // FASE 3 — CORREÇÃO PONTUAL DE CAMPO
+        // ============================================================
+
+        const CAMPOS_EDITAVEIS = {
+            'full_name':        { label: 'Nome Completo', tipo: 'text', sensivel: true },
+            'dob':              { label: 'Data de Nascimento', tipo: 'date', sensivel: true },
+            'cpf':              { label: 'CPF', tipo: 'text', sensivel: false },
+            'email':            { label: 'E-mail', tipo: 'email', sensivel: false },
+            'phone':            { label: 'Telefone Principal', tipo: 'tel', sensivel: false },
+            'passport_number':  { label: 'Número do Passaporte', tipo: 'text', sensivel: true },
+            'passport_issue':   { label: 'Emissão do Passaporte', tipo: 'date', sensivel: false },
+            'passport_expiry':  { label: 'Validade do Passaporte', tipo: 'date', sensivel: false },
+            'address':          { label: 'Endereço', tipo: 'text', sensivel: false },
+            'city':             { label: 'Cidade', tipo: 'text', sensivel: false },
+            'state':            { label: 'Estado/Província', tipo: 'text', sensivel: false },
+            'zip':              { label: 'CEP', tipo: 'text', sensivel: false },
+            'birth_city':       { label: 'Cidade de Nascimento', tipo: 'text', sensivel: false },
+            'birth_state':      { label: 'Estado de Nascimento', tipo: 'text', sensivel: false },
+            'mother_name':      { label: 'Nome da Mãe', tipo: 'text', sensivel: false },
+            'father_name':      { label: 'Nome do Pai', tipo: 'text', sensivel: false },
+            'marital_status':   { label: 'Estado Civil', tipo: 'text', sensivel: false },
+            'consulado':        { label: 'Consulado', tipo: 'text', sensivel: true }
+        };
+
+        const AVISOS = {
+            'consulado': '⚠️ Mudança de consulado pode exigir reagendamento completo. Nossa equipe vai avaliar com atenção.',
+            'full_name': '⚠️ Mudança de nome precisa ser confirmada com atenção pelo especialista.',
+            'dob': '⚠️ Data de nascimento é um dado sensível. Confirme se está correta antes de enviar.',
+            'passport_number': '⚠️ Mudança de passaporte pode exigir atualização junto ao consulado.'
+        };
+
+        let dadosDoForm = null;
+
+        function popularSelectCampos() {
+            const select = document.getElementById('selectCampo');
+            if (!select) return;
+            select.innerHTML = '<option value="">Selecione o campo...</option>';
+            for (const [key, info] of Object.entries(CAMPOS_EDITAVEIS)) {
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.textContent = info.label;
+                select.appendChild(opt);
+            }
+        }
+
+        function abrirModalCorrecao() {
+            const modal = document.getElementById('modalCorrecao');
+            modal.classList.add('ativo');
+
+            document.getElementById('selectCampo').value = '';
+            document.getElementById('inputNovoValor').value = '';
+            document.getElementById('inputMotivo').value = '';
+            document.getElementById('valorAtual').style.display = 'none';
+            document.getElementById('fieldNovoValor').style.display = 'none';
+            document.getElementById('fieldMotivo').style.display = 'none';
+            document.getElementById('avisoComplexidade').classList.remove('ativo');
+            document.getElementById('feedbackModal').classList.remove('ativo');
+
+            popularSelectCampos();
+        }
+
+        function fecharModalCorrecao() {
+            document.getElementById('modalCorrecao').classList.remove('ativo');
+        }
+
+        async function aoSelecionarCampo() {
+            const campo = document.getElementById('selectCampo').value;
+            if (!campo) {
+                document.getElementById('valorAtual').style.display = 'none';
+                document.getElementById('fieldNovoValor').style.display = 'none';
+                document.getElementById('fieldMotivo').style.display = 'none';
+                document.getElementById('avisoComplexidade').classList.remove('ativo');
+                return;
+            }
+
+            const valorAtual = dadosDoForm?.[campo] || '';
+            const info = CAMPOS_EDITAVEIS[campo];
+
+            const elAtual = document.getElementById('valorAtual');
+            elAtual.innerHTML = `<strong>Valor atual:</strong> ${valorAtual || '(vazio)'}`;
+            elAtual.style.display = 'block';
+
+            const aviso = document.getElementById('avisoComplexidade');
+            if (AVISOS[campo]) {
+                aviso.textContent = AVISOS[campo];
+                aviso.classList.add('ativo');
+            } else {
+                aviso.classList.remove('ativo');
+            }
+
+            const inputNovo = document.getElementById('inputNovoValor');
+            inputNovo.type = info.tipo === 'date' ? 'date' : 'text';
+            inputNovo.value = '';
+            document.getElementById('fieldNovoValor').style.display = 'block';
+            document.getElementById('fieldMotivo').style.display = 'block';
+        }
+
+        async function enviarSolicitacao() {
+            const campo = document.getElementById('selectCampo').value;
+            const valorNovo = document.getElementById('inputNovoValor').value.trim();
+            const motivo = document.getElementById('inputMotivo').value.trim();
+            const feedback = document.getElementById('feedbackModal');
+            const btn = document.getElementById('btnEnviarSolicitacao');
+
+            feedback.classList.remove('ativo', 'sucesso', 'erro');
+
+            if (!campo) {
+                feedback.textContent = 'Selecione um campo.';
+                feedback.classList.add('ativo', 'erro');
+                return;
+            }
+            if (!valorNovo) {
+                feedback.textContent = 'Informe o novo valor.';
+                feedback.classList.add('ativo', 'erro');
+                return;
+            }
+            if (!motivo) {
+                feedback.textContent = 'Informe o motivo da alteração.';
+                feedback.classList.add('ativo', 'erro');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+
+            try {
+                const token = localStorage.getItem(TOKEN_KEY);
+                const resp = await fetch('/api/portal/solicitar-alteracao-campo', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ campo, valor_novo: valorNovo, motivo })
+                });
+
+                const data = await resp.json();
+
+                if (data.success) {
+                    feedback.textContent = '✅ ' + data.message;
+                    feedback.classList.add('ativo', 'sucesso');
+                    setTimeout(() => {
+                        fecharModalCorrecao();
+                        carregarSolicitacoes();
+                    }, 1800);
+                } else {
+                    feedback.textContent = '❌ ' + (data.message || 'Erro ao enviar');
+                    feedback.classList.add('ativo', 'erro');
+                }
+            } catch (err) {
+                console.error(err);
+                feedback.textContent = '❌ Erro de conexão';
+                feedback.classList.add('ativo', 'erro');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Enviar solicitação';
+            }
+        }
+
+        async function carregarSolicitacoes() {
+            const token = localStorage.getItem(TOKEN_KEY);
+            if (!token) return;
+
+            try {
+                const resp = await fetch('/api/portal/minhas-solicitacoes', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await resp.json();
+
+                const card = document.getElementById('cardHistorico');
+                const lista = document.getElementById('listaSolicitacoes');
+
+                if (!data.success || !data.solicitacoes || data.solicitacoes.length === 0) {
+                    card.style.display = 'none';
+                    return;
+                }
+
+                card.style.display = 'block';
+                lista.innerHTML = data.solicitacoes.map(s => {
+                    const statusClass = s.status;
+                    const statusLabel = {
+                        'pendente': '⏳ Em análise',
+                        'aprovada': '✅ Aprovada',
+                        'rejeitada': '❌ Rejeitada'
+                    }[s.status] || s.status;
+
+                    const dataCriado = new Date(s.created_at).toLocaleDateString('pt-BR');
+
+                    return `
+                        <div class="solicitacao-item ${statusClass}">
+                            <div class="cabec">
+                                <span class="campo-nome">${escapar(s.campo_label)}</span>
+                                <span class="badge-status ${statusClass}">${statusLabel}</span>
+                            </div>
+                            <div class="valores">
+                                <s>${escapar(s.valor_antigo || '(vazio)')}</s>
+                                →
+                                <strong>${escapar(s.valor_novo)}</strong>
+                            </div>
+                            ${s.motivo ? `<div class="valores" style="font-size:12px;color:#888;">Motivo: ${escapar(s.motivo)}</div>` : ''}
+                            ${s.observacao_especialista ? `<div class="obs">💬 ${escapar(s.observacao_especialista)}</div>` : ''}
+                            <div class="valores" style="font-size:11px;color:#999;margin-top:6px;">Enviado em ${dataCriado}</div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                console.error('Erro ao carregar solicitações:', err);
+            }
+        }
+
 
 // ============================================================
 // INICIALIZAÇÃO
