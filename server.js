@@ -2592,7 +2592,7 @@ app.get('/api/admin/baixar-pdf/:telefone', auth.verificarAdmin, async (req, res)
         const { data: form } = await supabase
             .from('form_ds160')
             .select('status, created_at, updated_at, dados_formulario')
-            .eq('id_cliente', acesso.id_cliente)
+            .eq('id_cliente', cliente.id)
             .maybeSingle();
 
         if (!form) return res.status(404).send('Form não encontrado');
