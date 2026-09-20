@@ -2824,33 +2824,101 @@ async function calcularAcaoReenvio(idCliente) {
 
 // Campos editáveis (só os críticos)
 const CAMPOS_EDITAVEIS = {
-    'full_name':        { label: 'Nome Completo', tipo: 'text', sensivel: true },
-    'dob':              { label: 'Data de Nascimento', tipo: 'date', sensivel: true },
-    'cpf':              { label: 'CPF', tipo: 'text', sensivel: false },
-    'email':            { label: 'E-mail', tipo: 'email', sensivel: false },
-    'phone':            { label: 'Telefone Principal', tipo: 'tel', sensivel: false },
-    'passport_number':  { label: 'Número do Passaporte', tipo: 'text', sensivel: true },
-    'passport_issue':   { label: 'Emissão do Passaporte', tipo: 'date', sensivel: false },
-    'passport_expiry':  { label: 'Validade do Passaporte', tipo: 'date', sensivel: false },
-    'address':          { label: 'Endereço', tipo: 'text', sensivel: false },
-    'city':             { label: 'Cidade', tipo: 'text', sensivel: false },
-    'state':            { label: 'Estado/Província', tipo: 'text', sensivel: false },
-    'zip':              { label: 'CEP', tipo: 'text', sensivel: false },
-    'birth_city':       { label: 'Cidade de Nascimento', tipo: 'text', sensivel: false },
-    'birth_state':      { label: 'Estado de Nascimento', tipo: 'text', sensivel: false },
-    'mother_name':      { label: 'Nome da Mãe', tipo: 'text', sensivel: false },
-    'father_name':      { label: 'Nome do Pai', tipo: 'text', sensivel: false },
-    'marital_status':   { label: 'Estado Civil', tipo: 'text', sensivel: false },
-    'consulado':        { label: 'Consulado', tipo: 'text', sensivel: true }
+    // ─── CONSULADO ───
+    'consulado':        { label: 'Consulado', tipo: 'text', sensivel: true, categoria: '🏛️ Consulado' },
+    // ─── DADOS PESSOAIS ───
+    'full_name':        { label: 'Nome Completo', tipo: 'text', sensivel: true, categoria: '🧑 Dados Pessoais' },
+    'other_surnames':   { label: 'Outros Sobrenomes', tipo: 'text', sensivel: false, categoria: '🧑 Dados Pessoais' },
+    'dob':              { label: 'Data de Nascimento', tipo: 'date', sensivel: true, categoria: '🧑 Dados Pessoais' },
+    'cpf':              { label: 'CPF', tipo: 'text', sensivel: false, categoria: '🧑 Dados Pessoais' },
+    'email':            { label: 'E-mail', tipo: 'email', sensivel: false, categoria: '🧑 Dados Pessoais' },
+    'phone':            { label: 'Telefone Principal', tipo: 'tel', sensivel: false, categoria: '🧑 Dados Pessoais' },
+    'marital_status':   { label: 'Estado Civil', tipo: 'text', sensivel: false, categoria: '🧑 Dados Pessoais' },
+    'birth_city':       { label: 'Cidade de Nascimento', tipo: 'text', sensivel: false, categoria: '🧑 Dados Pessoais' },
+    'birth_state':      { label: 'Estado de Nascimento', tipo: 'text', sensivel: false, categoria: '🧑 Dados Pessoais' },
+    'birth_country':    { label: 'País de Nascimento', tipo: 'text', sensivel: false, categoria: '🧑 Dados Pessoais' },
+    'other_nat_country':{ label: 'Outra Nacionalidade', tipo: 'text', sensivel: false, categoria: '🧑 Dados Pessoais' },
+    'ssn':              { label: 'SSN (Seguro Social EUA)', tipo: 'text', sensivel: true, categoria: '🧑 Dados Pessoais' },
+    'tax_id':           { label: 'Tax ID (ITIN)', tipo: 'text', sensivel: true, categoria: '🧑 Dados Pessoais' },
+
+    // ─── ENDEREÇO E CONTATO ───
+    'address':          { label: 'Endereço Residencial', tipo: 'text', sensivel: false, categoria: '📍 Endereço' },
+    'city':             { label: 'Cidade', tipo: 'text', sensivel: false, categoria: '📍 Endereço' },
+    'state':            { label: 'Estado/Província', tipo: 'text', sensivel: false, categoria: '📍 Endereço' },
+    'zip':              { label: 'CEP', tipo: 'text', sensivel: false, categoria: '📍 Endereço' },
+    'country':          { label: 'País', tipo: 'text', sensivel: false, categoria: '📍 Endereço' },
+    'phone_secondary':  { label: 'Telefone Secundário', tipo: 'tel', sensivel: false, categoria: '📍 Endereço' },
+    'phone_work':       { label: 'Telefone do Trabalho', tipo: 'tel', sensivel: false, categoria: '📍 Endereço' },
+
+    // ─── PASSAPORTE ───
+    'passport_number':  { label: 'Número do Passaporte', tipo: 'text', sensivel: true, categoria: '🛂 Passaporte' },
+    'passport_issue':   { label: 'Data de Emissão', tipo: 'date', sensivel: false, categoria: '🛂 Passaporte' },
+    'passport_expiry':  { label: 'Data de Validade', tipo: 'date', sensivel: false, categoria: '🛂 Passaporte' },
+    'passport_city':    { label: 'Cidade de Emissão', tipo: 'text', sensivel: false, categoria: '🛂 Passaporte' },
+    'passport_state':   { label: 'Estado de Emissão', tipo: 'text', sensivel: false, categoria: '🛂 Passaporte' },
+    'passport_country': { label: 'País do Passaporte', tipo: 'text', sensivel: false, categoria: '🛂 Passaporte' },
+
+    // ─── TRABALHO ───
+    'radio-occupation': { label: 'Ocupação Principal', tipo: 'text', sensivel: false, categoria: '💼 Trabalho' },
+    'employer_name':    { label: 'Empregador/Instituição', tipo: 'text', sensivel: false, categoria: '💼 Trabalho' },
+    'employer_address': { label: 'Endereço do Empregador', tipo: 'text', sensivel: false, categoria: '💼 Trabalho' },
+    'employer_city':    { label: 'Cidade do Empregador', tipo: 'text', sensivel: false, categoria: '💼 Trabalho' },
+    'employer_state':   { label: 'Estado do Empregador', tipo: 'text', sensivel: false, categoria: '💼 Trabalho' },
+    'employer_zip':     { label: 'CEP do Empregador', tipo: 'text', sensivel: false, categoria: '💼 Trabalho' },
+    'employer_country': { label: 'País do Empregador', tipo: 'text', sensivel: false, categoria: '💼 Trabalho' },
+    'employer_phone':   { label: 'Telefone do Empregador', tipo: 'tel', sensivel: false, categoria: '💼 Trabalho' },
+    'employer_start':   { label: 'Data de Início no Emprego', tipo: 'date', sensivel: false, categoria: '💼 Trabalho' },
+    'employer_income':  { label: 'Renda Mensal (R$)', tipo: 'text', sensivel: false, categoria: '💼 Trabalho' },
+    'employer_duties':  { label: 'Descrição das Funções', tipo: 'text', sensivel: false, categoria: '💼 Trabalho' },
+
+    // ─── VIAGEM ───
+    'travel_purpose':   { label: 'Propósito da Viagem', tipo: 'text', sensivel: true, categoria: '✈️ Viagem' },
+    'arrival_date':     { label: 'Data de Chegada nos EUA', tipo: 'date', sensivel: false, categoria: '✈️ Viagem' },
+    'places_to_visit':  { label: 'Locais a Visitar', tipo: 'text', sensivel: false, categoria: '✈️ Viagem' },
+
+    // ─── CONTATO NOS EUA ───
+    'us_contact_name':         { label: 'Nome do Contato', tipo: 'text', sensivel: false, categoria: '🇺🇸 Contato EUA' },
+    'us_contact_org':          { label: 'Organização', tipo: 'text', sensivel: false, categoria: '🇺🇸 Contato EUA' },
+    'us_contact_relationship': { label: 'Relação com o Contato', tipo: 'text', sensivel: false, categoria: '🇺🇸 Contato EUA' },
+    'us_contact_address':      { label: 'Endereço nos EUA', tipo: 'text', sensivel: false, categoria: '🇺🇸 Contato EUA' },
+    'us_contact_phone':        { label: 'Telefone nos EUA', tipo: 'tel', sensivel: false, categoria: '🇺🇸 Contato EUA' },
+    'us_contact_email':        { label: 'Email nos EUA', tipo: 'email', sensivel: false, categoria: '🇺🇸 Contato EUA' },
+
+    // ─── FAMÍLIA ───
+    'father_name':       { label: 'Nome do Pai', tipo: 'text', sensivel: false, categoria: '👨‍👩‍👧 Família' },
+    'father_dob':        { label: 'Data de Nascimento do Pai', tipo: 'date', sensivel: false, categoria: '👨‍👩‍👧 Família' },
+    'mother_name':       { label: 'Nome da Mãe', tipo: 'text', sensivel: false, categoria: '👨‍👩‍👧 Família' },
+    'mother_dob':        { label: 'Data de Nascimento da Mãe', tipo: 'date', sensivel: false, categoria: '👨‍👩‍👧 Família' },
+    'spouse_name':       { label: 'Nome do Cônjuge', tipo: 'text', sensivel: false, categoria: '👨‍👩‍👧 Família' },
+    'spouse_dob':        { label: 'Data de Nascimento do Cônjuge', tipo: 'date', sensivel: false, categoria: '👨‍👩‍👧 Família' },
+    'spouse_nationality':{ label: 'Nacionalidade do Cônjuge', tipo: 'text', sensivel: false, categoria: '👨‍👩‍👧 Família' }
+
 };
 
 // Campos que geram alerta de complexidade
 function detectarComplexidade(campo) {
     if (campo === 'consulado') return 'consulado';
     if (campo === 'full_name') return 'nome';
+    if (campo === 'other_surnames') return 'nome';
     if (campo === 'dob') return 'dob';
     if (campo === 'passport_number') return 'passaporte';
+    if (campo === 'passport_expiry') return 'passaporte';
+    if (campo === 'ssn') return 'documento';
+    if (campo === 'tax_id') return 'documento';
+    if (campo === 'travel_purpose') return 'viagem';
     return null;
+}
+
+function mensagemAlerta(complexidade) {
+    const alertas = {
+        'consulado': '⚠️ Mudança de consulado pode exigir reagendamento completo. Avaliar antes de aprovar.',
+        'nome': '⚠️ Mudança de nome pode exigir retificação junto ao consulado. Avaliar com cuidado.',
+        'dob': '⚠️ Mudança de data de nascimento é sensível. Confirmar com o cliente antes.',
+        'passaporte': '⚠️ Mudança de passaporte pode exigir atualização no sistema do consulado (AIS).',
+        'documento': '⚠️ Alteração de documento fiscal/social. Confirmar dados com o cliente.',
+        'viagem': '⚠️ Mudança de propósito da viagem pode impactar o tipo de visto. Avaliar.'
+    };
+    return alertas[complexidade] || null;
 }
 
 // Mensagens de alerta
