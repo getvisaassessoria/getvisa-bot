@@ -4345,12 +4345,16 @@ app.get('/api/dashboard-data', async (req, res) => {
     try {
         const { data: clientes, error: clientesError } = await supabase.from('clientes').select('*').order('created_at', { ascending: false });
         if (clientesError) return res.status(500).json({ error: clientesError.message });
-        const { data: etapas, error: etapasError } = await supabase.from('etapas_processo').select('cliente_id, etapa_atual, data_atualizacao');
+                const { data: etapas, error: etapasError } = await supabase
+            .from('etapas_processo')
+            .select('cliente_id, cliente_telefone, etapa_atual, data_atualizacao, dados_casv, dados_entrevista');
         if (etapasError) return res.status(500).json({ error: etapasError.message });
 
         const etapasMap = {};
         if (etapas) etapas.forEach(e => {
-            etapasMap[e.cliente_id] = {
+            const chave = e.cliente_telefone || e.cliente_id;  // usa telefone como chave principal
+            if (!chave) return;
+            etapasMap[chave] = {
                 etapa_atual: e.etapa_atual,
                 data_atualizacao: e.data_atualizacao,
                 dados_casv: e.dados_casv || null,
@@ -4358,13 +4362,18 @@ app.get('/api/dashboard-data', async (req, res) => {
             };
         });
 
-        const clientesComEtapas = clientes.map(c => ({
-            ...c,
-            etapa_atual: etapasMap[c.telefone]?.etapa_atual || 'Não definida',
-            data_atualizacao: etapasMap[c.telefone]?.data_atualizacao || c.created_at,
-            dados_casv: etapasMap[c.telefone]?.dados_casv || null,
-            dados_entrevista: etapasMap[c.telefone]?.dados_entrevista || null
-        }));
+
+            const clientesComEtapas = clientes.map(c => {
+            const etapa = etapasMap[c.telefone];  // lookup por telefone
+            return {
+                ...c,
+                etapa_atual: etapa?.etapa_atual || 'Não definida',
+                data_atualizacao: etapa?.data_atualizacao || c.created_at,
+                dados_casv: etapa?.dados_casv || null,
+                dados_entrevista: etapa?.dados_entrevista || null
+            };
+        });
+
         const hoje = new Date().toISOString().split('T')[0];
         const novosHoje = clientes.filter(c => c.created_at?.startsWith(hoje)).length;
         const onboardingCompletos = clientes.filter(c => c.onboarding_completo === true).length;
