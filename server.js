@@ -4347,9 +4347,24 @@ app.get('/api/dashboard-data', async (req, res) => {
         if (clientesError) return res.status(500).json({ error: clientesError.message });
         const { data: etapas, error: etapasError } = await supabase.from('etapas_processo').select('cliente_id, etapa_atual, data_atualizacao');
         if (etapasError) return res.status(500).json({ error: etapasError.message });
+
         const etapasMap = {};
-        if (etapas) etapas.forEach(e => { etapasMap[e.cliente_id] = { etapa_atual: e.etapa_atual, data_atualizacao: e.data_atualizacao }; });
-        const clientesComEtapas = clientes.map(c => ({ ...c, etapa_atual: etapasMap[c.telefone]?.etapa_atual || 'Não definida', data_atualizacao: etapasMap[c.telefone]?.data_atualizacao || c.created_at }));
+        if (etapas) etapas.forEach(e => {
+            etapasMap[e.cliente_id] = {
+                etapa_atual: e.etapa_atual,
+                data_atualizacao: e.data_atualizacao,
+                dados_casv: e.dados_casv || null,
+                dados_entrevista: e.dados_entrevista || null
+            };
+        });
+
+        const clientesComEtapas = clientes.map(c => ({
+            ...c,
+            etapa_atual: etapasMap[c.telefone]?.etapa_atual || 'Não definida',
+            data_atualizacao: etapasMap[c.telefone]?.data_atualizacao || c.created_at,
+            dados_casv: etapasMap[c.telefone]?.dados_casv || null,
+            dados_entrevista: etapasMap[c.telefone]?.dados_entrevista || null
+        }));
         const hoje = new Date().toISOString().split('T')[0];
         const novosHoje = clientes.filter(c => c.created_at?.startsWith(hoje)).length;
         const onboardingCompletos = clientes.filter(c => c.onboarding_completo === true).length;

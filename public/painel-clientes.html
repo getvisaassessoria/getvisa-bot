@@ -293,9 +293,30 @@ function renderClientes(clientes) {
             'passaporte_retornado': { class: 'visto_aprovado', label: '📦 Passaporte Retornado' }
         };
         
-        const statusInfo = statusMap[cliente.status] || { class: '', label: cliente.status || 'Novo' };
-        const data = cliente.created_at || cliente.data_contato || cliente.criado_em || '';
-        const dataFormatada = data ? new Date(data).toLocaleDateString('pt-BR') : '-';
+                const statusInfo = statusMap[cliente.status] || { class: '', label: cliente.status || 'Novo' };
+
+        // Data exibida: prioriza data do agendamento (CASV/Entrevista) se existir
+        let dataParaExibir = '';
+        let labelData = 'Cadastro';
+
+        // Prioridade 1: CASV agendado → mostra data do CASV
+        if ((cliente.etapa_atual === 'agendado_casv' || cliente.status === 'agendado_casv') && cliente.dados_casv?.data) {
+            dataParaExibir = cliente.dados_casv.data;  // "15 de Outubro de 2026"
+            labelData = 'CASV';
+        }
+        // Prioridade 2: Entrevista agendada → mostra data da entrevista
+        else if ((cliente.etapa_atual === 'agendado_entrevista' || cliente.status === 'agendado_entrevista') && cliente.dados_entrevista?.data) {
+            dataParaExibir = cliente.dados_entrevista.data;
+            labelData = 'Entrevista';
+        }
+        // Fallback: data de cadastro/contato
+        else {
+            const dataBase = cliente.created_at || cliente.data_contato || cliente.criado_em;
+            dataParaExibir = dataBase ? new Date(dataBase).toLocaleDateString('pt-BR') : '-';
+            labelData = 'Cadastro';
+        }
+
+        const dataFormatada = dataParaExibir;
 
         tr.innerHTML = `
             <td><strong>${cliente.nome || 'Cliente'}</strong></td>
@@ -303,7 +324,7 @@ function renderClientes(clientes) {
             <td>${cliente.email || '-'}</td>
             <td>${cliente.consulado || '-'}</td>
             <td><span class="status-badge ${statusInfo.class}">${statusInfo.label}</span></td>
-            <td>${dataFormatada}</td>
+            <td title="${labelData}">${dataFormatada}</td>
             <td>
                 <button class="btn-atualizar" onclick="abrirModal('${cliente.telefone}', '${cliente.nome}')">
                     🔄 Atualizar
