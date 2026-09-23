@@ -1062,6 +1062,60 @@ Digite o número da opção (1, 2 ou 3)`;
 async function processarClienteExistente(phone, message, cliente) {
     const primeiroNome = obterNomeExibicao(cliente.nome);
     const msg = message.trim().toLowerCase();
+
+    // 🆕 REGRA: cliente que já enviou DS-160 recebe apenas resposta acolhedora
+    // (as dúvidas principais já foram sanadas no processo de rascunho)
+    const jaEnviouDs160 = !['lead', 'formulario_solicitado'].includes(cliente.status);
+
+    if (jaEnviouDs160) {
+        // Busca fase atual em etapas_processo (fonte da verdade)
+        let etapaAtual = cliente.status || 'formulario_enviado';
+        try {
+            const { data: etapa } = await supabase
+                .from('etapas_processo')
+                .select('etapa_atual')
+                .eq('cliente_telefone', phone)
+                .maybeSingle();
+            if (etapa?.etapa_atual) etapaAtual = etapa.etapa_atual;
+        } catch (e) {
+            console.error('Erro ao buscar etapa em processarClienteExistente:', e);
+        }
+
+        const faseLabels = {
+            'formulario_enviado': '📋 Formulário recebido - em análise',
+            'formulario_recebido': '📋 Formulário recebido - em análise',
+            'em_analise': '🔍 Em análise pela equipe',
+            'analise_correcoes': '📝 Análise e Correções',
+            'processo_aberto': '📌 Processo Aberto',
+            'abertura_processo': '📌 Processo Aberto',
+            'boleto_emitido': '💰 Boleto Emitido',
+            'boleto_pago': '✅ Boleto Pago',
+            'agendado_casv': '📅 CASV Agendado',
+            'agendamento_realizado': '📅 Agendamento Realizado',
+            'agendado_entrevista': '🎤 Entrevista Agendada',
+            'treinamento_agendado': '🎯 Treinamento Agendado',
+            'treinamento_realizado': '✅ Treinamento Realizado',
+            'entrevista_realizada': '🎤 Entrevista Realizada - aguardando decisão',
+            'visto_aprovado': '🎉 Visto Aprovado',
+            'visto_recusado': '😔 Visto Recusado',
+            'passaporte_retornado': '📦 Passaporte Disponível para Retirada'
+        };
+        const faseLabel = faseLabels[etapaAtual] || '📋 Em andamento';
+
+        await enviarWhatsApp(phone,
+            `Olá ${primeiroNome}! 😊\n\n` +
+            `📊 *Seu processo está em:* ${faseLabel}\n\n` +
+            `Se tiver alguma dúvida, envie sua mensagem e responderemos brevemente. 💬\n\n` +
+            `Se preferir falar direto com um especialista:\n` +
+            `👉 [Fale com nosso especialista](https://wa.me/5521974601812)\n\n` +
+            `Obrigado! 🙌`
+        );
+        return;
+    }
+
+    // ============================================================
+    // FLUXO ANTES DO ENVIO DO DS-160 (mantém menus originais)
+    // ============================================================
     if (msg === 'menu' || msg === '0') {
         const menu = `📊 *Olá ${primeiroNome}!*\n\nSeu processo está em andamento.\n\nO que você gostaria de fazer?\n\n1️⃣ - Ver status do seu processo\n2️⃣ - Falar com um especialista\n\n0️⃣ - Voltar ao menu principal\n\nDigite o número da opção (1-2)`;
         await enviarWhatsApp(phone, menu);
