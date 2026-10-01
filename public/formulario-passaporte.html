@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solicitação de Passaporte — GetVisa</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#f5f7fa;font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+  .ds160-wrapper{max-width:1000px;margin:40px auto;background:#fff;border-radius:28px;box-shadow:0 25px 40px -12px rgba(0,0,0,0.15);padding:30px 35px}
+  .ds160-header{text-align:center;margin-bottom:40px}
+  .ds160-header h1{font-size:32px;font-weight:800;background:linear-gradient(135deg,#1e3c72,#2a5298);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:8px}
+  .ds160-header p{font-size:16px;color:#4a5568}
+  .required-star{color:#dc2626;font-weight:bold}
+  .ds160-form fieldset{border:1px solid #e2e8f0;border-radius:24px;padding:24px 28px;margin-bottom:32px;background:#fff}
+  .ds160-form legend{font-weight:700;font-size:1.2rem;color:#1e293b;background:#fff;padding:0 16px;border-radius:40px;border:1px solid #e2e8f0}
+  .ds160-form h3{margin:20px 0 15px;color:#1e293b;font-size:1.1rem;border-left:5px solid #2563eb;padding-left:14px}
+  .ds160-form .field{margin-bottom:24px;clear:both;display:block;width:100%}
+  .ds160-form .field-label{display:block;font-weight:600;font-size:0.95rem;color:#1e293b;margin-bottom:8px}
+  .ds160-form input[type="text"],.ds160-form input[type="email"],.ds160-form input[type="tel"],.ds160-form input[type="date"],.ds160-form select,.ds160-form textarea{width:100%;padding:12px 16px;font-size:1rem;border:1.5px solid #cbd5e1;border-radius:20px;background:#fff;transition:all .2s}
+  .ds160-form input:focus,.ds160-form select:focus,.ds160-form textarea:focus{border-color:#2563eb;outline:none;box-shadow:0 0 0 4px rgba(37,99,235,0.1)}
+  .ds160-form .radio-group-horizontal{display:flex;flex-wrap:wrap;gap:24px;align-items:center;margin-top:6px}
+  .ds160-form .conditional,.ds160-form .conditional-militar{background:#f8fafc;border-left:4px solid #2563eb;border-radius:20px;padding:20px 24px;margin-top:20px;display:none;width:100%;clear:both}
+  .ds160-form .conditional.active,.ds160-form .conditional-militar.active{display:block}
+  .ds160-form .subfield{margin-bottom:18px}
+  .ds160-form .subfield label{display:block;font-weight:500;margin-bottom:6px;color:#334155}
+  .ds160-form .btn-submit{background:linear-gradient(95deg,#2563eb,#1d4ed8);color:#fff;padding:14px 38px;font-size:1rem;font-weight:700;border:none;border-radius:60px;cursor:pointer;transition:transform .1s,box-shadow .2s;box-shadow:0 4px 12px rgba(37,99,235,0.3)}
+  .ds160-form .btn-submit:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(37,99,235,0.4)}
+  .ds160-form .btn-submit:disabled{opacity:.6;cursor:not-allowed}
+  .ds160-actions{text-align:center;margin-top:20px}
+  .modo-selector{background:#f0f9ff;border:2px solid #0ea5e9;border-radius:20px;padding:24px;margin-bottom:30px;text-align:center}
+  .modo-selector h2{margin:0 0 16px;color:#0c4a6e;font-size:1.2rem}
+  .modo-botoes{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+  .modo-botao{background:#fff;border:2px solid #0ea5e9;color:#0c4a6e;padding:14px 28px;border-radius:14px;font-weight:700;cursor:pointer;font-size:1rem;transition:all .2s}
+  .modo-botao:hover{background:#0ea5e9;color:#fff}
+  .banner-familiar{background:#fef3c7;border-left:4px solid #f59e0b;border-radius:14px;padding:14px 18px;margin-bottom:20px;display:none}
+  .banner-familiar.ativo{display:block}
+  .tela{display:none}
+  .tela.ativa{display:block}
+  .tela-sucesso{text-align:center;padding:50px 20px}
+  .tela-sucesso h2{color:#16a34a;font-size:1.8rem;margin-bottom:12px}
+  .tela-sucesso p{color:#475569;margin-bottom:24px}
+  .tela-sucesso .botoes{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:24px}
+  .btn-primario{background:#2563eb;color:#fff;border:none;padding:14px 28px;border-radius:60px;font-weight:700;cursor:pointer;font-size:1rem}
+  .btn-secundario{background:#fff;color:#2563eb;border:2px solid #2563eb;padding:12px 28px;border-radius:60px;font-weight:700;cursor:pointer;font-size:1rem}
+  .alerta-erro{background:#fee2e2;border-left:4px solid #dc2626;border-radius:12px;padding:14px 18px;margin:16px 0;color:#991b1b;display:none}
+  .alerta-erro.ativo{display:block}
+  @media (max-width:768px){.ds160-wrapper{padding:20px;margin:20px}.ds160-form fieldset{padding:18px}.ds160-form .radio-group-horizontal{flex-direction:column;align-items:flex-start;gap:12px}.ds160-form .btn-submit{width:100%}}
+</style>
+</head>
+<body>
+
+<div class="ds160-wrapper">
+
+  <!-- TELA 1: SELETOR DE MODO -->
+  <div id="tela-modo" class="tela ativa">
+    <div class="ds160-header">
+      <h1>Solicitação de Passaporte</h1>
+      <p>Antes de começar, escolha o tipo de preenchimento.</p>
+    </div>
+    <div class="modo-selector">
+      <h2>Este formulário é para uma pessoa ou para a família?</h2>
+      <div class="modo-botoes">
+        <button type="button" class="modo-botao" onclick="iniciarFormulario('unico')">
+          👤 Preenchimento único
+        </button>
+        <button type="button" class="modo-botao" onclick="iniciarFormulario('familiar')">
+          👨‍👩‍👧 Preenchimento familiar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TELA 2: FORMULÁRIO -->
+  <div id="tela-form" class="tela">
+    <div class="ds160-header">
+      <h1>Solicitação de Passaporte</h1>
+      <p>Preencha todos os dados com atenção. Um especialista revisará antes do envio à Polícia Federal.</p>
+    </div>
+
+    <div id="banner-familiar" class="banner-familiar">
+      <strong>👨‍👩‍👧 Modo familiar</strong> — você está preenchendo para um familiar.
+      O telefone de vinculação será gerado automaticamente.
+      <div id="info-titular" style="margin-top:8px;font-size:0.9rem;color:#92400e;"></div>
+    </div>
+
+    <div id="alerta-erro" class="alerta-erro"></div>
+
+    <form id="passaporte-form" class="ds160-form" onsubmit="enviarFormulario(event)">
+      <input type="hidden" name="modo" id="input-modo" value="unico">
+      <input type="hidden" name="titular_id" id="input-titular" value="">
+
+      <fieldset>
+        <legend>1. Dados Pessoais</legend>
+
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Nome completo</label>
+          <input type="text" name="full_name" required>
+        </div>
+
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Sexo</label>
+          <div class="radio-group-horizontal">
+            <label><input type="radio" name="sexo" value="Masculino" class="conditional-trigger" required> Masculino</label>
+            <label><input type="radio" name="sexo" value="Feminino" class="conditional-trigger"> Feminino</label>
+            <label><input type="radio" name="sexo" value="Não especificado" class="conditional-trigger"> Não especificado</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Data de nascimento</label>
+          <input type="date" name="data_nascimento" id="data_nascimento" required>
+        </div>
+
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Raça ou cor</label>
+          <select name="raca_cor" required>
+            <option value="">Selecione...</option>
+            <option value="Branca">Branca</option>
+            <option value="Preta">Preta</option>
+            <option value="Parda">Parda</option>
+            <option value="Amarela">Amarela</option>
+            <option value="Indígena">Indígena</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Estado civil</label>
+          <select name="estado_civil" required>
+            <option value="">Selecione...</option>
+            <option value="Solteiro(a)">Solteiro(a)</option>
+            <option value="Casado(a)">Casado(a)</option>
+            <option value="Divorciado(a)">Divorciado(a)</option>
+            <option value="Viúvo(a)">Viúvo(a)</option>
+            <option value="União Estável">União Estável</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Nacionalidade</label>
+          <input type="text" name="nacionalidade" value="Brasileira" required>
+        </div>
+
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Local de nascimento</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;color:#4a5568;margin-bottom:4px;">País</label>
+              <input type="text" name="pais_nascimento" value="Brasil" required>
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;color:#4a5568;margin-bottom:4px;">Estado/Província</label>
+              <input type="text" name="estado_nascimento" placeholder="Ex: BA" required>
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;color:#4a5568;margin-bottom:4px;">Cidade</label>
+              <input type="text" name="cidade_nascimento" placeholder="Ex: Salvador" required>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Já teve outro nome? (casamento, divórcio ou decisão judicial)</label>
+          <div class="radio-group-horizontal">
+            <label><input type="radio" name="teve_nome_anterior" value="Sim" class="conditional-trigger"> Sim</label>
+            <label><input type="radio" name="teve_nome_anterior" value="Não" checked class="conditional-trigger"> Não</label>
+          </div>
+        </div>
+
+        <div class="conditional" data-condition="teve_nome_anterior" data-value="Sim">
+          <div class="subfield">
+            <label><span class="required-star">*</span> Nome anterior completo</label>
+            <input type="text" name="nome_anterior">
+          </div>
+          <div class="subfield">
+            <label><span class="required-star">*</span> Motivo da alteração</label>
+            <select name="motivo_alteracao_nome">
+              <option value="">Selecione...</option>
+              <option value="Casamento">Casamento</option>
+              <option value="Divórcio">Divórcio</option>
+              <option value="Decisão Judicial">Decisão Judicial</option>
+              <option value="Outro">Outro</option>
+            </select>
+          </div>
+          <div class="subfield" style="background:#f0fdf4;padding:14px;border-radius:12px;border-left:4px solid #22c55e;">
+            <label>📜 Certidão (obrigatória se houve alteração de nome)</label>
+            <input type="text" name="certidao_dados" placeholder="Ex: Cartório 5º Ofício, Livro A-23, Folha 45, Termo 67890">
+            <small style="color:#16a34a;display:block;margin-top:6px;">Informe os dados da certidão que comprova a alteração.</small>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Indicadores especiais</label>
+          <div class="radio-group-horizontal">
+            <label><input type="radio" name="indicador_especial" value="Nenhum" checked> Nenhum</label>
+            <label><input type="radio" name="indicador_especial" value="Menor emancipado"> Menor emancipado</label>
+            <label><input type="radio" name="indicador_especial" value="Adoção internacional"> Adoção internacional</label>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>2. Filiação</legend>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Nome completo do pai</label>
+          <input type="text" name="nome_pai" required>
+        </div>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Nome completo da mãe</label>
+          <input type="text" name="nome_mae" required>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>3. Documentos</legend>
+
+        <h3>Documento de Identidade</h3>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Tipo de documento</label>
+          <select name="doc_tipo" required>
+            <option value="">Selecione...</option>
+            <option value="RG">RG</option>
+            <option value="CNH">CNH</option>
+            <option value="Carteira de Trabalho">Carteira de Trabalho</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Número do documento</label>
+          <input type="text" name="doc_numero" required>
+        </div>
+        <div class="field">
+          <label class="field-label">Data de emissão</label>
+          <input type="date" name="doc_data_emissao">
+        </div>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Órgão emissor</label>
+          <input type="text" name="doc_orgao_emissor" required>
+        </div>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> UF</label>
+          <select name="doc_uf" required>
+            <option value="">Selecione...</option>
+            <option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option>
+          </select>
+        </div>
+
+        <h3>CPF</h3>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> CPF</label>
+          <input type="text" name="cpf" class="cpf-mask" required>
+        </div>
+        <div class="field" style="background:#fefce8;padding:14px;border-radius:14px;">
+          <label class="field-label">CPF do responsável legal <span style="color:#856404;">(obrigatório se menor de 18 anos)</span></label>
+          <input type="text" name="cpf_responsavel" class="cpf-mask" placeholder="CPF do responsável">
+        </div>
+
+        <h3>🛂 Passaporte Anterior</h3>
+        <div class="field">
+          <label class="field-label">Possui passaporte anterior?</label>
+          <div class="radio-group-horizontal">
+            <label><input type="radio" name="possui_passaporte_anterior" value="Sim" class="conditional-trigger"> Sim</label>
+            <label><input type="radio" name="possui_passaporte_anterior" value="Não" checked class="conditional-trigger"> Não</label>
+          </div>
+        </div>
+
+        <div class="conditional" data-condition="possui_passaporte_anterior" data-value="Sim">
+          <div class="subfield">
+            <label><span class="required-star">*</span> Situação do passaporte anterior</label>
+            <select name="passaporte_situacao" id="passaporte_situacao">
+              <option value="">Selecione...</option>
+              <option value="Válido">Válido</option>
+              <option value="Vencido">Vencido</option>
+              <option value="Extraviado">Extraviado</option>
+              <option value="Roubado">Roubado</option>
+            </select>
+          </div>
+          <div class="subfield">
+            <label><span class="required-star">*</span> Número / Série do passaporte</label>
+            <input type="text" name="passaporte_anterior_numero" placeholder="Ex: AB123456">
+          </div>
+          <div class="subfield">
+            <label>Data de emissão</label>
+            <input type="date" name="passaporte_anterior_emissao">
+          </div>
+          <div class="subfield">
+            <label>Data de validade</label>
+            <input type="date" name="passaporte_anterior_validade">
+          </div>
+          <div id="bo-passaporte-group" style="display:none;background:#fff3cd;border-left:4px solid #f59e0b;border-radius:12px;padding:16px;margin-top:15px;">
+            <p style="font-weight:700;color:#92400e;margin:0 0 12px;">📋 Boletim de Ocorrência</p>
+            <div class="subfield">
+              <label>Nº do B.O.</label>
+              <input type="text" name="bo_numero" placeholder="Nº do B.O.">
+            </div>
+            <div class="subfield">
+              <label>Data do B.O.</label>
+              <input type="date" name="bo_data">
+            </div>
+            <div class="subfield">
+              <label>Delegacia / Órgão emissor do B.O.</label>
+              <input type="text" name="bo_delegacia" placeholder="Ex: 12ª DP - Niterói/RJ">
+            </div>
+          </div>
+        </div>
+
+        <div class="conditional-militar" data-condition="sexo" data-value="Masculino" style="display:none;">
+          <div style="border-top:2px dashed #e2e8f0;padding-top:20px;margin-top:20px;">
+            <h3>🎖️ Situação Militar</h3>
+            <div style="background:#e0f2fe;padding:12px;border-radius:12px;margin-bottom:15px;">
+              <p style="margin:0;color:#0369a1;font-weight:500;">Obrigatório para homens entre 19 e 45 anos.</p>
+            </div>
+            <div class="subfield">
+              <label><span class="required-star">*</span> Tipo de documento militar</label>
+              <select name="militar_tipo" id="militar_tipo">
+                <option value="">Selecione...</option>
+                <option value="Certificado de Alistamento Militar">Certificado de Alistamento Militar (CAM)</option>
+                <option value="Certificado de Dispensa">Certificado de Dispensa de Incorporação (CDI)</option>
+                <option value="Certificado de Reservista">Certificado de Reservista</option>
+              </select>
+            </div>
+            <div class="subfield">
+              <label><span class="required-star">*</span> Número do documento militar</label>
+              <input type="text" name="militar_numero" id="militar_numero">
+            </div>
+            <div class="subfield">
+              <label>Órgão emissor</label>
+              <input type="text" name="militar_orgao" placeholder="Ex: Junta de Serviço Militar de Niterói">
+            </div>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>4. Dados Complementares</legend>
+
+        <div class="field">
+          <label class="field-label">Profissão</label>
+          <input type="text" name="profissao" placeholder="Sua ocupação atual">
+        </div>
+
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> E-mail de contato</label>
+          <input type="email" name="email-1" placeholder="Onde receberá a confirmação e avisos" required>
+        </div>
+
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Telefone de contato (WhatsApp)</label>
+          <input type="tel" name="phone" class="phone-mask" required>
+          <small style="display:block;color:#64748b;margin-top:6px;">Este número irá no formulário oficial da PF.</small>
+        </div>
+
+        <h3>📍 Endereço Residencial Completo</h3>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> CEP</label>
+          <input type="text" name="cep" class="cep-mask" required>
+        </div>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Logradouro (Rua/Av.)</label>
+          <input type="text" name="endereco_rua" required>
+        </div>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Número</label>
+          <input type="text" name="endereco_numero" required>
+        </div>
+        <div class="field">
+          <label class="field-label">Complemento</label>
+          <input type="text" name="endereco_complemento" placeholder="Apto, bloco, casa...">
+        </div>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Bairro</label>
+          <input type="text" name="endereco_bairro" required>
+        </div>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> Cidade</label>
+          <input type="text" name="text-74" required>
+        </div>
+        <div class="field">
+          <label class="field-label"><span class="required-star">*</span> UF</label>
+          <select name="endereco_uf" required>
+            <option value="">Selecione...</option>
+            <option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option>
+          </select>
+        </div>
+      </fieldset>
+
+      <div class="ds160-actions">
+        <button type="submit" class="btn-submit" id="btn-enviar">Enviar Solicitação de Passaporte</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- TELA 3: SUCESSO -->
+  <div id="tela-sucesso" class="tela">
+    <div class="tela-sucesso">
+      <h2>✅ Solicitação enviada!</h2>
+      <p id="msg-sucesso">Recebemos os dados. Em breve entraremos em contato.</p>
+      <div class="botoes" id="botoes-sucesso"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// ESTADO GLOBAL
+// ============================================================
+let modoAtual = 'unico';
+let titularId = null;
+
+// ============================================================
+// BOOT
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+  const params = new URLSearchParams(window.location.search);
+  const modo = params.get('modo');
+  const titular = params.get('titular');
+
+  if (modo === 'familiar' && titular) {
+    modoAtual = 'familiar';
+    titularId = titular;
+
+    fetch(`/api/passaporte-titular/${titular}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          document.getElementById('info-titular').textContent =
+            `Titular: ${data.titular.nome} — Vinculação base: ${data.titular.telefone_vinculacao || data.titular.telefone}`;
+        }
+      })
+      .catch(() => {});
+
+    abrirFormulario();
+  }
+});
+
+// ============================================================
+// NAVEGAÇÃO
+// ============================================================
+function mostrarTela(id) {
+  document.querySelectorAll('.tela').forEach(t => t.classList.remove('ativa'));
+  document.getElementById(id).classList.add('ativa');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function iniciarFormulario(modo) {
+  modoAtual = modo;
+  titularId = null;
+  document.getElementById('banner-familiar').classList.remove('ativo');
+
+  if (modo === 'familiar') {
+    document.getElementById('banner-familiar').classList.add('ativo');
+    document.getElementById('info-titular').textContent =
+      'Você está preenchendo os dados do titular (responsável). Após enviar, poderá adicionar os familiares.';
+  }
+
+  abrirFormulario();
+}
+
+function abrirFormulario() {
+  document.getElementById('input-modo').value = modoAtual;
+  document.getElementById('input-titular').value = titularId || '';
+  mostrarTela('tela-form');
+  aplicarMascaras();
+  toggleAllConditionals();
+}
+
+// ============================================================
+// MÁSCARAS
+// ============================================================
+function mascaraCPF(i) {
+  let v = i.value.replace(/\D/g, '');
+  if (v.length <= 11) {
+    v = v.replace(/(\d{3})(\d)/, '$1.$2');
+    v = v.replace(/(\d{3})(\d)/, '$1.$2');
+    v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  }
+  i.value = v;
+}
+
+function mascaraTelefone(i) {
+  let v = i.value.replace(/\D/g, '');
+  if (v.length <= 10) {
+    v = v.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+  } else {
+    v = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  }
+  i.value = v;
+}
+
+function mascaraCEP(i) {
+  let v = i.value.replace(/\D/g, '');
+  if (v.length <= 8) {
+    v = v.replace(/(\d{5})(\d{3})/, '$1-$2');
+  }
+  i.value = v;
+}
+
+function aplicarMascaras() {
+  document.querySelectorAll('.cpf-mask').forEach(el => {
+    el.oninput = function() { mascaraCPF(this); };
+  });
+  document.querySelectorAll('.phone-mask').forEach(el => {
+    el.oninput = function() { mascaraTelefone(this); };
+  });
+  document.querySelectorAll('.cep-mask').forEach(el => {
+    el.oninput = function() { mascaraCEP(this); };
+  });
+}
+
+// ============================================================
+// IDADE + MILITAR
+// ============================================================
+function calcularIdade(dataNascimento) {
+  if (!dataNascimento) return null;
+  const hoje = new Date();
+  const nasc = new Date(dataNascimento);
+  let idade = hoje.getFullYear() - nasc.getFullYear();
+  const mes = hoje.getMonth() - nasc.getMonth();
+  if (mes < 0 || (mes === 0 && hoje.getDate() < nasc.getDate())) idade--;
+  return idade;
+}
+
+function deveMostrarMilitar() {
+  const sexo = document.querySelector('[name="sexo"]:checked');
+  const dataNasc = document.getElementById('data_nascimento');
+  if (!sexo || !dataNasc) return false;
+  if (sexo.value !== 'Masculino') return false;
+  const idade = calcularIdade(dataNasc.value);
+  if (idade === null) return false;
+  return (idade >= 19 && idade <= 45);
+}
+
+// ============================================================
+// CONDICIONAIS
+// ============================================================
+function toggleAllConditionals() {
+  document.querySelectorAll('.conditional').forEach(c => {
+    const condition = c.dataset.condition;
+    const value = c.dataset.value;
+    let shouldShow = false;
+
+    const radioTrigger = document.querySelector(`[name="${condition}"]:checked`);
+    if (radioTrigger) shouldShow = (radioTrigger.value === value);
+
+    const selectTrigger = document.querySelector(`select[name="${condition}"]`);
+    if (selectTrigger && !radioTrigger) shouldShow = (selectTrigger.value === value);
+
+    c.style.display = shouldShow ? 'block' : 'none';
+    c.classList.toggle('active', shouldShow);
+  });
+
+  const militarDiv = document.querySelector('.conditional-militar');
+  if (militarDiv) {
+    const show = deveMostrarMilitar();
+    militarDiv.style.display = show ? 'block' : 'none';
+    militarDiv.classList.toggle('active', show);
+
+    const tipoEl = document.getElementById('militar_tipo');
+    const numEl  = document.getElementById('militar_numero');
+    if (tipoEl) show ? tipoEl.setAttribute('required','') : tipoEl.removeAttribute('required');
+    if (numEl)  show ? numEl.setAttribute('required','')  : numEl.removeAttribute('required');
+  }
+
+  const situacao = document.getElementById('passaporte_situacao');
+  const boGroup  = document.getElementById('bo-passaporte-group');
+  if (situacao && boGroup) {
+    const v = situacao.value;
+    boGroup.style.display = (v === 'Extraviado' || v === 'Roubado') ? 'block' : 'none';
+  }
+}
+
+document.addEventListener('change', function(e) {
+  if (e.target.matches('.conditional-trigger, select, #data_nascimento')) {
+    toggleAllConditionals();
+  }
+});
+document.addEventListener('click', function(e) {
+  if (e.target.matches('.conditional-trigger')) toggleAllConditionals();
+});
+
+// ============================================================
+// ENVIO
+// ============================================================
+async function enviarFormulario(ev) {
+  ev.preventDefault();
+  const form = ev.target;
+  const btn  = document.getElementById('btn-enviar');
+  const alerta = document.getElementById('alerta-erro');
+  alerta.classList.remove('ativo');
+
+  const cpfEl = form.querySelector('[name="cpf"]');
+  const cpfLimpo = (cpfEl?.value || '').replace(/\D/g, '');
+  if (cpfLimpo.length !== 11) {
+    alerta.textContent = 'CPF inválido. Informe os 11 dígitos.';
+    alerta.classList.add('ativo');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+
+  const fd = new FormData(form);
+  const payload = {};
+  for (const [k, v] of fd.entries()) payload[k] = v;
+
+  if (payload.phone) {
+    payload.phone = payload.phone.replace(/\D/g, '');
+  }
+
+  payload.modo = modoAtual;
+  if (modoAtual === 'familiar' && titularId) payload.titular_id = titularId;
+
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  try {
+    const resp = await fetch('/api/submit-passaporte', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await resp.json();
+
+    if (!resp.ok || !data.ok) {
+      alerta.textContent = data.erro || 'Erro ao enviar. Tente novamente.';
+      alerta.classList.add('ativo');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      btn.disabled = false;
+      btn.textContent = 'Enviar Solicitação de Passaporte';
+      return;
+    }
+
+    if (modoAtual === 'familiar') {
+      if (!titularId) titularId = data.cliente_id;
+      renderSucessoFamiliar(data);
+    } else {
+      renderSucessoUnico(data);
+    }
+
+    mostrarTela('tela-sucesso');
+
+  } catch (err) {
+    console.error(err);
+    alerta.textContent = 'Erro de conexão. Verifique sua internet e tente novamente.';
+    alerta.classList.add('ativo');
+    btn.disabled = false;
+    btn.textContent = 'Enviar Solicitação de Passaporte';
+  }
+}
+
+// ============================================================
+// SUCESSO
+// ============================================================
+function renderSucessoUnico(data) {
+  document.getElementById('msg-sucesso').textContent =
+    `Solicitação registrada sob o protocolo ${String(data.id).slice(0,8)}. Em breve entraremos em contato.`;
+
+  document.getElementById('botoes-sucesso').innerHTML = `
+    <button class="btn-secundario" onclick="window.location.href='/meu-processo'">
+      Acessar meu processo
+    </button>
+    <button class="btn-primario" onclick="window.location.href='/'">
+      Voltar ao início
+    </button>
+  `;
+}
+
+function renderSucessoFamiliar(data) {
+  const ehTitular = !data.cliente_titular_id;
+  const nome = data.telefone_vinculacao;
+
+  document.getElementById('msg-sucesso').innerHTML = ehTitular
+    ? `Titular registrado (${nome}). Deseja adicionar um familiar agora?`
+    : `Familiar registrado (${nome}). Deseja adicionar mais alguém?`;
+
+  document.getElementById('botoes-sucesso').innerHTML = `
+    <button class="btn-primario" onclick="adicionarFamiliar('${data.cliente_id}')">
+      ➕ Adicionar familiar
+    </button>
+    <button class="btn-secundario" onclick="finalizarFamiliar()">
+      ✓ Finalizar
+    </button>
+  `;
+}
+
+// ============================================================
+// FLUXO FAMILIAR
+// ============================================================
+function adicionarFamiliar(titularUuid) {
+  document.getElementById('passaporte-form').reset();
+  titularId = titularUuid;
+  modoAtual = 'familiar';
+
+  document.getElementById('input-modo').value = 'familiar';
+  document.getElementById('input-titular').value = titularUuid;
+
+  document.getElementById('banner-familiar').classList.add('ativo');
+  document.getElementById('info-titular').textContent =
+    'Preencha os dados do próximo familiar. O telefone de vinculação será gerado automaticamente.';
+
+  setTimeout(() => {
+    toggleAllConditionals();
+    const btn = document.getElementById('btn-enviar');
+    btn.disabled = false;
+    btn.textContent = 'Enviar Solicitação de Passaporte';
+  }, 50);
+
+  mostrarTela('tela-form');
+}
+
+function finalizarFamiliar() {
+  document.getElementById('msg-sucesso').innerHTML =
+    '✅ Todos os formulários foram enviados. Em breve entraremos em contato.';
+  document.getElementById('botoes-sucesso').innerHTML = `
+    <button class="btn-secundario" onclick="window.location.href='/meu-processo'">
+      Acessar meu processo
+    </button>
+    <button class="btn-primario" onclick="window.location.href='/'">
+      Voltar ao início
+    </button>
+  `;
+}
+</script>
+
+</body>
+</html>

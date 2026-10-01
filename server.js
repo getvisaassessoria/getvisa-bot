@@ -229,6 +229,34 @@ function limparTelefone(telefone) {
     return limpo;
 }
 
+// ============================================================
+// Helper: próximo sufixo familiar disponível
+// Ex: base 21991828052 com -01 e -02 já usados → retorna "03"
+// ============================================================
+async function proximoSufixoFamiliar(telefoneBase) {
+    const base = String(telefoneBase).replace(/-\d+$/, '').replace(/\D/g, '');
+
+    const { data, error } = await supabase
+        .from('clientes')
+        .select('telefone_vinculacao')
+        .like('telefone_vinculacao', `${base}%`);
+
+    if (error) throw error;
+
+    let maior = 0;
+    for (const row of (data || [])) {
+        const tv = String(row.telefone_vinculacao || '');
+        const m = tv.match(/^(\d+)-(\d+)$/);
+        if (!m) continue;
+        if (m[1] !== base) continue;
+        const n = parseInt(m[2], 10);
+        if (!isNaN(n) && n > maior) maior = n;
+    }
+
+    return String(maior + 1).padStart(2, '0');
+}
+
+
 // 🆕 Extrai o número REAL (sem sufixo virtual) pra envio de WhatsApp
 function telefoneReal(telefone) {
     const limpo = limparTelefone(telefone);
@@ -2154,18 +2182,24 @@ app.get('/agendamentos', auth.verificarAdmin, (req, res) => {
     else res.status(404).send('<h1>📅 Agendamentos</h1><p>Arquivo admin-login.html não encontrado.</p>');
 });
 
-app.get('/meu-processo', (req, res) => {
-    const p = path.join(__dirname, 'public', 'meu-processo.html');
-    if (fs.existsSync(p)) res.sendFile(p);
-    else res.status(404).send('<h1>Portal não encontrado</h1>');
-});
-
-
 
 app.get('/formulario-ds160', (req, res) => {
     const p = path.join(__dirname, 'public', 'formulario-ds160.html');
     if (fs.existsSync(p)) res.sendFile(p);
     else res.status(404).send('<h1>Formulário não encontrado</h1>');
+});
+
+app.get('/formulario-passaporte', (req, res) => {
+    const p = path.join(__dirname, 'public', 'formulario-passaporte.html');
+    if (fs.existsSync(p)) res.sendFile(p);
+    else res.status(404).send('<h1>Formulário não encontrado</h1>');
+});
+
+
+app.get('/meu-processo', (req, res) => {
+    const p = path.join(__dirname, 'public', 'meu-processo.html');
+    if (fs.existsSync(p)) res.sendFile(p);
+    else res.status(404).send('<h1>Portal não encontrado</h1>');
 });
 
 function extractFormFields(data) {
@@ -2238,7 +2272,7 @@ function calcularDiff(formAntigo, formNovo) {
 // ============================================================
 app.post('/api/check-ds160-status', async (req, res) => {
     try {
-        const { telefone } = req.body;
+        const { telefone, cpfUltimos4 } = req.body;
         if (!telefone) {
             return res.status(400).json({ success: false, message: 'Telefone obrigatório' });
         }
@@ -2248,11 +2282,18 @@ app.post('/api/check-ds160-status', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Telefone inválido' });
         }
 
-        const { data: cliente } = await supabase
+        // Busca por telefone (+ cpf_ultimos4 SE veio no body)
+        let query = supabase
             .from('clientes')
-            .select('id, nome')
-            .eq('telefone', cleanPhone)
-            .maybeSingle();
+            .select('id, nome, telefone, cpf, cpf_ultimos4')
+            .eq('telefone', cleanPhone);
+
+        if (cpfUltimos4) {
+            const cpf4Busca = String(cpfUltimos4).replace(/\D/g, '').slice(-4);
+            if (cpf4Busca) query = query.eq('cpf_ultimos4', cpf4Busca);
+        }
+
+        const { data: cliente } = await query.maybeSingle();
 
         if (!cliente) {
             return res.json({ success: true, cliente_existe: false, tem_formulario: false });
@@ -2399,10 +2440,13 @@ app.post('/api/portal/login', rateLimitLogin, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Telefone inválido' });
         }
         
+        // Busca composta: telefone + cpf_ultimos4 (desambigua família)
+        const cpf4Busca = String(cpfUltimos4).replace(/\D/g, '').slice(-4);
         const { data: cliente } = await supabase
             .from('clientes')
-            .select('id, nome, telefone, cpf')
+            .select('id, nome, telefone, cpf, cpf_ultimos4')
             .eq('telefone', cleanPhone)
+            .eq('cpf_ultimos4', cpf4Busca)
             .maybeSingle();
         
         if (!cliente) {
@@ -2964,17 +3008,6 @@ function mensagemAlerta(complexidade) {
         'passaporte': '⚠️ Mudança de passaporte pode exigir atualização no sistema do consulado (AIS).',
         'documento': '⚠️ Alteração de documento fiscal/social. Confirmar dados com o cliente.',
         'viagem': '⚠️ Mudança de propósito da viagem pode impactar o tipo de visto. Avaliar.'
-    };
-    return alertas[complexidade] || null;
-}
-
-// Mensagens de alerta
-function mensagemAlerta(complexidade) {
-    const alertas = {
-        'consulado': '⚠️ Mudança de consulado pode exigir reagendamento completo. Avaliar antes de aprovar.',
-        'nome': '⚠️ Mudança de nome pode exigir retificação junto ao consulado. Avaliar com cuidado.',
-        'dob': '⚠️ Mudança de data de nascimento é sensível. Confirmar com o cliente antes.',
-        'passaporte': '⚠️ Mudança de passaporte pode exigir atualização no sistema do consulado (AIS).'
     };
     return alertas[complexidade] || null;
 }
@@ -3839,6 +3872,226 @@ app.post('/api/submit-ds160', async (req, res) => {
         res.status(500).json({ success: false, message: 'Erro ao processar formulário', error: error.message });
     }
 });
+
+// ============================================================
+// POST /api/submit-passaporte
+// Grava solicitação de passaporte direto no Supabase
+// ============================================================
+app.post('/api/submit-passaporte', async (req, res) => {
+    try {
+        const dados = req.body || {};
+        const modo = dados.modo === 'familiar' ? 'familiar' : 'unico';
+
+        // 1. Validação mínima
+        const nome = String(dados.full_name || '').trim();
+        const email = String(dados['email-1'] || '').trim();
+        const cpfRaw = String(dados.cpf || '').trim();
+        const cpfLimpo = cpfRaw.replace(/\D/g, '');
+        const cpf4 = cpfLimpo.slice(-4);
+        const cidade = String(dados['text-74'] || '').trim();
+
+        if (!nome) {
+            return res.status(400).json({ ok: false, erro: 'Nome é obrigatório.' });
+        }
+        if (cpfLimpo.length !== 11) {
+            return res.status(400).json({ ok: false, erro: 'CPF completo (11 dígitos) é obrigatório.' });
+        }
+
+        // 2. Telefone real
+        let telefoneRealVal = limparTelefone(dados.phone);
+        if (!telefoneRealVal) {
+            return res.status(400).json({ ok: false, erro: 'Telefone inválido.' });
+        }
+
+        let telefoneVinculacao = null;
+        let titularId = null;
+
+        if (modo === 'familiar') {
+            if (!dados.titular_id) {
+                return res.status(400).json({ ok: false, erro: 'titular_id é obrigatório no modo familiar.' });
+            }
+
+            const { data: titular, error: errTit } = await supabase
+                .from('clientes')
+                .select('id, telefone, telefone_vinculacao')
+                .eq('id', dados.titular_id)
+                .maybeSingle();
+
+            if (errTit) throw errTit;
+            if (!titular) {
+                return res.status(400).json({ ok: false, erro: 'Titular não encontrado.' });
+            }
+
+            titularId = titular.id;
+            const base = (titular.telefone_vinculacao || titular.telefone || '')
+                .replace(/-\d+$/, '').replace(/\D/g, '');
+
+            if (!base) {
+                return res.status(400).json({ ok: false, erro: 'Titular sem telefone válido.' });
+            }
+
+            const sufixo = await proximoSufixoFamiliar(base);
+            telefoneVinculacao = `${base}-${sufixo}`;
+
+            // 🆕 Para familiar: o telefone que vai em clientes é o COM sufixo
+            // (o real fica no dados_json pra PF)
+            telefoneRealVal = telefoneVinculacao;
+        }
+
+        // 3. Feature flag: bloqueio de reenvio (opcional)
+        if (process.env.BLOCK_PASSAPORTE_RESUBMIT === 'true') {
+            const { data: existente } = await supabase
+                .from('form_passaporte')
+                .select('id, status')
+                .eq('telefone', telefoneRealVal)
+                .eq('cpf_ultimos4', cpf4)
+                .maybeSingle();
+
+            if (existente) {
+                return res.status(409).json({
+                    ok: false,
+                    erro: 'Já existe uma solicitação de passaporte para este CPF.',
+                    ja_enviado: true,
+                    status: existente.status
+                });
+            }
+        }
+
+        // 4. Cria/busca cliente (chave: telefone + cpf_ultimos4)
+        let clienteId = null;
+        let clienteEhNovo = false;
+
+        const { data: clienteExistente, error: errBusca } = await supabase
+            .from('clientes')
+            .select('id, nome, telefone, telefone_vinculacao, cpf, cpf_ultimos4, tipo_servico, cliente_titular_id')
+            .eq('telefone', telefoneRealVal)
+            .eq('cpf_ultimos4', cpf4)
+            .maybeSingle();
+
+        if (errBusca) throw errBusca;
+
+        if (clienteExistente) {
+            clienteId = clienteExistente.id;
+
+            const updates = { updated_at: new Date().toISOString() };
+            if (!clienteExistente.telefone_vinculacao) updates.telefone_vinculacao = telefoneVinculacao;
+            if (titularId && !clienteExistente.cliente_titular_id) updates.cliente_titular_id = titularId;
+
+            if (Object.keys(updates).length > 1) {
+                await supabase.from('clientes').update(updates).eq('id', clienteId);
+            }
+        } else {
+            
+            console.log('🔍 DEBUG ANTES DO INSERT:', {
+                modo,
+                telefoneRealVal,
+                telefoneVinculacao,
+                titularId,
+                cpf4
+            });
+            
+            const { data: novoCliente, error: errNovo } = await supabase
+                .from('clientes')
+                .insert({
+                    nome,
+                    email: email || null,
+                    telefone: telefoneRealVal,
+                    telefone_vinculacao: telefoneVinculacao,
+                    cpf: cpfLimpo,
+                    data_nascimento: dados.data_nascimento || null,
+                    status: 'lead',
+                    tipo_servico: 'passaporte',
+                    tipo_contato: 'lead',
+                    cliente_titular_id: titularId
+                })
+                .select('id')
+                .single();
+
+            if (errNovo) throw errNovo;
+            clienteId = novoCliente.id;
+            clienteEhNovo = true;
+        }
+
+        // 5. Insere em form_passaporte
+        const {
+            _wpnonce, passaporte_submit, _wp_http_referer,
+            full_name, 'email-1': _e, phone, 'text-74': _c,
+            cpf: _cpf, data_nascimento, sexo,
+            modo: _m, titular_id: _t,
+            ...resto
+        } = dados;
+
+        const { data: formInserido, error: errForm } = await supabase
+            .from('form_passaporte')
+            .insert({
+                cliente_id: clienteId,
+                cliente_titular_id: titularId,
+                telefone: telefoneRealVal,
+                telefone_vinculacao: telefoneVinculacao,
+                cpf_ultimos4: cpf4,
+                nome,
+                email: email || null,
+                cidade: cidade || null,
+                cpf: cpfLimpo,
+                data_nascimento: data_nascimento || null,
+                sexo: sexo || null,
+                status: 'novo',
+                dados_json: {
+                    ...resto,
+                    _modo: modo,
+                    _ip: req.ip || null,
+                    _user_agent: req.get('user-agent') || null,
+                    _origem: 'express'
+                }
+            })
+            .select('id, created_at')
+            .single();
+
+        if (errForm) throw errForm;
+
+        return res.json({
+            ok: true,
+            id: formInserido.id,
+            cliente_id: clienteId,
+            cliente_titular_id: titularId,
+            telefone: telefoneRealVal,
+            telefone_vinculacao: telefoneVinculacao,
+            cliente_novo: clienteEhNovo,
+            created_at: formInserido.created_at
+        });
+
+    } catch (err) {
+        console.error('❌ Erro em /api/submit-passaporte:', err);
+        return res.status(500).json({
+            ok: false,
+            erro: 'Erro interno ao processar solicitação de passaporte.',
+            detalhe: process.env.NODE_ENV !== 'production' ? err.message : undefined
+        });
+    }
+});
+
+// ============================================================
+// GET /api/passaporte-titular/:uuid
+// Retorna dados básicos do titular (pro banner do form familiar)
+// ============================================================
+app.get('/api/passaporte-titular/:uuid', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('clientes')
+            .select('id, nome, telefone, telefone_vinculacao')
+            .eq('id', req.params.uuid)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return res.status(404).json({ ok: false, erro: 'Titular não encontrado.' });
+
+        return res.json({ ok: true, titular: data });
+    } catch (err) {
+        console.error('❌ Erro em /api/passaporte-titular:', err);
+        return res.status(500).json({ ok: false, erro: 'Erro interno.' });
+    }
+});
+
 
 app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (req, res) => {
     console.log('🔥 ROTA /api/agendamentos/upload-pdf CHAMADA!');
