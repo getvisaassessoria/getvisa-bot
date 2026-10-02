@@ -9,3 +9,5 @@ test-email.js
 teste-*.js
 *.backup-pre-cleanup-*
 *.backup-*
+server.js.bak*
+*.bak-*

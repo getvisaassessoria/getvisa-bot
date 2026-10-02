@@ -260,7 +260,7 @@
 
     <div id="alertContainer"></div>
 
-    <form id="ds160Form" novalidate>
+    <form id="ds160Form" novalidate autocomplete="off">
 
         <!-- ============================================================ -->
         <!-- PASSO 1: INÍCIO DO PREENCHIMENTO -->
@@ -480,6 +480,20 @@
                             <label>Cidade *</label>
                             <input type="text" id="payer_city" name="payer_city" placeholder="Cidade">
                         </div>
+                    </div>
+                    <div class="field">
+                        <label>Relação do Pagador com o Solicitante <span class="required">*</span></label>
+                        <select id="payer_relationship" name="payer_relationship" required>
+                            <option value="">Selecione...</option>
+                            <option value="Pai/Mãe">Pai / Mãe</option>
+                            <option value="Cônjuge">Cônjuge</option>
+                            <option value="Irmão(ã)">Irmão(ã)</option>
+                            <option value="Filho(a)">Filho(a)</option>
+                            <option value="Outro Parente">Outro Parente</option>
+                            <option value="Amigo(a)">Amigo(a)</option>
+                            <option value="Empregador">Empregador / Empresa</option>
+                            <option value="Outro">Outro</option>
+                        </select>
                     </div>
 
                     <div class="form-row">
@@ -772,7 +786,7 @@
                 </div>
                 <div class="field">
                     <label>Estado/Província <span class="required">*</span></label>
-                    <input type="text" name="state" placeholder="Ex: RIO DE JANEIRO" required>
+                    <input type="text" name="state" placeholder="Ex: RIO DE JANEIRO" required autocomplete="new-password">
                 </div>
             </div>
 
@@ -1746,15 +1760,17 @@ function toggleConditionals() {
         var shouldShow = false;
 
         if (trigger) {
-            if (trigger.tagName === 'SELECT') {
-                var selectedValue = trigger.value;
-                var values = value.split(',');
-                shouldShow = values.includes(selectedValue);
-            } else {
-                var checked = document.querySelector('[name="' + condition + '"]:checked');
-                shouldShow = checked && checked.value === value;
-            }
-        }
+    if (trigger.tagName === 'SELECT') {
+        var selectedValue = trigger.value;
+        var values = value.split(',');
+        shouldShow = values.includes(selectedValue);
+    } else {
+        // 🆕 Aceita múltiplos valores separados por vírgula TAMBÉM para radios
+        var checked = document.querySelector('[name="' + condition + '"]:checked');
+        var acceptedValues = value.split(',').map(function(v) { return v.trim(); });
+        shouldShow = checked && acceptedValues.includes(checked.value);
+    }
+}
 
         c.style.display = shouldShow ? 'block' : 'none';
         if (shouldShow) c.classList.add('active');
@@ -2023,6 +2039,24 @@ function validateStep(step) {
 // ============================================================
 function getFormData() {
     var data = {};
+
+    // ============================================================
+    // 🆕 FIX 2 — LIMPA autocomplete do navegador em campos de endereço
+    // ============================================================
+    document.querySelectorAll('#ds160Form input[type="text"], #ds160Form input[type="tel"]').forEach(function(el) {
+        if (!el.value) return;
+        const valor = el.value.toUpperCase();
+        const suspeitos = ['CASADO(A)', 'SOLTEIRO(A)', 'DIVORCIADO(A)', 'VIÚVO(A)', 'UNIÃO ESTÁVEL'];
+        const nomeDoCampo = (el.name || '').toLowerCase();
+
+        if ((nomeDoCampo.includes('state') || nomeDoCampo.includes('city') ||
+             nomeDoCampo.includes('address') || nomeDoCampo.includes('bairro')) &&
+            suspeitos.includes(valor)) {
+            console.warn('⚠️ Autocomplete detectado em ' + el.name + ': ' + el.value + ' → limpando');
+            el.value = '';
+        }
+    });
+
     document.querySelectorAll('#ds160Form input, #ds160Form select, #ds160Form textarea').forEach(function(el) {
         if (!el.name) return;
 
@@ -2031,7 +2065,6 @@ function getFormData() {
             if (el.checked) {
                 data[el.name] = el.value;
             } else if (!(el.name in data)) {
-                // garante que o campo exista mesmo se nada foi marcado
                 data[el.name] = data[el.name] || '';
             }
             return;
@@ -2043,21 +2076,76 @@ function getFormData() {
             return;
         }
 
-        // Demais campos (text, select, textarea, date, etc.)
+        // 🆕 CAMPOS COM ARRAY (name="xxx[]") — acumula valores
+        if (el.name.endsWith('[]')) {
+            if (!Array.isArray(data[el.name])) {
+                data[el.name] = [];
+            }
+            if (el.value.trim() !== '') {
+                data[el.name].push(el.value);
+            }
+            return;
+        }
+
+        // Demais campos
         data[el.name] = el.value;
     });
 
-        // Telefone do passo 1 (não tem name pra evitar conflito com phone_secondary)
-    
-        const phoneStep1 = document.getElementById('phone-step1');
-        if (phoneStep1 && phoneStep1.value.trim()) {
+    // Telefone do passo 1
+    const phoneStep1 = document.getElementById('phone-step1');
+    if (phoneStep1 && phoneStep1.value.trim()) {
         data['phone'] = phoneStep1.value;
-        data['telefone'] = phoneStep1.value; // alias usado pelo backend
+        data['telefone'] = phoneStep1.value;
     }
 
-    
+        // ============================================================
+    // 🆕 FIX 3 — Padroniza em MAIÚSCULO (exceto emails, handles e CAMPOS TÉCNICOS)
+    // ============================================================
+    const CAMPOS_NAO_UPPERCASE = [
+    // ============================================================
+    // Emails e handles (sempre minúsculos)
+    // ============================================================
+    'email', 'emails_extra[]', 'social_identificador[]',
+    'us_contact_email', 'payer_email',
+
+    // ============================================================
+    // Radios — valores semânticos fixos (one, two, YES, NO, SIM, NAO)
+    // ============================================================
+    'radio-genero', 'radio-other-names', 'radio-other-nat', 'radio-resident',
+    'radio-travel-plans', 'radio-payer', 'radio-companions', 'radio-group-travel',
+    'radio-us-travel', 'radio-us-driver', 'radio-visa-issued', 'radio-same-visa',
+    'radio-same-location', 'radio-fingerprints', 'radio-visa-cancelled',
+    'radio-visa-refused', 'radio-petition', 'radio-mailing', 'radio-more-emails',
+    'radio-social', 'radio-passport-lost', 'radio-immediate-relatives',
+    'radio-other-relatives', 'radio-occupation', 'radio-other-occupations',
+    'radio-prev-employment', 'radio-education', 'radio-traveled',
+    'radio-specialized', 'radio-military', 'radio-arrested', 'radio-deported',
+
+    // ============================================================
+    // Selects com valores semânticos
+    // ============================================================
+    'marital_status', 'travel_purpose', 'consulado',
+    'payer_country', 'us_driver_state', 'military_branch',
+    'father_in_us', 'mother_in_us',
+
+    // ============================================================
+    // 🆕 Relação do Pagador (select semântico)
+    // ============================================================
+    'payer_relationship'
+];
+
+Object.keys(data).forEach(function(key) {
+    if (typeof data[key] !== 'string') return;
+    if (CAMPOS_NAO_UPPERCASE.includes(key)) return;
+    data[key] = data[key].toUpperCase();
+});
+
     console.log('📌 Ocupação selecionada:', data['radio-occupation']);
     console.log('📌 Gênero selecionado:', data['radio-genero']);
+    console.log('📌 Total de chaves no payload:', Object.keys(data).length);
+    console.log('📌 Arrays detectados:', Object.entries(data).filter(([k, v]) => Array.isArray(v)).map(([k, v]) => k + ' (' + v.length + ')'));
+    console.log('📌 state:', data['state']);
+
     return data;
 }
 
@@ -2095,7 +2183,7 @@ function updateResumo() {
     // 3. VIAGEM
     html += '<h4 style="color:#003366;margin-bottom:10px;">✈️ Informações da Viagem</h4>';
     html += '<div style="background:white;padding:15px;border-radius:6px;margin-bottom:15px;">';
-    html += '<p><strong>Propósito:</strong> ' + (dados.travel_purpose || '-') + '</p>';
+    html += '<p><strong>Propósito:</strong> ' + (String(dados.travel_purpose || '').toUpperCase() === 'BUSINESS_PLEASURE' ? 'Turismo/Negócios (B1/B2)' : String(dados.travel_purpose || '').toUpperCase() === 'STUDY' ? 'Estudos' : String(dados.travel_purpose || '').toUpperCase() === 'OTHER' ? 'Outros' : dados.travel_purpose || '-') + '</p>';
     html += '<p><strong>Planos Específicos:</strong> ' + (dados['radio-travel-plans'] === 'one' ? 'Sim' : 'Não') + '</p>';
     if (dados['radio-travel-plans'] === 'one') {
         html += '<p><strong>Data de Chegada:</strong> ' + (dados.arrival_date ? formatarDataSegura(dados.arrival_date) : '-') + '</p>';
@@ -2104,6 +2192,7 @@ function updateResumo() {
     html += '<p><strong>Pagador:</strong> ' + (dados['radio-payer'] === 'SELF' ? 'Próprio Solicitante' : 'Outra pessoa/empresa/organização') + '</p>';
     if (dados['radio-payer'] === 'OTHER') {
         html += '<p><strong>Nome do Pagador:</strong> ' + (dados.payer_name || '-') + '</p>';
+        html += '<p><strong>Relação do Pagador:</strong> ' + (dados.payer_relationship || '-') + '</p>';  // 🆕
         html += '<p><strong>Endereço:</strong> ' + (dados.payer_address || '-') + '</p>';
         html += '<p><strong>CEP:</strong> ' + (dados.payer_zip || '-') + '</p>';
         html += '<p><strong>Cidade:</strong> ' + (dados.payer_city || '-') + '</p>';
@@ -2454,6 +2543,35 @@ document.addEventListener('DOMContentLoaded', function() {
                 item.remove();
             }
         });
+    });
+
+    // ============================================================
+    // 🆕 FIX 1 — UPPERCASE AUTOMÁTICO ao sair do campo
+    // ============================================================
+    document.addEventListener('blur', function(e) {
+        const el = e.target;
+        if (!el.name && !el.id) return;
+        if (el.tagName === 'SELECT') return;
+        if (el.type === 'email') return;
+        if (el.type === 'radio' || el.type === 'checkbox') return;
+        if (el.type === 'date' || el.type === 'number') return;
+        if (el.name === 'email' || el.name === 'emails_extra[]') return;
+        if (el.name === 'social_identificador[]') return;
+        if (el.name === 'us_contact_email') return;
+        if (el.name === 'payer_email') return;
+
+        const valorAtual = el.value || '';
+        const valorUpper = valorAtual.toUpperCase();
+        if (valorAtual !== valorUpper) {
+            el.value = valorUpper;
+        }
+    }, true);
+
+    // ============================================================
+    // 🆕 FIX 4 — Força autocomplete="new-password" em inputs de texto
+    // ============================================================
+    document.querySelectorAll('#ds160Form input[type="text"], #ds160Form input[type="tel"], #ds160Form input[type="email"]').forEach(function(el) {
+        el.setAttribute('autocomplete', 'new-password');
     });
 
     toggleConditionals();
