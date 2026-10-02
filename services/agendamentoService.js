@@ -48,14 +48,14 @@ function mapAtividadeToText(atividade) {
 // ============================================================
 function extractAgendamentoDetailsFromText(pdfText) {
     const agendamentos = [];
-    
+
     console.log('🔍 Extraindo dados do PDF...');
-    
+
     // ============================================================
     // 1. EXTRAIR NOMES - PRIORIDADE: "Nome do Solicitante"
     // ============================================================
     const nomes = [];
-    
+
     // Estratégia 1: "Nome do Solicitante"
     console.log('🔍 Buscando "Nome do Solicitante"...');
     const nomeRegex = /Nome do Solicitante\s+([A-Z\s]+?)(?=\s+Classe|$|\n)/gi;
@@ -64,8 +64,8 @@ function extractAgendamentoDetailsFromText(pdfText) {
         let nome = match[1].trim();
         nome = nome.replace(/[^A-Z\s]/g, '').trim();
         if (nome && nome.length > 10 && nome.split(/\s+/).length >= 2) {
-            const headers = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 'PROTOCOLO', 
-                           'INSTRUÇÕES', 'DEPARTAMENTO', 'DOCUMENTAÇÃO', 'VISITANTE', 'NEGÓCIOS', 
+            const headers = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 'PROTOCOLO',
+                           'INSTRUÇÕES', 'DEPARTAMENTO', 'DOCUMENTAÇÃO', 'VISITANTE', 'NEGÓCIOS',
                            'TURISMO', 'TRATAMENTO', 'MÉDICO', 'TAXA', 'SOLICITAÇÃO', 'ENTREGA'];
             if (!headers.some(h => nome.toUpperCase().includes(h))) {
                 nomes.push(nome);
@@ -73,7 +73,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
             }
         }
     }
-    
+
     // Estratégia 2: Fallback - linhas em maiúsculas
     if (nomes.length === 0) {
         console.log('🔍 Fallback: buscando nomes em maiúsculas...');
@@ -81,19 +81,19 @@ function extractAgendamentoDetailsFromText(pdfText) {
         let nomesTemp = [];
         for (const linha of linhas) {
             const trimmed = linha.trim();
-            if (trimmed === trimmed.toUpperCase() && 
-                trimmed.length > 15 && 
+            if (trimmed === trimmed.toUpperCase() &&
+                trimmed.length > 15 &&
                 trimmed.split(/\s+/).length >= 3) {
-                const palavrasProibidas = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 
-                                          'PROTOCOLO', 'INSTRUÇÕES', 'DEPARTAMENTO', 'DOCUMENTAÇÃO', 
-                                          'VISITANTE', 'NEGÓCIOS', 'TURISMO', 'TRATAMENTO', 'MÉDICO', 
+                const palavrasProibidas = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO',
+                                          'PROTOCOLO', 'INSTRUÇÕES', 'DEPARTAMENTO', 'DOCUMENTAÇÃO',
+                                          'VISITANTE', 'NEGÓCIOS', 'TURISMO', 'TRATAMENTO', 'MÉDICO',
                                           'TAXA', 'SOLICITAÇÃO', 'ENTREGA', 'PASSAPORTE', 'VISTO'];
                 if (!palavrasProibidas.some(p => trimmed.includes(p))) {
                     nomesTemp.push(trimmed);
                 }
             }
         }
-        
+
         const nomesUnicosTemp = [...new Set(nomesTemp)];
         for (const n of nomesUnicosTemp.slice(0, 10)) {
             if (!n.includes('(') && !n.includes(')') && !/\d/.test(n)) {
@@ -102,7 +102,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
             }
         }
     }
-    
+
     // Estratégia 3: Nomes específicos
     if (nomes.length === 0) {
         console.log('🔍 Tentando extrair nomes específicos...');
@@ -110,7 +110,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
         while ((match = nomeEspecifico.exec(pdfText)) !== null) {
             const nome = match[1].trim();
             if (nome && nome.length > 15 && nome.split(/\s+/).length >= 3) {
-                const palavrasProibidas = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 
+                const palavrasProibidas = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO',
                                           'PROTOCOLO', 'INSTRUÇÕES', 'DEPARTAMENTO'];
                 if (!palavrasProibidas.some(p => nome.includes(p))) {
                     nomes.push(nome);
@@ -119,12 +119,12 @@ function extractAgendamentoDetailsFromText(pdfText) {
             }
         }
     }
-    
+
     if (nomes.length === 0) {
         console.log('❌ Nenhum nome encontrado!');
         return agendamentos;
     }
-    
+
     const nomesUnicos = [...new Set(nomes)];
     console.log(`📋 ${nomesUnicos.length} nomes encontrados:`);
     nomesUnicos.forEach((n, i) => console.log(`   ${i+1}. ${n}`));
@@ -134,7 +134,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
     // ============================================================
     let casvData = null, casvHora = null, casvLocal = null;
     let entrevistaData = null, entrevistaHora = null, entrevistaLocal = null;
-    
+
     // CASV
     const casvRegex = /Data do Agendamento no CASV:\s*(\d{1,2})\s+([A-Za-z]+),\s+(\d{4}),\s+(\d{2}:\d{2})/i;
     const casvMatch = pdfText.match(casvRegex);
@@ -148,7 +148,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
             console.log(`✅ CASV: ${casvData} ${casvHora}`);
         }
     }
-    
+
     // Entrevista
     const entrevistaRegex = /Data da entrevista no Consulado:\s*(\d{1,2})\s+([A-Za-z]+),\s+(\d{4}),\s+(\d{2}:\d{2})/i;
     const entrevistaMatch = pdfText.match(entrevistaRegex);
@@ -162,7 +162,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
             console.log(`✅ ENTREVISTA: ${entrevistaData} ${entrevistaHora}`);
         }
     }
-    
+
     // Local CASV
     const localCasvRegex = /Local do CASV:\s*([^\n]+)/i;
     const localCasvMatch = pdfText.match(localCasvRegex);
@@ -170,7 +170,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
         casvLocal = localCasvMatch[1].trim();
         console.log(`✅ Local CASV: ${casvLocal}`);
     }
-    
+
     // Local Entrevista
     const localEntrevistaRegex = /Local da Entrevista:\s*([^\n]+)/i;
     const localEntrevistaMatch = pdfText.match(localEntrevistaRegex);
@@ -178,11 +178,11 @@ function extractAgendamentoDetailsFromText(pdfText) {
         entrevistaLocal = localEntrevistaMatch[1].trim();
         console.log(`✅ Local ENTREVISTA: ${entrevistaLocal}`);
     }
-    
+
     // Fallback de local
     if (!casvLocal) casvLocal = 'Consulado Americano - Rio de Janeiro';
     if (!entrevistaLocal) entrevistaLocal = 'Consulado Americano - Rio de Janeiro';
-    
+
     // Fallback de datas
     if (!casvData && !entrevistaData) {
         console.log('🔍 Tentando formato alternativo de datas...');
@@ -205,7 +205,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
             casvData = datasAlt[0];
             console.log(`✅ CASV (alt): ${casvData}`);
         }
-        
+
         const horaAltRegex = /(\d{1,2}:\d{2})/g;
         const horasAlt = pdfText.match(horaAltRegex) || [];
         if (horasAlt.length >= 2) {
@@ -254,11 +254,11 @@ function extractAgendamentoDetailsFromText(pdfText) {
 // ============================================================
 async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options = {}) {
     const { enviarWhatsApp = true } = options;
-    
+
     console.log('📄 Processando PDF...');
     console.log(`📱 Telefone do cliente: ${telefoneCliente}`);
     console.log(`📢 Enviar WhatsApp: ${enviarWhatsApp ? 'SIM' : 'NÃO'}`);
-    
+
     try {
         if (typeof pdfParse !== 'function') {
             throw new Error('pdfParse não é uma função.');
@@ -279,14 +279,14 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         // ============================================================
         const membrosSet = new Set();
         const todosMembros = [];
-        
+
         for (const ag of agendamentosExtraidos) {
             if (ag.nomeCliente && !membrosSet.has(ag.nomeCliente)) {
                 membrosSet.add(ag.nomeCliente);
                 todosMembros.push(ag.nomeCliente);
             }
         }
-        
+
         console.log(`👨‍👩‍👧‍👦 Membros encontrados: ${todosMembros.length}`);
         todosMembros.forEach((m, i) => console.log(`   ${i+1}. ${m}`));
 
@@ -295,10 +295,10 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         // ============================================================
         const primeiroAgendamento = agendamentosExtraidos[0];
         const nomeDoCliente = primeiroAgendamento?.nomeCliente || 'Cliente';
-        
+
         const casvData = agendamentosExtraidos.find(a => a.atividade === 'CASV');
         const entrevistaData = agendamentosExtraidos.find(a => a.atividade === 'ENTREVISTA');
-        
+
         const dadosExtraidos = {
             casv: casvData ? {
                 data: casvData.dataCompromisso,
@@ -313,28 +313,52 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             nome: nomeDoCliente,
             todosMembros: todosMembros
         };
-        
+
         console.log('📊 DADOS EXTRAÍDOS:');
         console.log(`   CASV: ${dadosExtraidos.casv?.data || 'N/A'} ${dadosExtraidos.casv?.hora || 'N/A'}`);
         console.log(`   ENTREVISTA: ${dadosExtraidos.entrevista?.data || 'N/A'} ${dadosExtraidos.entrevista?.hora || 'N/A'}`);
         console.log(`   MEMBROS: ${todosMembros.join(', ')}`);
 
         // ============================================================
-        // BUSCAR OU CRIAR CLIENTE
+        // BUSCAR OU CRIAR CLIENTE (NÃO sobrescreve se já existe)
         // ============================================================
-        const { data: cliente, error: clienteError } = await supabase
+        let cliente = null;
+        let clienteError = null;
+
+        // 1. Tenta buscar cliente existente
+        const { data: clienteExistente, error: errBusca } = await supabase
             .from('clientes')
-            .upsert({
-                nome: nomeDoCliente,
-                telefone: telefoneCliente,
-                status: 'lead',
-                data_contato: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            }, {
-                onConflict: 'telefone'
-            })
-            .select()
-            .single();
+            .select('*')
+            .eq('telefone', telefoneCliente)
+            .maybeSingle();
+
+        if (errBusca) {
+            clienteError = errBusca;
+        } else if (clienteExistente) {
+            // Já existe — usa o cliente existente SEM MODIFICAR nada
+            cliente = clienteExistente;
+            console.log(`✅ Cliente existente: ${cliente.nome} (${cliente.telefone})`);
+        } else {
+            // Não existe — cria novo
+            const { data: novoCliente, error: errNovo } = await supabase
+                .from('clientes')
+                .insert({
+                    nome: nomeDoCliente,
+                    telefone: telefoneCliente,
+                    status: 'lead',
+                    tipo_contato: 'lead',
+                    data_contato: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+            if (errNovo) {
+                clienteError = errNovo;
+            } else {
+                cliente = novoCliente;
+                console.log(`✅ Cliente criado: ${cliente.nome} (${cliente.telefone})`);
+            }
+        }
 
         if (clienteError) {
             console.error('❌ Erro ao buscar/criar cliente:', clienteError);
@@ -342,13 +366,12 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         }
 
         const clienteId = cliente.id;
-        console.log(`✅ Cliente encontrado/criado: ${cliente.nome} (${cliente.telefone})`);
 
         // ============================================================
         // SALVAR AGENDAMENTOS
         // ============================================================
         const agendamentosSalvos = [];
-        
+
         for (const agendamentoData of agendamentosExtraidos) {
             const { nomeCliente, atividade, dataCompromisso, horaCompromisso, localCompromisso } = agendamentoData;
 
@@ -427,8 +450,8 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         // ============================================================
         // RETORNO
         // ============================================================
-        return { 
-            success: true, 
+        return {
+            success: true,
             agendamentosSalvos,
             dados: {
                 casv: dadosExtraidos.casv,
@@ -448,21 +471,21 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
 // ============================================================
 function gerarMensagemDireta(dados, nomeCliente, todosMembros = []) {
     const primeiroNome = nomeCliente ? nomeCliente.split(' ')[0] : 'Cliente';
-    
+
     const casv = dados?.casv || {};
     const entrevista = dados?.entrevista || {};
-    
+
     const casvData = casv?.data || 'A definir';
     const casvHora = casv?.hora || 'A definir';
     const casvLocal = casv?.local || 'A definir';
-    
+
     const entrevistaData = entrevista?.data || 'A definir';
     const entrevistaHora = entrevista?.hora || 'A definir';
     const entrevistaLocal = entrevista?.local || 'A definir';
-    
+
     let mensagem = `✅ *AGENDAMENTOS CONFIRMADOS - GETVISA*\n\n`;
     mensagem += `Olá *${primeiroNome}*! Seus agendamentos foram realizados com sucesso!\n\n`;
-    
+
     if (todosMembros && todosMembros.length > 0) {
         mensagem += `👨‍👩‍👧‍👦 *Membros:*\n`;
         todosMembros.forEach((membro, index) => {
@@ -470,17 +493,17 @@ function gerarMensagemDireta(dados, nomeCliente, todosMembros = []) {
         });
         mensagem += `\n`;
     }
-    
+
     mensagem += `📍 *CASV (Coleta Biométrica):*\n`;
     mensagem += `📅 ${casvData}\n`;
     mensagem += `⏰ ${casvHora}\n`;
     mensagem += `📍 ${casvLocal}\n\n`;
-    
+
     mensagem += `📍 *ENTREVISTA NO CONSULADO:*\n`;
     mensagem += `📅 ${entrevistaData}\n`;
     mensagem += `⏰ ${entrevistaHora}\n`;
     mensagem += `📍 ${entrevistaLocal}\n\n`;
-    
+
     mensagem += `⚠️ *IMPORTANTE:*\n`;
     mensagem += `• Leve a *CONFIRMATION IMPRESSA*\n`;
     mensagem += `• Leve seu *PASSAPORTE(S)*\n`;
@@ -488,7 +511,7 @@ function gerarMensagemDireta(dados, nomeCliente, todosMembros = []) {
     mensagem += `📎 O PDF oficial foi enviado para seu e-mail.\n\n`;
     mensagem += `📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)\n\n`;
     mensagem += `🌟 *Boa sorte! Estamos com você!* ✈️`;
-    
+
     return mensagem;
 }
 
