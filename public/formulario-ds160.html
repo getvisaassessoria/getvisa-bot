@@ -233,6 +233,68 @@
             .btn { width: 100%; }
             .btn-group-correcao { justify-content: center; }
         }
+        /* ============================================================
+   🎟️ PROMO50 — Badge de sucesso
+   ============================================================ */
+.promo50-sucesso {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: linear-gradient(135deg, #FFF3CD 0%, #FFE69C 100%);
+    border: 2px solid #FFD700;
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin: 20px 0;
+    animation: promo50SlideIn 0.4s ease-out;
+}
+
+@keyframes promo50SlideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.promo50-sucesso-icon {
+    font-size: 36px;
+    flex-shrink: 0;
+}
+
+.promo50-sucesso-texto {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.4;
+}
+
+.promo50-sucesso-texto strong {
+    color: #14356E;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.promo50-sucesso-texto span {
+    color: #1E4FA0;
+    font-size: 14px;
+    margin: 4px 0;
+}
+
+.promo50-sucesso-texto code {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    background: rgba(255,255,255,0.7);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.promo50-sucesso-texto small {
+    color: #6B7280;
+    font-size: 13px;
+}
+
+.promo50-sucesso-texto small strong {
+    color: #16A34A;
+    font-size: 13px;
+}
     </style>
 <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
@@ -294,6 +356,13 @@
             </div>
         </div>
 
+            </div>
+        </div>
+
+        <!-- 🎟️ PROMO50 — input oculto (preenchido pelo script se ?promo= na URL) -->
+        <input type="hidden" name="promocao_codigo" id="promocao_codigo" value="">
+
+        
         <!-- ============================================================ -->
         <!-- PASSO 2: INFORMAÇÕES PESSOAIS -->
         <!-- ============================================================ -->
@@ -1506,12 +1575,23 @@
         <p style="margin-top:10px;">Enviando dados...</p>
     </div>
 
-    <        <div id="resultado" class="hidden">
+    <    <div id="resultado" class="hidden">
         <div class="alert alert-success">
             <h3>✅ Formulário enviado com sucesso!</h3>
             <p>Obrigado por preencher o formulário. Nossa equipe entrará em contato em breve.</p>
             <p><strong>📱 Fique atento ao WhatsApp!</strong></p>
         </div>
+
+        <!-- 🎟️ PROMO50 — badge de desconto aplicado (só aparece se promo foi usada) -->
+        <div id="promo50-sucesso" class="promo50-sucesso" style="display: none;">
+            <div class="promo50-sucesso-icon">🎟️</div>
+            <div class="promo50-sucesso-texto">
+                <strong>Desconto de R$ 50 aplicado!</strong>
+                <span>Código <code id="promo50-codigo-sucesso">—</code></span>
+                <small>Nossa equipe já está com seu desconto registrado. Você paga apenas <strong>R$ 300</strong>.</small>
+            </div>
+        </div>
+
         <button class="btn btn-primary" onclick="location.reload()">📝 Preencher novo formulário</button>
     </div>
 
@@ -2131,7 +2211,12 @@ function getFormData() {
     // ============================================================
     // 🆕 Relação do Pagador (select semântico)
     // ============================================================
-    'payer_relationship'
+    'payer_relationship',
+
+    // ============================================================
+    // 🆕 Código promocional (promo50) — sempre minúsculo
+    // ============================================================
+    'promocao_codigo'
 ];
 
 Object.keys(data).forEach(function(key) {
@@ -2629,21 +2714,64 @@ document.getElementById('ds160Form').addEventListener('submit', async function(e
             return;
         }
 
-        if (result.success) {
+                if (result.success) {
             document.getElementById('ds160Form').classList.add('hidden');
             document.getElementById('resultado').classList.remove('hidden');
             showAlert('✅ Formulário enviado com sucesso!', 'success');
+
+            // 🎟️ PROMO50 — mostra o badge se a promo foi aplicada
+            var promoInput = document.getElementById('promocao_codigo');
+            if (promoInput && promoInput.value) {
+                var badge = document.getElementById('promo50-sucesso');
+                var codigoEl = document.getElementById('promo50-codigo-sucesso');
+                if (badge && codigoEl) {
+                    codigoEl.textContent = promoInput.value;
+                    badge.style.display = 'flex';
+                    console.log('🎟️ Badge promo50 mostrado:', promoInput.value);
+                }
+            }
         } else {
             showAlert('❌ Erro: ' + result.message, 'error');
         }
     } catch (error) {
         console.error('Erro:', error);
         showAlert('❌ Erro ao enviar formulário. Tente novamente.', 'error');
-    } finally {
+        } finally {
         submitBtn.disabled = false;
         loading.classList.add('hidden');
     }
 });
+
+// ============================================================
+// 🎟️ PROMO50 — Captura ?promo= da URL e preenche o input oculto
+// (o badge visual aparece só na tela de sucesso)
+// ============================================================
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    const promo = params.get('promo');
+
+    if (!promo) return;
+
+    const codigo = promo.trim().toLowerCase();
+    if (!codigo) return;
+
+    fetch('/api/promocao/validar?codigo=' + encodeURIComponent(codigo))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.valida) {
+                console.warn('🎟️ Promo inválida:', data.motivo);
+                return;
+            }
+            const input = document.getElementById('promocao_codigo');
+            if (input) {
+                input.value = codigo;
+                console.log('🎟️ Promo capturada:', codigo);
+            }
+        })
+        .catch(function(err) {
+            console.error('🎟️ Erro ao validar promo:', err);
+        });
+})();
 </script>
 </body>
 </html>
