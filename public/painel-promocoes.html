@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎟️ Promoções - GetVisa</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; min-height: 100vh; }
+
+        /* ============================================================
+           HEADER
+           ============================================================ */
+        .header {
+            background: #003366; color: white; padding: 20px 30px;
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 10px;
+        }
+        .header h1 { font-size: 22px; }
+        .header .acoes { display: flex; gap: 10px; }
+        .header a {
+            background: rgba(255,255,255,0.2); color: white; border: none;
+            padding: 10px 20px; border-radius: 8px; cursor: pointer;
+            font-size: 14px; text-decoration: none; transition: 0.3s;
+        }
+        .header a:hover { background: rgba(255,255,255,0.3); }
+
+        /* ============================================================
+           CONTAINER
+           ============================================================ */
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+
+        /* ============================================================
+           CARD DA PROMO
+           ============================================================ */
+        .promo-card {
+            background: white; border-radius: 12px; padding: 28px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 25px;
+            border-left: 6px solid #FFD700;
+        }
+        .promo-card .cabecalho {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            flex-wrap: wrap; gap: 15px; margin-bottom: 20px;
+        }
+        .promo-card .cabecalho h2 {
+            color: #003366; font-size: 24px; display: flex; align-items: center; gap: 10px;
+        }
+        .promo-card .cabecalho h2 code {
+            font-family: 'Courier New', monospace; font-size: 20px;
+            background: #FFF3CD; color: #14356E;
+            padding: 4px 12px; border-radius: 6px; letter-spacing: 1px;
+        }
+
+        /* Badge de status */
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 18px; border-radius: 20px; font-weight: 700;
+            font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .status-badge.ativa { background: #d4edda; color: #155724; }
+        .status-badge.inativa { background: #f8d7da; color: #721c24; }
+        .status-badge::before {
+            content: ''; width: 10px; height: 10px; border-radius: 50%;
+            background: currentColor; display: inline-block;
+        }
+
+        /* Grid de informações */
+        .promo-info {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px; margin-bottom: 24px;
+        }
+        .promo-info-item {
+            background: #f8f9fa; padding: 14px 18px; border-radius: 8px;
+        }
+        .promo-info-item .label {
+            font-size: 12px; color: #666; text-transform: uppercase;
+            letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px;
+        }
+        .promo-info-item .valor {
+            font-size: 16px; color: #003366; font-weight: 700;
+        }
+
+        /* Métricas */
+        .metricas {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 16px; margin-bottom: 24px;
+        }
+        .metrica {
+            background: linear-gradient(135deg, #003366 0%, #0052a3 100%);
+            color: white; padding: 20px; border-radius: 10px; text-align: center;
+        }
+        .metrica .numero {
+            font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 6px;
+        }
+        .metrica .legenda {
+            font-size: 13px; opacity: 0.9; text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Botão toggle */
+        .btn-toggle {
+            padding: 14px 28px; border: none; border-radius: 8px;
+            font-size: 15px; font-weight: 700; cursor: pointer;
+            transition: 0.2s; display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn-toggle.desativar {
+            background: #dc3545; color: white;
+        }
+        .btn-toggle.desativar:hover { background: #c82333; }
+        .btn-toggle.ativar {
+            background: #28a745; color: white;
+        }
+        .btn-toggle.ativar:hover { background: #218838; }
+        .btn-toggle:disabled {
+            background: #ccc; cursor: not-allowed;
+        }
+
+        /* ============================================================
+           TABELA DE USOS
+           ============================================================ */
+        .secao-titulo {
+            color: #003366; font-size: 20px; margin-bottom: 15px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .secao-titulo .contador {
+            background: #003366; color: white; font-size: 14px;
+            padding: 4px 12px; border-radius: 20px;
+        }
+
+        .tabela-usos {
+            background: white; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        .tabela-usos table {
+            width: 100%; border-collapse: collapse;
+        }
+        .tabela-usos thead {
+            background: #f8f9fa;
+        }
+        .tabela-usos th {
+            text-align: left; padding: 16px 20px; font-size: 13px;
+            color: #666; text-transform: uppercase; letter-spacing: 0.5px;
+            font-weight: 700; border-bottom: 2px solid #e9ecef;
+        }
+        .tabela-usos td {
+            padding: 14px 20px; border-bottom: 1px solid #f0f2f5;
+            font-size: 14px; color: #333;
+        }
+        .tabela-usos tr:last-child td { border-bottom: none; }
+        .tabela-usos tr:hover { background: #f8f9fa; }
+
+        .tabela-usos td.nome { font-weight: 600; color: #003366; }
+        .tabela-usos td.telefone { font-family: 'Courier New', monospace; }
+        .tabela-usos td.email { color: #666; font-size: 13px; }
+        .tabela-usos td.data { color: #666; font-size: 13px; white-space: nowrap; }
+
+        /* Vazio */
+        .vazio {
+            background: white; padding: 60px 30px; border-radius: 12px;
+            text-align: center; color: #666; box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        .vazio .emoji { font-size: 60px; margin-bottom: 15px; }
+        .vazio h3 { color: #003366; margin-bottom: 10px; }
+        .vazio p { color: #888; }
+
+        /* Loading */
+        .loading {
+            text-align: center; padding: 40px; color: #666;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed; top: 20px; right: 20px; padding: 16px 24px;
+            background: #003366; color: white; border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2); font-weight: 600;
+            z-index: 9999; animation: toastIn 0.3s ease-out;
+            max-width: 90%;
+        }
+        .toast.erro { background: #dc3545; }
+        .toast.sucesso { background: #28a745; }
+        @keyframes toastIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .promo-card .cabecalho { flex-direction: column; }
+            .metricas { grid-template-columns: 1fr; }
+            .tabela-usos { overflow-x: auto; }
+            .tabela-usos table { min-width: 600px; }
+            .metrica .numero { font-size: 26px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <div class="header">
+        <h1>🎟️ Promoções - GetVisa</h1>
+        <div class="acoes">
+            <a href="/dashboard?api_key=admin123">📊 Dashboard</a>
+            <a href="/painel-reenvios?api_key=admin123">⚠️ Reenvios</a>
+            <a href="/login">🚪 Sair</a>
+        </div>
+    </div>
+
+    <!-- CONTAINER -->
+    <div class="container" id="container">
+        <div class="loading">⏳ Carregando informações...</div>
+    </div>
+
+    <!-- SCRIPT -->
+    <script>
+        const API_KEY = 'admin123';
+        const CODIGO_PROMO = 'promo50';
+
+        // ============================================================
+        // Helpers
+        // ============================================================
+        function formatarData(iso) {
+            if (!iso) return '-';
+            const d = new Date(iso);
+            return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) +
+                   ' ' + d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function formatarDataCurta(iso) {
+            if (!iso) return '-';
+            const d = new Date(iso);
+            return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+        }
+
+        function formatarTelefone(tel) {
+            if (!tel) return '-';
+            const n = String(tel).replace(/\D/g, '');
+            if (n.length === 11) return '(' + n.substr(0,2) + ') ' + n.substr(2,7) + '-' + n.substr(7);
+            if (n.length === 10) return '(' + n.substr(0,2) + ') ' + n.substr(2,6) + '-' + n.substr(6);
+            return tel;
+        }
+
+        function mostrarToast(msg, tipo) {
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + (tipo || '');
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // ============================================================
+        // Métricas
+        // ============================================================
+        function calcularMetricas(usos) {
+            const agora = new Date();
+            const inicioDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+            const seteDiasAtras = new Date(agora.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+            let hoje = 0;
+            let seteDias = 0;
+
+            usos.forEach(u => {
+                const d = new Date(u.aplicada_em);
+                if (d >= inicioDia) hoje++;
+                if (d >= seteDiasAtras) seteDias++;
+            });
+
+            return { total: usos.length, hoje, seteDias };
+        }
+
+        // ============================================================
+        // Render
+        // ============================================================
+        function renderizar(promocao, usos) {
+            const container = document.getElementById('container');
+
+            const desconto = (promocao.desconto_centavos / 100).toFixed(2).replace('.', ',');
+            const validadeInicio = formatarDataCurta(promocao.inicio);
+            const validadeFim = formatarDataCurta(promocao.fim);
+            const statusClasse = promocao.ativo ? 'ativa' : 'inativa';
+            const statusTexto = promocao.ativo ? '● Ativa' : '● Inativa';
+
+            const metricas = calcularMetricas(usos);
+
+            // HTML dos usos
+            let usosHtml = '';
+            if (usos.length === 0) {
+                usosHtml = `
+                    <div class="vazio">
+                        <div class="emoji">📭</div>
+                        <h3>Nenhum uso ainda</h3>
+                        <p>Assim que alguém usar o código <strong>${promocao.codigo}</strong>, vai aparecer aqui.</p>
+                    </div>
+                `;
+            } else {
+                usosHtml = `
+                    <div class="tabela-usos">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Telefone</th>
+                                    <th>Email</th>
+                                    <th>Data de uso</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${usos.map(u => `
+                                    <tr>
+                                        <td class="nome">${u.cliente?.nome || '-'}</td>
+                                        <td class="telefone">${formatarTelefone(u.cliente?.telefone)}</td>
+                                        <td class="email">${u.cliente?.email || '-'}</td>
+                                        <td class="data">${formatarData(u.aplicada_em)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = `
+                <!-- CARD DA PROMO -->
+                <div class="promo-card">
+                    <div class="cabecalho">
+                        <h2>🎟️ <code>${promocao.codigo}</code></h2>
+                        <span class="status-badge ${statusClasse}" id="statusBadge">${statusTexto}</span>
+                    </div>
+
+                    <div class="promo-info">
+                        <div class="promo-info-item">
+                            <div class="label">Desconto</div>
+                            <div class="valor">R$ ${desconto}</div>
+                        </div>
+                        <div class="promo-info-item">
+                            <div class="label">Válida de</div>
+                            <div class="valor">${validadeInicio}</div>
+                        </div>
+                        <div class="promo-info-item">
+                            <div class="label">Válida até</div>
+                            <div class="valor">${validadeFim}</div>
+                        </div>
+                        <div class="promo-info-item">
+                            <div class="label">Limite</div>
+                            <div class="valor">${promocao.limite_por_cpf || 1} por CPF</div>
+                        </div>
+                    </div>
+
+                    <div class="metricas">
+                        <div class="metrica">
+                            <div class="numero">${metricas.total}</div>
+                            <div class="legenda">Total de usos</div>
+                        </div>
+                        <div class="metrica">
+                            <div class="numero">${metricas.hoje}</div>
+                            <div class="legenda">Hoje</div>
+                        </div>
+                        <div class="metrica">
+                            <div class="numero">${metricas.seteDias}</div>
+                            <div class="legenda">Últimos 7 dias</div>
+                        </div>
+                    </div>
+
+                    <button
+                        class="btn-toggle ${promocao.ativo ? 'desativar' : 'ativar'}"
+                        id="btnToggle"
+                        onclick="togglePromo()"
+                    >
+                        ${promocao.ativo ? '🔴 Desativar promo' : '🟢 Ativar promo'}
+                    </button>
+                </div>
+
+                <!-- TABELA DE USOS -->
+                <h2 class="secao-titulo">
+                    📋 Usos da promoção
+                    <span class="contador">${usos.length}</span>
+                </h2>
+                ${usosHtml}
+            `;
+        }
+
+        // ============================================================
+        // Carregar dados
+        // ============================================================
+        let dadosAtuais = { promocao: null, usos: [] };
+
+        async function carregar() {
+            const container = document.getElementById('container');
+            container.innerHTML = '<div class="loading">⏳ Carregando informações...</div>';
+
+            try {
+                const resp = await fetch('/api/admin/promocoes/' + CODIGO_PROMO + '/usos?api_key=' + API_KEY);
+                const data = await resp.json();
+
+                if (!data.success) {
+                    container.innerHTML = `
+                        <div class="vazio">
+                            <div class="emoji">⚠️</div>
+                            <h3>Erro ao carregar</h3>
+                            <p>${data.error || 'Tente novamente.'}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                dadosAtuais = { promocao: data.promocao, usos: data.usos || [] };
+                renderizar(data.promocao, data.usos || []);
+            } catch (error) {
+                console.error('Erro:', error);
+                container.innerHTML = `
+                    <div class="vazio">
+                        <div class="emoji">⚠️</div>
+                        <h3>Erro de conexão</h3>
+                        <p>Verifique sua conexão e tente novamente.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // ============================================================
+        // Toggle (ativar/desativar)
+        // ============================================================
+        async function togglePromo() {
+            const btn = document.getElementById('btnToggle');
+            if (!btn) return;
+
+            btn.disabled = true;
+            const textoOriginal = btn.textContent;
+            btn.textContent = '⏳ Processando...';
+
+            try {
+                const resp = await fetch('/api/admin/promocoes/' + CODIGO_PROMO + '/toggle?api_key=' + API_KEY, {
+                    method: 'POST'
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    mostrarToast(
+                        data.ativo ? '✅ Promoção ativada!' : '🔴 Promoção desativada!',
+                        'sucesso'
+                    );
+                    // Recarrega os dados pra atualizar o badge de status
+                    await carregar();
+                } else {
+                    mostrarToast('❌ ' + (data.error || 'Erro ao alterar promoção'), 'erro');
+                    btn.disabled = false;
+                    btn.textContent = textoOriginal;
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                mostrarToast('❌ Erro de conexão', 'erro');
+                btn.disabled = false;
+                btn.textContent = textoOriginal;
+            }
+        }
+
+        // ============================================================
+        // Init
+        // ============================================================
+        carregar();
+
+        // Recarrega a cada 60s (mantém os dados frescos)
+        setInterval(carregar, 60000);
+    </script>
+</body>
+</html>
