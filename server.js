@@ -17,7 +17,15 @@ const fs = require('fs');
 const cron = require('node-cron');
 const multer = require('multer');
 const auth = require('./middleware/auth');
-
+// ============================================================
+// PROMO50 — Feature flag + config (Fase 2)
+// ============================================================
+const crypto = require('crypto');
+const PROMO_50_ENABLED = process.env.PROMO_50_ENABLED === 'true';
+const PROMO_CPF_SALT = process.env.PROMO_CPF_SALT || '';
+if (PROMO_50_ENABLED && !PROMO_CPF_SALT) {
+    console.warn('⚠️ PROMO_50_ENABLED=true mas PROMO_CPF_SALT não configurada. Promo desabilitada por segurança.');
+}
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY || '');
 const PORT = process.env.PORT || 10000;
@@ -227,6 +235,137 @@ function limparTelefone(telefone) {
     let limpo = str.replace(/\D/g, '');
     if (limpo.startsWith('55')) limpo = limpo.substring(2);
     return limpo;
+}
+
+// ============================================================
+// PROMO50 — Helpers (Fase 2)
+// ============================================================
+
+/**
+ * Hash SHA-256 do CPF (com salt).
+ * Nunca guarda CPF cru em promocao_usos.
+ */
+function hashCPF(cpf) {
+    if (!cpf || !PROMO_CPF_SALT) return null;
+    const cpfLimpo = String(cpf).replace(/\D/g, '');
+    if (cpfLimpo.length !== 11) return null;
+    return crypto
+        .createHash('sha256')
+        .update(PROMO_CPF_SALT + cpfLimpo)
+        .digest('hex');
+}
+
+/**
+ * Valida se uma promoção pode ser aplicada.
+ * Retorna { valida, desconto_centavos, motivo, promocao_id }
+ */
+async function validarPromocao(codigo, cpf, tipoServicoCliente) {
+    if (!PROMO_50_ENABLED) {
+        return { valida: false, motivo: 'promo_desabilitada' };
+    }
+
+    if (!codigo || !cpf) {
+        return { valida: false, motivo: 'dados_incompletos' };
+    }
+
+    const cpfHash = hashCPF(cpf);
+    if (!cpfHash) {
+        return { valida: false, motivo: 'cpf_invalido' };
+    }
+
+    const { data: promo, error } = await supabase
+        .from('promocoes')
+        .select('*')
+        .eq('codigo', String(codigo).toLowerCase().trim())
+        .eq('ativo', true)
+        .maybeSingle();
+
+    if (error || !promo) {
+        return { valida: false, motivo: 'promocao_nao_encontrada' };
+    }
+
+    const agora = new Date();
+    if (promo.inicio && new Date(promo.inicio) > agora) {
+        return { valida: false, motivo: 'promocao_nao_iniciada' };
+    }
+    if (promo.fim && new Date(promo.fim) < agora) {
+        return { valida: false, motivo: 'promocao_expirada' };
+    }
+
+    if (promo.servico_aplicavel && tipoServicoCliente && promo.servico_aplicavel !== tipoServicoCliente) {
+        return { valida: false, motivo: 'servico_incompativel' };
+    }
+
+    const { data: usoExistente } = await supabase
+        .from('promocao_usos')
+        .select('id')
+        .eq('promocao_id', promo.id)
+        .eq('cpf_hash', cpfHash)
+        .maybeSingle();
+
+    if (usoExistente) {
+        return { valida: false, motivo: 'cpf_ja_usou' };
+    }
+
+    return {
+        valida: true,
+        motivo: null,
+        promocao_id: promo.id,
+        codigo: promo.codigo,
+        desconto_centavos: promo.desconto_centavos
+    };
+}
+
+/**
+ * Aplica a promoção: grava em clientes + promocao_usos.
+ */
+async function aplicarPromocao(clienteId, promoInfo, cpf) {
+    const cpfHash = hashCPF(cpf);
+    if (!cpfHash) return { success: false, error: 'cpf_invalido' };
+
+    try {
+        const { error: updErr } = await supabase
+            .from('clientes')
+            .update({
+                promocao_codigo: promoInfo.codigo,
+                promocao_desconto_centavos: promoInfo.desconto_centavos,
+                promocao_aplicada_em: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', clienteId);
+
+        if (updErr) {
+            console.error('❌ Erro ao gravar promo em clientes:', updErr);
+            return { success: false, error: updErr.message };
+        }
+
+        const { error: insErr } = await supabase
+            .from('promocao_usos')
+            .insert({
+                promocao_id: promoInfo.promocao_id,
+                cliente_id: clienteId,
+                cpf_hash: cpfHash
+            });
+
+        if (insErr) {
+            console.error('❌ Erro ao gravar em promocao_usos:', insErr);
+            await supabase
+                .from('clientes')
+                .update({
+                    promocao_codigo: null,
+                    promocao_desconto_centavos: null,
+                    promocao_aplicada_em: null
+                })
+                .eq('id', clienteId);
+            return { success: false, error: insErr.message };
+        }
+
+        console.log(`✅ Promo ${promoInfo.codigo} aplicada ao cliente ${clienteId}`);
+        return { success: true };
+    } catch (e) {
+        console.error('❌ Erro em aplicarPromocao:', e);
+        return { success: false, error: e.message };
+    }
 }
 
 // ============================================================
@@ -3826,6 +3965,60 @@ async function notificarReenvioDS160(clienteData, nomeValido, emailValido, clean
     }
 }
 
+// ============================================================
+// PROMO50 — Endpoint público de validação (landing page)
+// ============================================================
+app.get('/api/promocao/validar', async (req, res) => {
+    try {
+        const { codigo, cpf } = req.query;
+
+        if (!codigo) {
+            return res.status(400).json({ valida: false, motivo: 'codigo_obrigatorio' });
+        }
+
+        // Validação leve (sem CPF): só checa se a promo existe/está ativa
+        if (!cpf) {
+            if (!PROMO_50_ENABLED) {
+                return res.json({ valida: false, motivo: 'promo_desabilitada' });
+            }
+
+            const { data: promo } = await supabase
+                .from('promocoes')
+                .select('codigo, desconto_centavos, inicio, fim, ativo')
+                .eq('codigo', String(codigo).toLowerCase().trim())
+                .eq('ativo', true)
+                .maybeSingle();
+
+            if (!promo) {
+                return res.json({ valida: false, motivo: 'promocao_nao_encontrada' });
+            }
+
+            const agora = new Date();
+            if (promo.inicio && new Date(promo.inicio) > agora) {
+                return res.json({ valida: false, motivo: 'promocao_nao_iniciada' });
+            }
+            if (promo.fim && new Date(promo.fim) < agora) {
+                return res.json({ valida: false, motivo: 'promocao_expirada' });
+            }
+
+            return res.json({
+                valida: true,
+                codigo: promo.codigo,
+                desconto_centavos: promo.desconto_centavos,
+                motivo: null
+            });
+        }
+
+        // Validação completa (com CPF)
+        const resultado = await validarPromocao(codigo, cpf, null);
+        return res.json(resultado);
+    } catch (error) {
+        console.error('❌ Erro em /api/promocao/validar:', error);
+        return res.status(500).json({ valida: false, motivo: 'erro_interno' });
+    }
+});
+
+
 app.post('/api/submit-ds160', async (req, res) => {
     console.log('🔔 Rota /api/submit-ds160 chamada!');
     try {
@@ -3960,7 +4153,31 @@ app.post('/api/submit-ds160', async (req, res) => {
         }
         console.log('✅ Cliente salvo:', clienteData);
 
-        // 4.1. Cria/atualiza form_ds160 (só se NÃO foi bloqueado)
+                // ============================================================
+        // 4.0. PROMO50 — aplica desconto se código válido
+        // ============================================================
+        const promocaoCodigo = formData.promocao_codigo || formData.promo_codigo || null;
+        if (promocaoCodigo && clienteData?.id) {
+            try {
+                const resultadoPromo = await validarPromocao(promocaoCodigo, cpf, 'visto');
+                if (resultadoPromo.valida) {
+                    const aplicou = await aplicarPromocao(clienteData.id, resultadoPromo, cpf);
+                    if (aplicou.success) {
+                        console.log(`🎟️ Promo ${resultadoPromo.codigo} aplicada: R$ ${(resultadoPromo.desconto_centavos/100).toFixed(2)} off`);
+                    } else {
+                        console.warn(`⚠️ Promo válida mas falhou ao aplicar: ${aplicou.error}`);
+                    }
+                } else {
+                    console.log(`🎟️ Promo "${promocaoCodigo}" não aplicada: ${resultadoPromo.motivo}`);
+                }
+            } catch (promoErr) {
+                console.error('❌ Erro ao processar promo:', promoErr);
+                // Não bloqueia o submit — segue o fluxo normal
+            }
+        }
+
+        
+                // 4.1. Cria/atualiza form_ds160 (só se NÃO foi bloqueado)
         if (formExistente) {
             await supabase.from('form_ds160')
                 .update({ dados_formulario: formData, status: 'rascunho', updated_at: new Date().toISOString() })
@@ -3976,13 +4193,31 @@ app.post('/api/submit-ds160', async (req, res) => {
                 });
         }
 
-            try {
+        try {
             const primeiroNome = nomeValido.split(' ')[0];
-            const mensagemWhats = `🎉 *Olá ${primeiroNome}!*\n\nRecebemos seu formulário DS-160 com sucesso! ✅\n\n📋 *Dados recebidos:*\n👤 Nome: ${nomeValido}\n📧 Email: ${emailValido}\n📱 Telefone: ${cleanPhone}\n🏛️ Consulado: ${consulado || 'Não informado'}\n\n⏳ *Próximos passos:*\n1️⃣ Nossa equipe fará a análise dos dados\n2️⃣ Você receberá a confirmação no Whatsapp\n3️⃣ Iniciaremos o agendamento da entrevista\n\n📱 Dúvidas? Fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)` +
+
+            // 🎟️ PROMO50 — monta bloco extra se promo foi aplicada
+            let blocoPromo = '';
+            try {
+                const { data: clienteComPromo } = await supabase
+                    .from('clientes')
+                    .select('promocao_codigo, promocao_desconto_centavos')
+                    .eq('id', clienteData.id)
+                    .maybeSingle();
+                if (clienteComPromo?.promocao_codigo) {
+                    const desc = (clienteComPromo.promocao_desconto_centavos / 100).toFixed(2).replace('.', ',');
+                    blocoPromo = `\n\n🎟️ *PROMO APLICADA:* ${clienteComPromo.promocao_codigo} (-R$ ${desc})\n💰 *Valor da assessoria:* R$ 350 → *R$ 300*`;
+                }
+            } catch (promoMsgErr) {
+                console.error('❌ Erro ao montar bloco promo:', promoMsgErr);
+            }
+
+            const mensagemWhats = `🎉 *Olá ${primeiroNome}!*\n\nRecebemos seu formulário DS-160 com sucesso! ✅\n\n📋 *Dados recebidos:*\n👤 Nome: ${nomeValido}\n📧 Email: ${emailValido}\n📱 Telefone: ${cleanPhone}\n🏛️ Consulado: ${consulado || 'Não informado'}${blocoPromo}\n\n⏳ *Próximos passos:*\n1️⃣ Nossa equipe fará a análise dos dados\n2️⃣ Você receberá a confirmação no Whatsapp\n3️⃣ Iniciaremos o agendamento da entrevista\n\n📱 Dúvidas? Fale conosco: [Fale com nosso especialista](https://wa.me/5521974601812)` +
                 rodapePortal() +
                 `\n\n🌟 *GetVisa Assessoria - Seu visto americano com segurança!* 🇺🇸`;
             await enviarWhatsApp(cleanPhone, mensagemWhats);
         } catch (whatsError) { console.error('❌ Erro ao enviar notificação WhatsApp:', whatsError); }
+
         // GERA PDF DO FORMULÁRIO
         let pdfBuffer = null;
         try {
