@@ -173,13 +173,6 @@
                 <p>Tentativas para revisar</p>
                 <span class="badge">Admin</span>
             </a>
-            <a href="/painel-promocoes?api_key=admin123" class="card com-badge" id="cardPromocoes">
-                <span class="contador" id="badgePromocoes" style="display:none;">0</span>
-                <span class="icon">🎟️</span>
-                <h3>Promoções</h3>
-                <p>Gerenciar campanhas ativas</p>
-                <span class="badge">Admin</span>
-            </a>
             <a href="/simulador-visto-americano" class="card">
                 <span class="icon">📊</span>
                 <h3>Simulador</h3>
@@ -235,26 +228,6 @@
             }
         }
 
-                // ============================================================
-        // 🎟️ Carrega contador de usos da promo50 (badge no card)
-        // ============================================================
-        async function carregarPromocoes() {
-            try {
-                const resp = await fetch('/api/admin/promocoes/count?api_key=admin123');
-                const data = await resp.json();
-
-                if (data.success && data.count > 0) {
-                    const badge = document.getElementById('badgePromocoes');
-                    if (badge) {
-                        badge.textContent = data.count;
-                        badge.style.display = 'block';
-                    }
-                }
-            } catch (error) {
-                console.error('Erro ao carregar promoções:', error);
-            }
-        }
-
 
         async function sair() {
             if (confirm('Deseja realmente sair?')) {
@@ -266,7 +239,6 @@
                 document.addEventListener('DOMContentLoaded', () => {
             carregarEstatisticas();
             carregarReenviosPendentes();
-            carregarPromocoes();
         });
     </script>
 </body>
