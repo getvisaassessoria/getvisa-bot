@@ -2486,21 +2486,6 @@ app.get('/agendamentos', auth.verificarAdmin, (req, res) => {
     else res.status(404).send('<h1>📅 Agendamentos</h1><p>Arquivo admin-login.html não encontrado.</p>');
 });
 
-// ============================================================
-// PROMO50 — Landing page (campanha Face/Instagram)
-// ============================================================
-app.get('/promo50', (req, res) => {
-    const p = path.join(__dirname, 'public', 'promo50.html');
-    if (fs.existsSync(p)) res.sendFile(p);
-    else res.status(404).send('<h1>Página não encontrada</h1>');
-});
-
-
-app.get('/formulario-ds160', (req, res) => {
-    const p = path.join(__dirname, 'public', 'formulario-ds160.html');
-    if (fs.existsSync(p)) res.sendFile(p);
-    else res.status(404).send('<h1>Formulário não encontrado</h1>');
-});
 
 app.get('/formulario-ds160', (req, res) => {
     const p = path.join(__dirname, 'public', 'formulario-ds160.html');
