@@ -368,6 +368,12 @@ function obterNomeExibicao(nome) {
 // ============================================================
 async function enviarWhatsApp(telefone, mensagem, isNotificacao = false) {
     try {
+        // 🧪 Modo teste: não envia WhatsApp real
+        if (process.env.DISABLE_WHATSAPP === 'true') {
+            console.log(`🧪 [TESTE] WhatsApp bloqueado para ${telefone}: ${mensagem.substring(0, 80)}...`);
+            return true;
+        }
+
         if (isNotificacao) {
             const pode = await clientePodeReceberNotificacoes(telefone);
             if (!pode) {
@@ -2464,17 +2470,22 @@ app.post('/api/check-ds160-status', async (req, res) => {
             return res.json({ success: true, cliente_existe: false, tem_formulario: false });
         }
 
+        // 🆕 Busca form + contador (usa cliente_id, a coluna correta)
         const { data: form } = await supabase
             .from('form_ds160')
-            .select('id')
-            .eq('id_cliente', cliente.id)
+            .select('id, tentativas_reagendamento')
+            .eq('cliente_id', cliente.id)
             .maybeSingle();
+
+        const tentativas = form?.tentativas_reagendamento || 0;
 
         return res.json({
             success: true,
             cliente_existe: true,
             tem_formulario: !!form,
-            nome_cliente: cliente.nome || null
+            nome_cliente: cliente.nome || null,
+            tentativas_reagendamento: tentativas,
+            limite_atingido: tentativas >= 3
         });
     } catch (error) {
         console.error('❌ Erro em check-ds160-status:', error);
@@ -2946,9 +2957,11 @@ async function calcularAcaoReenvio(idCliente) {
 
         const { data: form } = await supabase
             .from('form_ds160')
-            .select('created_at, updated_at')
-            .eq('id_cliente', idCliente)
+            .select('created_at, updated_at, tentativas_reagendamento')
+            .eq('cliente_id', idCliente)
             .maybeSingle();
+
+        const tentativas = form?.tentativas_reagendamento || 0;
 
         const etapaAtual = etapa?.etapa_atual || null;
         const dataCasv = parseDataBR(etapa?.dados_casv?.data);
@@ -2972,6 +2985,17 @@ async function calcularAcaoReenvio(idCliente) {
                     mensagem: `⏰ ATENÇÃO: DS-160 com ${Math.floor(mesesDesdeForm)} meses. Faltam ${12 - Math.floor(mesesDesdeForm)} meses para expirar o prazo de reagendamento.`
                 };
             }
+        }
+
+        // 🆕 LIMITE DE 3 TENTATIVAS (mais restritivo — vem antes de tudo)
+        if (tentativas >= 3) {
+            return {
+                acao: 'BLOQUEAR',
+                titulo: 'Limite de 3 alterações atingido',
+                motivo: `Cliente já tentou ${tentativas} de 3 alterações permitidas. Necessário novo agendamento com nova taxa consular.`,
+                cor: 'vermelho',
+                contexto: { tentativas, limite: 3, alerta_expiracao: alertaExpiracao }
+            };
         }
 
         // Etapa terminal → encerrado
@@ -2999,6 +3023,7 @@ async function calcularAcaoReenvio(idCliente) {
                             data_casv: etapa.dados_casv?.data,
                             dias_ate_casv: info.corridos,
                             dias_uteis_ate_casv: info.uteis,
+                            tentativas,
                             alerta_expiracao: alertaExpiracao
                         }
                     };
@@ -3012,6 +3037,7 @@ async function calcularAcaoReenvio(idCliente) {
                             data_casv: etapa.dados_casv?.data,
                             dias_ate_casv: info.corridos,
                             dias_uteis_ate_casv: info.uteis,
+                            tentativas,
                             alerta_expiracao: alertaExpiracao
                         }
                     };
@@ -3032,6 +3058,7 @@ async function calcularAcaoReenvio(idCliente) {
                         data_casv: etapa.dados_casv?.data,
                         data_entrevista: etapa.dados_entrevista?.data,
                         dias_ate_entrevista: infoEntrevista.corridos,
+                        tentativas,
                         alerta_expiracao: alertaExpiracao
                     }
                 };
@@ -3047,6 +3074,7 @@ async function calcularAcaoReenvio(idCliente) {
                 cor: 'amarelo',
                 contexto: {
                     data_entrevista: etapa.dados_entrevista?.data,
+                    tentativas,
                     alerta_expiracao: alertaExpiracao
                 }
             };
@@ -3058,7 +3086,7 @@ async function calcularAcaoReenvio(idCliente) {
             titulo: 'Permitir novo DS-160',
             motivo: `Sem agendamento ativo no momento. Cliente pode refazer o DS-160 livremente.`,
             cor: 'verde',
-            contexto: { alerta_expiracao: alertaExpiracao }
+            contexto: { tentativas, alerta_expiracao: alertaExpiracao }
         };
 
     } catch (error) {
@@ -3864,8 +3892,8 @@ app.post('/api/submit-ds160', async (req, res) => {
         if (clienteExistente) {
             const { data } = await supabase
                 .from('form_ds160')
-                .select('id, id_cliente')
-                .eq('id_cliente', clienteExistente.id)
+               .select('id, cliente_id, tentativas_reagendamento')
+                .eq('cliente_id', clienteExistente.id)
                 .maybeSingle();
             formExistente = data;
         }
@@ -3874,8 +3902,43 @@ app.post('/api/submit-ds160', async (req, res) => {
         // 3. BLOQUEIO DE REENVIO (feature flag BLOCK_DS160_RESUBMIT)
         //    ⚠️ Roda ANTES do upsert — NÃO sobrescreve nome/email/consulado
         // ============================================================
-        if (formExistente && BLOQUEAR_REENVIO) {
+                if (formExistente && BLOQUEAR_REENVIO) {
             console.log('🚨 REENVIO BLOQUEADO - cliente já possui form_ds160:', clienteExistente.id);
+
+            // 🆕 3.0. Incrementa contador de tentativas
+            const tentativasAtuais = formExistente.tentativas_reagendamento || 0;
+            const novasTentativas = tentativasAtuais + 1;
+
+            try {
+                await supabase
+                    .from('form_ds160')
+                    .update({ tentativas_reagendamento: novasTentativas })
+                    .eq('id', formExistente.id);
+                console.log(`📊 Tentativas: ${tentativasAtuais} → ${novasTentativas}`);
+            } catch (errCont) {
+                console.error('❌ Erro ao incrementar contador:', errCont);
+            }
+
+            // 🆕 3.0.1. Se atingiu o limite de 3, bloqueia com mensagem específica
+            if (novasTentativas >= 3) {
+                try {
+                    await notificarReenvioDS160(
+                        { id: clienteExistente.id },
+                        nomeValido, emailValido, cleanPhone, formData
+                    );
+                } catch (notifError) {
+                    console.error('❌ Erro ao notificar equipe (limite):', notifError);
+                }
+
+                return res.status(200).json({
+                    success: true,
+                    requires_contact: true,
+                    limite_atingido: true,
+                    tentativas: novasTentativas,
+                    message: 'Você atingiu o limite de 3 alterações no DS-160. É necessário fazer um novo agendamento com nova taxa consular. Entre em contato com um especialista.',
+                    whatsapp: process.env.WHATSAPP_EQUIPE || '5521974601812'
+                });
+            }
 
             // 3.1. Registra tentativa em form_ds160_reenvios (histórico)
             try {
@@ -3968,7 +4031,8 @@ app.post('/api/submit-ds160', async (req, res) => {
         } else {
             await supabase.from('form_ds160')
                 .insert({
-                    id_cliente: clienteData.id,
+                    cliente_id: clienteData.id,
+                    id_cliente: clienteData.id,  // mantém por compatibilidade
                     dados_formulario: formData,
                     status: 'rascunho',
                     created_at: new Date().toISOString(),
@@ -3988,7 +4052,7 @@ app.post('/api/submit-ds160', async (req, res) => {
         try {
             const { data: formDataSaved, error: formError } = await supabase
                 .from('form_ds160')
-                .select('*')
+                .eq('cliente_id', clienteData.id)
                 .eq('id_cliente', clienteData.id)
                 .maybeSingle();
             if (!formError && formDataSaved) {

@@ -1927,7 +1927,7 @@ async function avancarStep1() {
         });
         const result = await response.json();
 
-        if (result.success && result.tem_formulario) {
+                if (result.success && result.tem_formulario) {
             // 🚨 Cliente já tem DS-160 → bloqueia na hora, sem perder tempo
             document.getElementById('ds160Form').classList.add('hidden');
             document.getElementById('resultadoReenvio').classList.remove('hidden');
@@ -1935,16 +1935,33 @@ async function avancarStep1() {
             const dadosReenvio = document.getElementById('dadosReenvio');
             const textoConsulado = consuladoInput.options[consuladoInput.selectedIndex].text;
 
+            // 🆕 Se atingiu o limite de 3 alterações, mostra aviso vermelho no topo
+            if (result.limite_atingido) {
+                const avisoLimite = document.createElement('div');
+                avisoLimite.style.cssText = 'background:#f8d7da;border:1px solid #f5c6cb;color:#721c24;padding:15px;border-radius:8px;margin-bottom:15px;';
+                avisoLimite.innerHTML = `
+                    <h3 style="margin-top:0;">🚫 Limite de alterações atingido</h3>
+                    <p>Você já utilizou <strong>${result.tentativas_reagendamento} de 3</strong> alterações permitidas no DS-160.</p>
+                    <p>Para continuar, é necessário fazer um <strong>novo agendamento com nova taxa consular</strong>.</p>
+                    <p>Entre em contato com um especialista para orientações.</p>
+                `;
+                const resultadoDiv = document.getElementById('resultadoReenvio');
+                resultadoDiv.insertBefore(avisoLimite, resultadoDiv.firstChild);
+            }
+
             dadosReenvio.innerHTML = `
                 <p><strong>Telefone:</strong> ${phoneInput.value}</p>
                 <p><strong>Consulado:</strong> ${textoConsulado}</p>
+                ${result.tentativas_reagendamento !== undefined ? `<p><strong>Tentativas usadas:</strong> ${result.tentativas_reagendamento} de 3</p>` : ''}
             `;
 
             // Ajusta link do WhatsApp com mensagem personalizada
             const linkZap = document.querySelector('#resultadoReenvio a');
             if (linkZap) {
                 const msg = encodeURIComponent(
-                    `Olá! Preciso alterar meu DS-160 já enviado. Meu telefone é ${phoneInput.value}.`
+                    result.limite_atingido
+                        ? `Olá! Sou ${phoneInput.value}. Atingi o limite de 3 alterações no DS-160 e preciso de orientação sobre novo agendamento.`
+                        : `Olá! Preciso alterar meu DS-160 já enviado. Meu telefone é ${phoneInput.value}.`
                 );
                 linkZap.href = `https://wa.me/5521974601812?text=${msg}`;
             }
@@ -2606,15 +2623,30 @@ document.getElementById('ds160Form').addEventListener('submit', async function(e
                 var result = await response.json();
 
         // 🚨 NOVO: reenvio bloqueado — cliente já tem DS-160
-        if (result.requires_contact) {
+                if (result.requires_contact) {
             document.getElementById('ds160Form').classList.add('hidden');
             document.getElementById('resultadoReenvio').classList.remove('hidden');
 
             const dadosReenvio = document.getElementById('dadosReenvio');
             const whatsappEquipe = result.whatsapp || '5521974601812';
-            const msgZap = encodeURIComponent(
-                `Olá! Sou ${dados.full_name || ''}. Preciso alterar meu DS-160 já enviado.`
-            );
+
+            const msgTexto = result.limite_atingido
+                ? `Olá! Sou ${dados.full_name || ''}. Atingi o limite de 3 alterações no DS-160 e preciso de orientação sobre novo agendamento.`
+                : `Olá! Sou ${dados.full_name || ''}. Preciso alterar meu DS-160 já enviado.`;
+            const msgZap = encodeURIComponent(msgTexto);
+
+            // 🆕 Se atingiu o limite, mostra aviso vermelho no topo
+            if (result.limite_atingido) {
+                const avisoLimite = document.createElement('div');
+                avisoLimite.style.cssText = 'background:#f8d7da;border:1px solid #f5c6cb;color:#721c24;padding:15px;border-radius:8px;margin-bottom:15px;';
+                avisoLimite.innerHTML = `
+                    <h3 style="margin-top:0;">🚫 Limite de alterações atingido</h3>
+                    <p>Você já utilizou <strong>${result.tentativas || 3} de 3</strong> alterações permitidas no DS-160.</p>
+                    <p>Para continuar, é necessário fazer um <strong>novo agendamento com nova taxa consular</strong>.</p>
+                `;
+                const resultadoDiv = document.getElementById('resultadoReenvio');
+                resultadoDiv.insertBefore(avisoLimite, resultadoDiv.firstChild);
+            }
 
             dadosReenvio.innerHTML = `
                 <p><strong>Nome:</strong> ${dados.full_name || '-'}</p>
