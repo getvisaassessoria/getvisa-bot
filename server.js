@@ -465,12 +465,12 @@ async function clientePodeReceberNotificacoes(telefone) {
         const telReal = telefoneReal(telefone) || telefone;
         const { data, error } = await supabase
             .from('clientes')
-            .select('tipo_contato, silenciar_notificacoes')
+            .select('tipo_contato, silenciar_bot, silenciar_notificacoes')
             .eq('telefone', telReal)
             .maybeSingle();
         if (error || !data) return true;
-        if (data.tipo_contato === 'contato_pessoal' || data.silenciar_notificacoes === true) {
-            console.log(`🔇 Notificação bloqueada para ${telefone} (${data.tipo_contato})`);
+        if (data.tipo_contato === 'contato_pessoal' || data.silenciar_bot === true || data.silenciar_notificacoes === true) {
+            console.log(`🔇 Notificação bloqueada para ${telefone} (tipo=${data.tipo_contato}, bot=${data.silenciar_bot}, notif=${data.silenciar_notificacoes})`);
             return false;
         }
         return true;
@@ -1661,8 +1661,8 @@ async function processarMensagem(phone, message) {
         if (!error && data) cliente = data;
     } catch (err) {}
 
-    if (cliente && cliente.tipo_contato === 'contato_pessoal') {
-        console.log(`🔇 Contato pessoal ${telefoneLimpo} - silêncio`);
+    if (cliente && (cliente.silenciar_bot === true || cliente.tipo_contato === 'contato_pessoal')) {
+        console.log(`🔇 Bot silenciado para ${telefoneLimpo} (flag=${cliente.silenciar_bot}, tipo=${cliente.tipo_contato})`);
         return;
     }
 
