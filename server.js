@@ -4072,8 +4072,8 @@ app.post('/api/submit-ds160', async (req, res) => {
         try {
             const { data: formDataSaved, error: formError } = await supabase
                 .from('form_ds160')
+                .select('*')
                 .eq('cliente_id', clienteData.id)
-                .eq('id_cliente', clienteData.id)
                 .maybeSingle();
             if (!formError && formDataSaved) {
                 const dadosParaPDF = formDataSaved.dados_formulario || formDataSaved;
