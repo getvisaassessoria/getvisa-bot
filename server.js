@@ -2598,6 +2598,26 @@ app.get('/api/admin/reenvios/count', auth.verificarAdmin, async (req, res) => {
 });
 
 // ============================================================
+// ROTA: CONTADOR DE FORMULÁRIOS DS-160 (badge do dashboard)
+// ============================================================
+app.get('/api/formularios/ds160/count', auth.verificarAdmin, async (req, res) => {
+    try {
+        const { count, error } = await supabase
+            .from('form_ds160')
+            .select('*', { count: 'exact', head: true });
+
+        if (error) return res.status(500).json({ success: false, error: error.message });
+        res.json({ success: true, count: count || 0 });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// PORTAL DO CLIENTE — Endpoints
+// ============================================================
+
+// ============================================================
 // PORTAL DO CLIENTE — Endpoints
 // ============================================================
 
