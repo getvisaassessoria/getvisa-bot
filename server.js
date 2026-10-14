@@ -3927,7 +3927,7 @@ app.post('/api/submit-ds160', async (req, res) => {
 
             // 🆕 3.0. Incrementa contador de tentativas
             const tentativasAtuais = formExistente.tentativas_reagendamento || 0;
-            const novasTentativas = tentativasAtuais + 1;
+            const novasTentativas = Math.min(tentativasAtuais + 1, 3);
 
             try {
                 await supabase
