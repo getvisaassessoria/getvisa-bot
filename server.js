@@ -4152,7 +4152,7 @@ app.post('/api/submit-passaporte', async (req, res) => {
             return res.status(400).json({ ok: false, erro: 'CPF completo (11 dígitos) é obrigatório.' });
         }
 
-        // 2. Telefone real
+                // 2. Telefone real
         let telefoneRealVal = limparTelefone(dados.phone);
         if (!telefoneRealVal) {
             return res.status(400).json({ ok: false, erro: 'Telefone inválido.' });
@@ -4191,6 +4191,9 @@ app.post('/api/submit-passaporte', async (req, res) => {
             // 🆕 Para familiar: o telefone que vai em clientes é o COM sufixo
             // (o real fica no dados_json pra PF)
             telefoneRealVal = telefoneVinculacao;
+        } else {
+            // 🆕 Modo único: vinculação = próprio telefone (cliente é titular de si mesmo)
+            telefoneVinculacao = telefoneRealVal;
         }
 
         // 3. Feature flag: bloqueio de reenvio (opcional)
