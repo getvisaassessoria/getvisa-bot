@@ -4129,6 +4129,28 @@ app.post('/api/submit-ds160', async (req, res) => {
 });
 
 // ============================================================
+// NOTIFICAÇÃO: CPF divergente entre banco e form de passaporte
+// ============================================================
+async function notificarCpfDivergente(clienteExistente, cpf4Form) {
+    try {
+        const zapEquipe = process.env.WHATSAPP_EQUIPE || process.env.ADMIN_PHONE || '5521974601812';
+        const msg = `⚠️ *CPF DIVERGENTE — VERIFICAR*\n\n` +
+            `👤 *Cliente:* ${clienteExistente.nome}\n` +
+            `📱 *Telefone:* ${clienteExistente.telefone}\n\n` +
+            `*Banco:* ${clienteExistente.cpf_ultimos4}\n` +
+            `*Form:* ${cpf4Form}\n\n` +
+            `📌 O cliente preencheu o form de passaporte com CPF diferente do que está no cadastro. ` +
+            `Verificar com ele antes de prosseguir.\n\n` +
+            `🗂️ Cliente ID: ${clienteExistente.id}`;
+
+        await enviarWhatsApp(zapEquipe, msg);
+        console.log(`📱 Notificação de CPF divergente enviada para equipe`);
+    } catch (err) {
+        console.error('❌ Erro ao notificar CPF divergente:', err);
+    }
+}
+
+// ============================================================
 // POST /api/submit-passaporte
 // Grava solicitação de passaporte direto no Supabase
 // ============================================================
@@ -4205,7 +4227,7 @@ app.post('/api/submit-passaporte', async (req, res) => {
                 .eq('cpf_ultimos4', cpf4)
                 .maybeSingle();
 
-            if (existente) {
+        if (existente) {
                 return res.status(409).json({
                     ok: false,
                     erro: 'Já existe uma solicitação de passaporte para este CPF.',
@@ -4219,35 +4241,48 @@ app.post('/api/submit-passaporte', async (req, res) => {
         let clienteId = null;
         let clienteEhNovo = false;
 
+        // 🆕 Busca só por telefone (UNIQUE) — não por cpf_ultimos4
         const { data: clienteExistente, error: errBusca } = await supabase
             .from('clientes')
             .select('id, nome, telefone, telefone_vinculacao, cpf, cpf_ultimos4, tipo_servico, cliente_titular_id')
             .eq('telefone', telefoneRealVal)
-            .eq('cpf_ultimos4', cpf4)
             .maybeSingle();
 
         if (errBusca) throw errBusca;
 
-        if (clienteExistente) {
+                if (clienteExistente) {
             clienteId = clienteExistente.id;
 
             const updates = { updated_at: new Date().toISOString() };
             if (!clienteExistente.telefone_vinculacao) updates.telefone_vinculacao = telefoneVinculacao;
             if (titularId && !clienteExistente.cliente_titular_id) updates.cliente_titular_id = titularId;
 
+            // 🆕 Preenche cpf_ultimos4/cpf se o cliente não tem
+            if (!clienteExistente.cpf_ultimos4 && cpf4) {
+                updates.cpf_ultimos4 = cpf4;
+            }
+            if (!clienteExistente.cpf && cpfLimpo) {
+                updates.cpf = cpfLimpo;
+            }
+
+            // 🆕 Se CPF diverge, alerta a equipe (NÃO atualiza automaticamente)
+            if (clienteExistente.cpf_ultimos4 && cpf4 && clienteExistente.cpf_ultimos4 !== cpf4) {
+                console.warn(`⚠️ CPF divergente para ${clienteExistente.nome}: banco=${clienteExistente.cpf_ultimos4}, form=${cpf4}`);
+                notificarCpfDivergente(clienteExistente, cpf4).catch(e => console.error('Erro ao notificar CPF divergente:', e));
+            }
+
             if (Object.keys(updates).length > 1) {
                 await supabase.from('clientes').update(updates).eq('id', clienteId);
             }
         } else {
-            
-            console.log('🔍 DEBUG ANTES DO INSERT:', {
+            console.log('🔍 Cliente novo — inserindo:', {
                 modo,
                 telefoneRealVal,
                 telefoneVinculacao,
                 titularId,
                 cpf4
             });
-            
+
             const { data: novoCliente, error: errNovo } = await supabase
                 .from('clientes')
                 .insert({
