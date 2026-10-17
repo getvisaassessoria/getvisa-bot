@@ -299,18 +299,21 @@ function renderClientes(clientes) {
         let dataParaExibir = '';
         let labelData = 'Cadastro';
 
-        // Prioridade 1: CASV agendado → mostra data do CASV
-        if ((cliente.etapa_atual === 'agendado_casv' || cliente.status === 'agendado_casv') && cliente.dados_casv?.data) {
-            dataParaExibir = cliente.dados_casv.data;  // "15 de Outubro de 2026"
+                // 🆕 Prioriza: CASV + Entrevista (juntas) → CASV só → Entrevista só → Cadastro
+        const casv = cliente.dados_casv;
+        const entrevista = cliente.dados_entrevista;
+
+        if (casv?.data && entrevista?.data) {
+            // As duas datas existem → mostra as duas
+            dataParaExibir = `<div style="font-size:11px;line-height:1.3;">📅 <strong>CASV:</strong> ${casv.data}<br>🎤 <strong>Entrevista:</strong> ${entrevista.data}</div>`;
+            labelData = 'Agendamentos';
+        } else if (casv?.data) {
+            dataParaExibir = `📅 ${casv.data}`;
             labelData = 'CASV';
-        }
-        // Prioridade 2: Entrevista agendada → mostra data da entrevista
-        else if ((cliente.etapa_atual === 'agendado_entrevista' || cliente.status === 'agendado_entrevista') && cliente.dados_entrevista?.data) {
-            dataParaExibir = cliente.dados_entrevista.data;
+        } else if (entrevista?.data) {
+            dataParaExibir = `🎤 ${entrevista.data}`;
             labelData = 'Entrevista';
-        }
-        // Fallback: data de cadastro/contato
-        else {
+        } else {
             const dataBase = cliente.created_at || cliente.data_contato || cliente.criado_em;
             dataParaExibir = dataBase ? new Date(dataBase).toLocaleDateString('pt-BR') : '-';
             labelData = 'Cadastro';
