@@ -1565,13 +1565,27 @@
         <p style="margin-top:10px;">Enviando dados...</p>
     </div>
 
-    <        <div id="resultado" class="hidden">
+    <            <div id="resultado" class="hidden">
         <div class="alert alert-success">
             <h3>✅ Formulário enviado com sucesso!</h3>
             <p>Obrigado por preencher o formulário. Nossa equipe entrará em contato em breve.</p>
             <p><strong>📱 Fique atento ao WhatsApp!</strong></p>
         </div>
-        <button class="btn btn-primary" onclick="location.reload()">📝 Preencher novo formulário</button>
+        
+        <!-- 🆕 Botão pra novo familiar -->
+        <div id="bloco-novo-familiar" style="display:none; background:#e8f4fd; padding:20px; border-radius:8px; margin-top:20px; text-align:center;">
+            <h4 style="color:#003366; margin-top:0;">👨‍👩‍👧 Continuar para outro familiar?</h4>
+            <p style="color:#555;">Você ainda pode adicionar mais formulários para os outros membros da família.</p>
+            <button class="btn btn-primary" onclick="novoFormularioFamiliar()" style="margin-top:10px;">
+                ➕ Preencher novo formulário familiar
+            </button>
+            <button class="btn btn-secondary" onclick="finalizarFamilia()" style="margin-top:10px;">
+                ✅ Finalizar
+            </button>
+        </div>
+        
+        <!-- 🆕 Botão padrão (caso único) -->
+        <button id="bloco-novo-formulario" class="btn btn-primary" onclick="location.reload()">📝 Preencher novo formulário</button>
     </div>
 
     <!-- Resultado para REENVIO (cliente já enviou DS-160) -->
@@ -2300,8 +2314,29 @@ Object.keys(data).forEach(function(key) {
     console.log('📌 Arrays detectados:', Object.entries(data).filter(([k, v]) => Array.isArray(v)).map(([k, v]) => k + ' (' + v.length + ')'));
     console.log('📌 state:', data['state']);
 
+        // 🆕 Salva dados comuns no localStorage (pra herança do próximo familiar)
+    try {
+        const dadosComuns = {
+            address: data.address, city: data.city, state: data.state, zip: data.zip, country: data.country,
+            us_contact_name: data.us_contact_name, us_contact_org: data.us_contact_org, us_contact_relationship: data.us_contact_relationship,
+            us_contact_address: data.us_contact_address, us_contact_phone: data.us_contact_phone, us_contact_email: data.us_contact_email,
+            'radio-payer': data['radio-payer'], payer_name: data.payer_name, payer_relationship: data.payer_relationship,
+            payer_address: data.payer_address, payer_city: data.payer_city, payer_state: data.payer_state,
+            payer_zip: data.payer_zip, payer_country: data.payer_country, payer_phone: data.payer_phone, payer_email: data.payer_email,
+            travel_purpose: data.travel_purpose, 'radio-travel-plans': data['radio-travel-plans'],
+            arrival_date: data.arrival_date, places_to_visit: data.places_to_visit,
+            _titular_nome: data.full_name || '', _telefone_titular: data['telefone_titular'] || data.phone || ''
+        };
+        localStorage.setItem('ds160_dados_comuns', JSON.stringify(dadosComuns));
+    } catch (e) {
+        console.warn('⚠️ Erro ao salvar dados comuns:', e);
+    }
+
+
     return data;
 }
+
+
 
 // ============================================================
 // FUNÇÃO DE REVISÃO COMPLETA - CORRIGIDA
@@ -2641,6 +2676,22 @@ function updateResumo() {
     document.getElementById('resumoDados').innerHTML = html;
 }
 
+// 🆕 Novo formulário familiar (herda dados)
+function novoFormularioFamiliar() {
+    localStorage.setItem('ds160_novo_familiar', 'true');
+    window.location.reload();
+}
+
+// 🆕 Finaliza a família (limpa os dados comuns)
+function finalizarFamilia() {
+    if (confirm('Deseja finalizar? Os dados comuns serão apagados.')) {
+        localStorage.removeItem('ds160_dados_comuns');
+        localStorage.removeItem('ds160_novo_familiar');
+        window.location.reload();
+    }
+}
+
+
 // ============================================================
 // FUNÇÃO PARA IR PARA UM PASSO ESPECÍFICO (CORREÇÃO)
 // ============================================================
@@ -2728,8 +2779,66 @@ document.addEventListener('DOMContentLoaded', function() {
         el.setAttribute('autocomplete', 'new-password');
     });
 
-    toggleConditionals();
-    showStep(0);
+        toggleConditionals();
+
+    // 🆕 Verifica se é um novo familiar (herda dados) ou o primeiro form
+    const isNovoFamiliar = localStorage.getItem('ds160_novo_familiar') === 'true';
+    if (isNovoFamiliar) {
+        localStorage.removeItem('ds160_novo_familiar');
+        document.getElementById('input-modo').value = 'familiar';
+        
+        showStep(1);
+        
+        try {
+            const dadosComuns = JSON.parse(localStorage.getItem('ds160_dados_comuns') || '{}');
+            
+            if (dadosComuns.address) document.querySelector('[name="address"]').value = dadosComuns.address;
+            if (dadosComuns.city) document.querySelector('[name="city"]').value = dadosComuns.city;
+            if (dadosComuns.state) document.querySelector('[name="state"]').value = dadosComuns.state;
+            if (dadosComuns.zip) document.querySelector('[name="zip"]').value = dadosComuns.zip;
+            if (dadosComuns.country) document.querySelector('[name="country"]').value = dadosComuns.country;
+            
+            if (dadosComuns.us_contact_name) document.querySelector('[name="us_contact_name"]').value = dadosComuns.us_contact_name;
+            if (dadosComuns.us_contact_org) document.querySelector('[name="us_contact_org"]').value = dadosComuns.us_contact_org;
+            if (dadosComuns.us_contact_relationship) document.querySelector('[name="us_contact_relationship"]').value = dadosComuns.us_contact_relationship;
+            if (dadosComuns.us_contact_address) document.querySelector('[name="us_contact_address"]').value = dadosComuns.us_contact_address;
+            if (dadosComuns.us_contact_phone) document.querySelector('[name="us_contact_phone"]').value = dadosComuns.us_contact_phone;
+            if (dadosComuns.us_contact_email) document.querySelector('[name="us_contact_email"]').value = dadosComuns.us_contact_email;
+            
+            if (dadosComuns['radio-payer']) {
+                const radioPayer = document.querySelector(`[name="radio-payer"][value="${dadosComuns['radio-payer']}"]`);
+                if (radioPayer) radioPayer.checked = true;
+            }
+            if (dadosComuns.payer_name) document.querySelector('[name="payer_name"]').value = dadosComuns.payer_name;
+            if (dadosComuns.payer_relationship) document.querySelector('[name="payer_relationship"]').value = dadosComuns.payer_relationship;
+            if (dadosComuns.payer_address) document.querySelector('[name="payer_address"]').value = dadosComuns.payer_address;
+            if (dadosComuns.payer_city) document.querySelector('[name="payer_city"]').value = dadosComuns.payer_city;
+            if (dadosComuns.payer_state) document.querySelector('[name="payer_state"]').value = dadosComuns.payer_state;
+            if (dadosComuns.payer_zip) document.querySelector('[name="payer_zip"]').value = dadosComuns.payer_zip;
+            if (dadosComuns.payer_country) document.querySelector('[name="payer_country"]').value = dadosComuns.payer_country;
+            if (dadosComuns.payer_phone) document.querySelector('[name="payer_phone"]').value = dadosComuns.payer_phone;
+            if (dadosComuns.payer_email) document.querySelector('[name="payer_email"]').value = dadosComuns.payer_email;
+            
+            if (dadosComuns.travel_purpose) document.querySelector('[name="travel_purpose"]').value = dadosComuns.travel_purpose;
+            if (dadosComuns['radio-travel-plans']) {
+                const radioPlans = document.querySelector(`[name="radio-travel-plans"][value="${dadosComuns['radio-travel-plans']}"]`);
+                if (radioPlans) radioPlans.checked = true;
+            }
+            if (dadosComuns.arrival_date) document.querySelector('[name="arrival_date"]').value = dadosComuns.arrival_date;
+            if (dadosComuns.places_to_visit) document.querySelector('[name="places_to_visit"]').value = dadosComuns.places_to_visit;
+            
+            const telTitular = document.getElementById('telefone-titular');
+            if (telTitular && dadosComuns._telefone_titular) {
+                telTitular.value = dadosComuns._telefone_titular;
+            }
+            
+            showAlert('✅ Dados comuns da família foram pré-preenchidos!', 'success');
+        } catch (e) {
+            console.warn('⚠️ Erro ao pré-preencher:', e);
+        }
+    } else {
+        showStep(0);
+    }
 });
 
 // ============================================================
@@ -2798,10 +2907,17 @@ document.getElementById('ds160Form').addEventListener('submit', async function(e
             return;
         }
 
-        if (result.success) {
+                if (result.success) {
             document.getElementById('ds160Form').classList.add('hidden');
             document.getElementById('resultado').classList.remove('hidden');
             showAlert('✅ Formulário enviado com sucesso!', 'success');
+            
+            // 🆕 Se for familiar, mostra opção de adicionar outro
+            const modo = document.getElementById('input-modo')?.value;
+            if (modo === 'familiar') {
+                document.getElementById('bloco-novo-familiar').style.display = 'block';
+                document.getElementById('bloco-novo-formulario').style.display = 'none';
+            }
         } else {
             showAlert('❌ Erro: ' + result.message, 'error');
         }
