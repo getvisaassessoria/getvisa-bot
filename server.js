@@ -3922,7 +3922,10 @@ app.post('/api/submit-ds160', async (req, res) => {
         // 3. BLOQUEIO DE REENVIO (feature flag BLOCK_DS160_RESUBMIT)
         //    ⚠️ Roda ANTES do upsert — NÃO sobrescreve nome/email/consulado
         // ============================================================
-                if (formExistente && BLOQUEAR_REENVIO) {
+        // 🆕 Se cliente é contato_pessoal, ele não é reenvio, é 1º envio real
+        const ehContatoPessoal = clienteExistente?.tipo_contato === 'contato_pessoal';
+
+        if (formExistente && BLOQUEAR_REENVIO && !ehContatoPessoal) {
             console.log('🚨 REENVIO BLOQUEADO - cliente já possui form_ds160:', clienteExistente.id);
 
             // 🆕 3.0. Incrementa contador de tentativas
@@ -4031,6 +4034,8 @@ app.post('/api/submit-ds160', async (req, res) => {
                 cpf: cpf || null,
                 data_contato: new Date().toISOString(),
                 status: 'formulario_enviado',
+                tipo_contato: 'cliente',      // 🆕 vira cliente (aparece no painel)
+                silenciar_bot: true,           // 🆕 silencia bot (mas mantém notificações)
                 onboarding_completo: true,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'telefone' })
