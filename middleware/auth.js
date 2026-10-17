@@ -5,7 +5,7 @@ const path = require('path');
 // ============================================================
 // VARIÁVEIS DE AMBIENTE
 // ============================================================
-const ADMIN_API_KEY = 'admin123';
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'admin123';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@getvisa.com.br';
 const ADMIN_PHONE = process.env.ADMIN_PHONE || '5521974601812';
 
