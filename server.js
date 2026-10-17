@@ -27,7 +27,7 @@ function rodapePortal() {
     return `\n\n━━━━━━━━━━━━━━━━━━━━\n` +
            `📊 *Acompanhe seu processo online:*\n` +
            `🔗 ${LINK_PORTAL}\n\n` +
-           `_Entre com seu telefone + os 4 últimos dígitos do CPF_`;
+           `_Entre com seu CPF e sua Data de Nascimento_`;
 }
 
 // ============================================================
