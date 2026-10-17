@@ -263,6 +263,40 @@
     <form id="ds160Form" novalidate autocomplete="off">
 
         <!-- ============================================================ -->
+        <!-- PASSO 0: INÍCIO (ÚNICO OU FAMILIAR) -->
+        <!-- ============================================================ -->
+        <div class="form-section active" data-step="0">
+            <h2 class="section-title">👋 Vamos começar!</h2>
+            <p style="color:#555;margin-bottom:20px;">Para agilizar o preenchimento, informe se este formulário é apenas para você ou para a sua família.</p>
+
+            <div class="field">
+                <label>Este formulário é para: <span class="required">*</span></label>
+                <div style="display:flex;gap:15px;margin-top:10px;flex-wrap:wrap;">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;background:#f8f9fa;padding:15px 20px;border:2px solid #ddd;border-radius:8px;flex:1;min-width:150px;">
+                        <input type="radio" name="modo" value="unico" checked onchange="toggleModoFamiliar()">
+                        <span style="font-weight:600;">👤 Apenas para mim (Único)</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;background:#f8f9fa;padding:15px 20px;border:2px solid #ddd;border-radius:8px;flex:1;min-width:150px;">
+                        <input type="radio" name="modo" value="familiar" onchange="toggleModoFamiliar()">
+                        <span style="font-weight:600;">👨‍👩‍👧 Para minha família</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="campo-familiar" class="field" style="display:none; margin-top:15px; padding:15px; background:#e8f4fd; border-left:4px solid #0d6efd; border-radius:4px;">
+                <label>📱 Telefone do Titular (Responsável Familiar) <span class="required">*</span></label>
+                <input type="tel" id="telefone-titular" name="telefone_titular" class="phone-mask" placeholder="(21) 99999-9999">
+                <small style="color:#0d6efd;font-size:12px;display:block;margin-top:5px;">
+                    Informe o WhatsApp principal da família. Se você for o titular, digite o seu próprio número. Se for dependente, digite o número de quem já iniciou o processo.
+                </small>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-primary" onclick="nextStep(1)" style="width:100%;">Começar Preenchimento →</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
         <!-- PASSO 1: INÍCIO DO PREENCHIMENTO -->
         <!-- ============================================================ -->
                 <div class="form-section active" data-step="1">
@@ -1563,7 +1597,23 @@ function formatarDataSegura(iso) {
 // ============================================================
 // VARIÁVEIS GLOBAIS
 // ============================================================
-let currentStep = 1;
+let currentStep = 0;
+
+// 🆕 Alterna entre Único e Familiar
+function toggleModoFamiliar() {
+    const modo = document.querySelector('input[name="modo"]:checked').value;
+    const campo = document.getElementById('campo-familiar');
+    const inputTel = document.getElementById('telefone-titular');
+
+    if (modo === 'familiar') {
+        campo.style.display = 'block';
+        inputTel.setAttribute('required', 'required');
+    } else {
+        campo.style.display = 'none';
+        inputTel.removeAttribute('required');
+        inputTel.value = '';
+    }
+}
 const totalSteps = 12;
 
 // ============================================================
@@ -2003,6 +2053,16 @@ function showStep(step) {
         targetSection.classList.add('active');
         currentStep = step;
 
+        // 🆕 Tela 0 (único/familiar) — não atualiza o progresso (é só um preâmbulo)
+        if (step === 0) {
+            document.getElementById('progressFill').style.width = '0%';
+            document.querySelectorAll('.step-dot').forEach(function(dot) {
+                dot.classList.remove('active', 'done');
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
+
         var percent = ((step - 1) / (totalSteps - 1)) * 100;
         document.getElementById('progressFill').style.width = percent + '%';
 
@@ -2113,6 +2173,19 @@ function getFormData() {
     if (phoneStep1 && phoneStep1.value.trim()) {
         data['phone'] = phoneStep1.value;
         data['telefone'] = phoneStep1.value;
+    }
+
+        // 🆕 Modelo Familiar: garante que modo e telefone_titular vão no payload
+    const modoRadio = document.querySelector('input[name="modo"]:checked');
+    if (modoRadio) {
+        data['modo'] = modoRadio.value;
+    }
+
+    if (data['modo'] === 'familiar') {
+        const telTitular = document.getElementById('telefone-titular');
+        if (telTitular && telTitular.value.trim()) {
+            data['telefone_titular'] = telTitular.value.trim();
+        }
     }
 
         // ============================================================
