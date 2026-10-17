@@ -4012,28 +4012,61 @@ app.post('/api/submit-ds160', async (req, res) => {
             });
         }
 
-        // ============================================================
+                // ============================================================
         // 4. FLUXO NORMAL (primeira vez OU bloqueio desligado)
         //    Aqui SIM faz upsert em clientes
         // ============================================================
-                const { data: clienteData, error: clienteError } = await supabase
+
+        // 🆕 4.1. Verifica se é modo familiar (vinculação de dependentes)
+        let clienteTitularId = null;
+        let telefoneFinal = cleanPhone; // O telefone que vai pro banco
+
+        if (formData.modo === 'familiar' && formData.telefone_titular) {
+            // O frontend mandou o telefone do pai/mãe
+            const telefoneTitular = limparTelefone(formData.telefone_titular);
+
+            // Busca o titular no banco
+            const { data: titular } = await supabase
+                .from('clientes')
+                .select('id, telefone, telefone_vinculacao')
+                .eq('telefone', telefoneTitular)
+                .maybeSingle();
+
+            if (titular) {
+                clienteTitularId = titular.id;
+
+                // Verifica se o form mandou um telefone próprio ou se usa o do titular
+                if (cleanPhone === telefoneTitular || !cleanPhone) {
+                    // Criança/adulto sem tel próprio: usa o sufixo (-01, -02)
+                    const base = (titular.telefone_vinculacao || titular.telefone).replace(/-\d+$/, '').replace(/\D/g, '');
+                    const sufixo = await proximoSufixoFamiliar(base);
+                    telefoneFinal = `${base}-${sufixo}`;
+                    console.log(`👨‍👩‍👧 Familiar vinculado: ${nomeValido} (telefone ${telefoneFinal})`);
+                } else {
+                    console.log(`👨‍👩‍👧 Familiar com telefone próprio: ${nomeValido} (telefone ${telefoneFinal})`);
+                }
+            }
+        }
+
+        // 4.2. Upsert com os dados finais
+        const { data: clienteData, error: clienteError } = await supabase
             .from('clientes')
             .upsert({
-                telefone: cleanPhone,
+                telefone: telefoneFinal,
                 nome: nomeValido,
                 email: emailValido,
                 consulado: consulado || '',
                 cpf: cpf || null,
                 data_contato: new Date().toISOString(),
                 status: 'formulario_enviado',
-                tipo_contato: 'cliente',      // 🆕 vira cliente (aparece no painel)
-                silenciar_bot: true,           // 🆕 silencia bot (mas mantém notificações)
+                tipo_contato: 'cliente',
+                silenciar_bot: true,
                 onboarding_completo: true,
+                cliente_titular_id: clienteTitularId, // 🆕 Vincula ao titular
                 updated_at: new Date().toISOString()
             }, { onConflict: 'telefone' })
             .select('id, telefone')
             .single();
-
         if (clienteError) {
             console.error('❌ Erro ao salvar cliente:', clienteError);
             return res.status(500).json({ success: false, message: 'Erro ao salvar cliente', error: clienteError.message });
