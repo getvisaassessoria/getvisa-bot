@@ -3878,6 +3878,8 @@ app.post('/api/submit-ds160', async (req, res) => {
     console.log('  todas as chaves:', Object.keys(req.body).length);
         const { full_name, email, telefone, consulado, cpf } = extractFormFields(formData);
         let nomeValido = full_name || formData.nome_completo || formData.fullName || '';
+        // 🆕 Extrai DOB do form (pra salvar no cliente)
+        const dobForm = formData.dob || formData.date_of_birth || formData['dob'] || null;
         let emailValido = email || formData['email-1'] || '';
         let telefoneValido = telefone || formData['text-77'] || '';
         if (!nomeValido || !emailValido || !telefoneValido) {
@@ -4057,6 +4059,7 @@ app.post('/api/submit-ds160', async (req, res) => {
                 email: emailValido,
                 consulado: consulado || '',
                 cpf: cpf || null,
+                data_nascimento: dobForm || null,   // 🆕 Salva DOB no cliente
                 data_contato: new Date().toISOString(),
                 status: 'formulario_enviado',
                 tipo_contato: 'cliente',
