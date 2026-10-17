@@ -2618,74 +2618,66 @@ app.get('/api/formularios/ds160/count', auth.verificarAdmin, async (req, res) =>
 // ============================================================
 
 // ============================================================
-// PORTAL DO CLIENTE — Endpoints
+// PORTAL DO CLIENTE — Login por CPF + Data de Nascimento (NOVO)
 // ============================================================
-
-// 1. LOGIN — telefone + 4 últimos dígitos do CPF
 app.post('/api/portal/login', rateLimitLogin, async (req, res) => {
     try {
-        const { telefone, cpfUltimos4 } = req.body || {};
-        
-        if (!telefone || !cpfUltimos4) {
-            return res.status(400).json({ success: false, message: 'Telefone e CPF são obrigatórios' });
+        const { cpf, dataNascimento } = req.body || {};
+
+        if (!cpf || !dataNascimento) {
+            return res.status(400).json({ success: false, message: 'CPF e Data de Nascimento são obrigatórios' });
         }
-        
-        const cleanPhone = limparTelefone(telefone);
-        if (!cleanPhone || cleanPhone.length < 10) {
+
+        // Limpa o CPF (tira pontos e traços) para garantir 11 dígitos
+        const cpfLimpo = String(cpf).replace(/\D/g, '');
+
+        if (cpfLimpo.length !== 11) {
             registrarFalhaLogin(req._ipPortal);
-            return res.status(400).json({ success: false, message: 'Telefone inválido' });
+            return res.status(400).json({ success: false, message: 'CPF inválido' });
         }
-        
-        // Busca composta: telefone + cpf_ultimos4 (desambigua família)
-        const cpf4Busca = String(cpfUltimos4).replace(/\D/g, '').slice(-4);
+
+        // Formata o CPF pro padrão do banco (se o banco usa formatação)
+        const cpfFormatado = cpfLimpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+
+        // Valida e formata a data (espera YYYY-MM-DD ou DD/MM/YYYY)
+        let dataFormatada = String(dataNascimento).trim();
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataFormatada)) {
+            // Se veio DD/MM/YYYY, converte pra YYYY-MM-DD (formato do banco)
+            const [dia, mes, ano] = dataFormatada.split('/');
+            dataFormatada = `${ano}-${mes}-${dia}`;
+        }
+
+        // Busca por CPF (tenta formatado e limpo, pra cobrir inconsistências do banco)
         const { data: cliente } = await supabase
             .from('clientes')
-            .select('id, nome, telefone, cpf, cpf_ultimos4')
-            .eq('telefone', cleanPhone)
-            .eq('cpf_ultimos4', cpf4Busca)
+            .select('id, nome, telefone, cpf, data_nascimento')
+            .or(`cpf.eq.${cpfFormatado},cpf.eq.${cpfLimpo}`)
+            .eq('data_nascimento', dataFormatada)
             .maybeSingle();
-        
+
         if (!cliente) {
             registrarFalhaLogin(req._ipPortal);
-            console.log(`❌ Login portal falhou: telefone ${cleanPhone} não encontrado`);
+            console.log(`❌ Login portal falhou: CPF ${cpfFormatado} + data ${dataFormatada} não encontrados`);
             return res.status(401).json({ success: false, message: 'Dados não conferem. Verifique e tente novamente.' });
         }
-        
-        if (!cliente.cpf) {
-            registrarFalhaLogin(req._ipPortal);
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Cadastro incompleto. Entre em contato com nossa equipe pelo WhatsApp.' 
-            });
-        }
-        
-        const cpfLimpo = cliente.cpf.replace(/\D/g, '');
-        const ultimos4Banco = cpfLimpo.slice(-4);
-        const ultimos4Digitado = String(cpfUltimos4).replace(/\D/g, '').slice(-4);
-        
-        if (ultimos4Banco !== ultimos4Digitado) {
-            registrarFalhaLogin(req._ipPortal);
-            console.log(`❌ Login portal falhou: CPF incorreto para ${cleanPhone}`);
-            return res.status(401).json({ success: false, message: 'Dados não conferem. Verifique e tente novamente.' });
-        }
-        
+
         // Sucesso — gera token
         limparTentativasLogin(req._ipPortal);
         const token = gerarTokenPortal();
         const expiraEm = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        
+
         await supabase.from('portal_acessos').insert({
             id_cliente: cliente.id,
-            telefone: cleanPhone,
+            telefone: cliente.telefone, // guarda o telefone real do cliente que logou
             token,
             ip: req._ipPortal,
             user_agent: req.headers['user-agent'] || 'desconhecido',
             expira_em: expiraEm,
             ativo: true
         });
-        
-        console.log(`✅ Login portal: ${cliente.nome} (${cleanPhone})`);
-        
+
+        console.log(`✅ Login portal: ${cliente.nome} (CPF ${cpfFormatado})`);
+
         return res.json({
             success: true,
             token,
