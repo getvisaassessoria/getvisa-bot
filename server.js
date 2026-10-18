@@ -51,6 +51,7 @@ const ETAPAS = {
     boleto_emitido: { id: 'boleto_emitido', label: 'Boleto Emitido', next: 'boleto_pago', color: '#e67e22' },
     boleto_pago: { id: 'boleto_pago', label: 'Boleto Pago', next: 'agendamento_realizado', color: '#27ae60' },
     agendamento_realizado: { id: 'agendamento_realizado', label: 'Agendamento Realizado', next: 'treinamento_realizado', color: '#2980b9' },
+    treinamento_agendado: { id: 'treinamento_agendado', label: '🎯 Treinamento Agendado', next: 'treinamento_realizado', color: '#6366f1' },
     treinamento_realizado: { id: 'treinamento_realizado', label: 'Treinamento Concluído', next: 'entrevista_realizada', color: '#8e44ad' },
     entrevista_realizada: { id: 'entrevista_realizada', label: '🎤 Entrevista Realizada', next: null, color: '#2c3e50' },
     visto_aprovado: { id: 'visto_aprovado', label: '✅ Visto Aprovado', next: 'passaporte_retornado', color: '#16a34a' },
@@ -509,6 +510,7 @@ async function atualizarStatusCliente(telefone, novoStatus, dadosAdicionais = {}
             'boleto_pago': 'boleto_pago',
             'agendado_casv': 'agendamento_realizado',
             'agendamento_realizado': 'agendamento_realizado',
+            'treinamento_agendado': 'treinamento_agendado',   // 🆕 (entre agendamento_realizado e treinamento_realizado)
             'treinamento_realizado': 'treinamento_realizado',
             'agendado_entrevista': 'agendamento_realizado',
             'entrevista_realizada': 'entrevista_realizada',
@@ -5018,18 +5020,28 @@ app.post('/api/agendar-treinamento', async (req, res) => {
     try {
         const { cliente_id, entrevista_id, tipo, data, horario } = req.body;
         if (!cliente_id || !data || !horario) return res.status(400).json({ success: false, message: 'Dados incompletos' });
-        const { data: cliente, error: clienteError } = await supabase.from('clientes').select('id').eq('id', cliente_id).single();
+        const { data: cliente, error: clienteError } = await supabase.from('clientes').select('id, telefone, nome').eq('id', cliente_id).single();
         if (clienteError || !cliente) return res.status(404).json({ success: false, message: 'Cliente não encontrado' });
+        
         const novoAgendamento = { cliente_id, atividade: 'Treinamento', data_agendamento: data, hora_agendamento: horario, local_agendamento: tipo, observacoes: `Treinamento para entrevista. Tipo: ${tipo}. Entrevista ID: ${entrevista_id || 'N/A'}`, concluido: false };
         const { data: agendamento, error } = await supabase.from('agendamentos').insert([novoAgendamento]).select().single();
         if (error) return res.status(500).json({ success: false, message: error.message });
+        
+        // 🆕 Avança a etapa/status pro 'treinamento_agendado'
         try {
-            const { data: clienteCompleto } = await supabase.from('clientes').select('nome, telefone').eq('id', cliente_id).single();
-            if (clienteCompleto?.telefone) {
-                const mensagem = `✅ *TREINAMENTO AGENDADO - GETVISA*\n\nOlá *${clienteCompleto.nome}*!\n\nSeu treinamento para a entrevista foi agendado com sucesso!\n\n📅 Data: ${new Date(data).toLocaleDateString('pt-BR')}\n⏰ Hora: ${horario}\n📍 Tipo: ${tipo}\n\n📌 Em breve nossa equipe entrará em contato para confirmar.\n\n🌟 Equipe GetVisa`;
-                await enviarWhatsApp(clienteCompleto.telefone, mensagem);
-            }
-        } catch (e) {}
+            await atualizarStatusCliente(cliente.telefone, 'treinamento_agendado', {});
+            console.log(`✅ Cliente ${cliente.telefone} avançou pra treinamento_agendado`);
+        } catch (e) {
+            console.warn('⚠️ Erro ao avançar etapa (continua):', e.message);
+        }
+        
+        // 🆕 Notifica cliente via bot (usa mensagem do enviarNotificacaoEtapa)
+        try {
+            await enviarNotificacaoEtapa(cliente.telefone, 'treinamento_agendado', { nome: cliente?.nome || 'Cliente' });
+        } catch (e) {
+            console.warn('⚠️ Erro ao notificar (continua):', e.message);
+        }
+        
         res.json({ success: true, message: 'Treinamento agendado com sucesso!', data: agendamento });
     } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 });
