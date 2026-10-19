@@ -988,11 +988,12 @@ Digite o número da opção (1, 2 ou 3)`;
                     console.error('❌ Erro ao enviar despedida:', e);
                 }
 
-                const { data, error } = await supabase.from('clientes').upsert({
+                                const { data, error } = await supabase.from('clientes').upsert({
                     telefone: phone,
                     nome: 'Contato Pessoal',
                     tipo_contato: 'contato_pessoal',
-                    status: 'contato_pessoal',
+                    status: 'formulario_enviado', // Status válido no ENUM
+                    silenciar_bot: true,          // Força o silenciamento
                     data_contato: new Date().toISOString(),
                     onboarding_completo: true
                 }, { onConflict: 'telefone' });
