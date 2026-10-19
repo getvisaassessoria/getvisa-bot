@@ -121,12 +121,14 @@
             max-width: 450px;
             width: 100%;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-height: 90vh;
+            overflow-y: auto;
         }
         .modal-box h3 {
             color: #003366;
             margin-bottom: 15px;
         }
-        .modal-box select {
+        .modal-box select, .modal-box input[type="text"], .modal-box input[type="date"], .modal-box input[type="time"] {
             width: 100%;
             padding: 10px;
             margin: 10px 0;
@@ -134,17 +136,10 @@
             border-radius: 6px;
             font-size: 14px;
         }
-        .modal-box input {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
-        }
         .modal-actions {
             display: flex;
             gap: 10px;
+            margin-top: 20px;
         }
         .modal-actions button {
             flex: 1;
@@ -225,9 +220,6 @@
 </div>
 
 <script>
-// ============================================================
-// CARREGAR CLIENTES
-// ============================================================
 async function loadClientes() {
     const loading = document.getElementById('loading');
     const tableContainer = document.getElementById('tableContainer');
@@ -260,9 +252,6 @@ async function loadClientes() {
     }
 }
 
-// ============================================================
-// RENDERIZAR CLIENTES
-// ============================================================
 function renderClientes(clientes) {
     const body = document.getElementById('clientesBody');
     body.innerHTML = '';
@@ -286,7 +275,7 @@ function renderClientes(clientes) {
             'boleto_pago': { class: 'processos_aberto', label: '✅ Boleto Pago' },
             'agendado_casv': { class: 'em_analise', label: '📅 CASV Agendado' },
             'agendado_entrevista': { class: 'em_analise', label: '🎤 Entrevista Agendada' },
-            'treinamento_agendado': { class: 'em_analise', label: '🎯 Treinamento Agendado' },   // 🆕
+            'treinamento_agendado': { class: 'em_analise', label: '🎯 Treinamento Agendado' },
             'treinamento_realizado': { class: 'em_analise', label: '✅ Treinamento Realizado' },
             'entrevista_realizada': { class: 'em_analise', label: '🎤 Entrevista Realizada' },
             'visto_aprovado': { class: 'visto_aprovado', label: '🎉 Visto Aprovado' },
@@ -294,18 +283,14 @@ function renderClientes(clientes) {
             'passaporte_retornado': { class: 'visto_aprovado', label: '📦 Passaporte Retornado' }
         };
         
-                const statusInfo = statusMap[cliente.status] || { class: '', label: cliente.status || 'Novo' };
+        const statusInfo = statusMap[cliente.status] || { class: '', label: cliente.status || 'Novo' };
 
-        // Data exibida: prioriza data do agendamento (CASV/Entrevista) se existir
         let dataParaExibir = '';
         let labelData = 'Cadastro';
-
-                // 🆕 Prioriza: CASV + Entrevista (juntas) → CASV só → Entrevista só → Cadastro
         const casv = cliente.dados_casv;
         const entrevista = cliente.dados_entrevista;
 
         if (casv?.data && entrevista?.data) {
-            // As duas datas existem → mostra as duas
             dataParaExibir = `<div style="font-size:11px;line-height:1.3;">📅 <strong>CASV:</strong> ${casv.data}<br>🎤 <strong>Entrevista:</strong> ${entrevista.data}</div>`;
             labelData = 'Agendamentos';
         } else if (casv?.data) {
@@ -320,15 +305,13 @@ function renderClientes(clientes) {
             labelData = 'Cadastro';
         }
 
-        const dataFormatada = dataParaExibir;
-
         tr.innerHTML = `
             <td><strong>${cliente.nome || 'Cliente'}</strong></td>
             <td>${cliente.telefone || '-'}</td>
             <td>${cliente.email || '-'}</td>
             <td>${cliente.consulado || '-'}</td>
             <td><span class="status-badge ${statusInfo.class}">${statusInfo.label}</span></td>
-            <td title="${labelData}">${dataFormatada}</td>
+            <td title="${labelData}">${dataParaExibir}</td>
             <td>
                 <button class="btn-atualizar" onclick="abrirModal('${cliente.telefone}', '${cliente.nome}')">
                     🔄 Atualizar
@@ -339,29 +322,24 @@ function renderClientes(clientes) {
     });
 }
 
-// ============================================================
-// ABRIR MODAL DE ATUALIZAÇÃO
-// ============================================================
 function abrirModal(telefone, nome) {
     const statusOptions = [
-    { value: 'em_analise', label: '🔍 Em Análise' },
-    { value: 'analise_correcoes', label: '📝 Análise e Correções' },
-    { value: 'processo_aberto', label: '📌 Processo Aberto' },
-    { value: 'boleto_emitido', label: '💰 Boleto Emitido' },
-    { value: 'boleto_pago', label: '✅ Boleto Pago' },
-    { value: 'agendado_casv', label: '📅 CASV Agendado' },
-    { value: 'agendado_entrevista', label: '🎤 Entrevista Agendada' },
-    { value: 'treinamento_agendado', label: '🎯 Treinamento Agendado' },
-    { value: 'treinamento_realizado', label: '✅ Treinamento Realizado' },
-    { value: 'entrevista_realizada', label: '🎤 Entrevista Realizada' },
-    { value: 'visto_aprovado', label: '🎉 Visto Aprovado' },
-    { value: 'visto_recusado', label: '😔 Visto Recusado' },
-    { value: 'passaporte_retornado', label: '📦 Passaporte Retornado' }
-];
+        { value: 'em_analise', label: '🔍 Em Análise' },
+        { value: 'analise_correcoes', label: '📝 Análise e Correções' },
+        { value: 'processo_aberto', label: '📌 Processo Aberto' },
+        { value: 'boleto_emitido', label: '💰 Boleto Emitido' },
+        { value: 'boleto_pago', label: '✅ Boleto Pago' },
+        { value: 'agendado_casv', label: '📅 CASV Agendado' },
+        { value: 'agendado_entrevista', label: '🎤 Entrevista Agendada' },
+        { value: 'treinamento_agendado', label: '🎯 Treinamento Agendado' },
+        { value: 'treinamento_realizado', label: '✅ Treinamento Realizado' },
+        { value: 'entrevista_realizada', label: '🎤 Entrevista Realizada' },
+        { value: 'visto_aprovado', label: '🎉 Visto Aprovado' },
+        { value: 'visto_recusado', label: '😔 Visto Recusado' },
+        { value: 'passaporte_retornado', label: '📦 Passaporte Retornado' }
+    ];
 
-    const selectHTML = statusOptions.map(s => 
-        `<option value="${s.value}">${s.label}</option>`
-    ).join('');
+    const selectHTML = statusOptions.map(s => `<option value="${s.value}">${s.label}</option>`).join('');
 
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -370,35 +348,36 @@ function abrirModal(telefone, nome) {
         <div class="modal-box">
             <h3>🔄 Atualizar Status - ${nome}</h3>
             <p style="color:#666;font-size:14px;margin-bottom:10px;">Selecione o novo status para este cliente.</p>
+            
             <select id="statusSelect">
                 ${selectHTML}
             </select>
             
-            <input id="observacaoInput" placeholder="Observação (opcional)" maxlength="200">
-          <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="silenciarBotInput" style="width: 18px; height: 18px; cursor: pointer;">
-              <label for="silenciarBotInput" style="font-size: 14px; color: #333; cursor: pointer;">🔇 Silenciar bot para este cliente</label>
-          </div><input id="observacaoInput" placeholder="Observação (opcional)" maxlength="200">
-          
-          <!-- 🆕 Campos de Treinamento (escondidos por padrão) -->
-          <div id="camposTreinamento" style="display: none; margin-top: 10px; padding: 10px; background: #f0f4f8; border-radius: 5px;">
-              <p style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold; color: #333;">Dados do Treinamento:</p>
-              <input id="dataTreinamento" type="date" style="width: 100%; margin-bottom: 10px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-              <input id="horarioTreinamento" type="time" style="width: 100%; margin-bottom: 10px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-              <select id="tipoTreinamento" style="width: 100%; margin-bottom: 10px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                  <option value="presencial">Presencial</option>
-                  <option value="online">Online</option>
-              </select>
-          </div>
+            <input id="observacaoInput" type="text" placeholder="Observação (opcional)" maxlength="200">
+            
+            <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="silenciarBotInput" style="width: 18px; height: 18px; cursor: pointer;">
+                <label for="silenciarBotInput" style="font-size: 14px; color: #333; cursor: pointer;">🔇 Silenciar bot para este cliente</label>
+            </div>
 
-          <div class="modal-actions">
+            <div id="camposTreinamento" style="display: none; margin-top: 15px; padding: 10px; background: #f0f4f8; border-radius: 5px;">
+                <p style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold; color: #333;">Dados do Treinamento:</p>
+                <input id="dataTreinamento" type="date">
+                <input id="horarioTreinamento" type="time">
+                <select id="tipoTreinamento">
+                    <option value="presencial">Presencial</option>
+                    <option value="online">Online</option>
+                </select>
+            </div>
+
+            <div class="modal-actions">
                 <button class="btn-confirmar" onclick="confirmarAtualizacao('${telefone}')">✅ Confirmar</button>
                 <button class="btn-cancelar" onclick="fecharModal()">❌ Cancelar</button>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
-        // 🆕 Lógica para mostrar/ocultar campos de treinamento
+
     const selectStatus = document.getElementById('statusSelect');
     const camposTreinamento = document.getElementById('camposTreinamento');
     
@@ -411,9 +390,6 @@ function abrirModal(telefone, nome) {
     });
 }
 
-// ============================================================
-// CONFIRMAR ATUALIZAÇÃO
-// ============================================================
 async function confirmarAtualizacao(telefone) {
     const status = document.getElementById('statusSelect').value;
     const observacao = document.getElementById('observacaoInput').value;
@@ -423,7 +399,6 @@ async function confirmarAtualizacao(telefone) {
     btnConfirmar.disabled = true;
     btnConfirmar.textContent = '⏳ Enviando...';
 
-    // 🆕 INTERCEPTADOR DO TREINAMENTO
     if (status === 'treinamento_agendado') {
         const dataTrein = document.getElementById('dataTreinamento').value;
         const horarioTrein = document.getElementById('horarioTreinamento').value;
@@ -465,21 +440,20 @@ async function confirmarAtualizacao(telefone) {
             btnConfirmar.disabled = false;
             btnConfirmar.textContent = '✅ Confirmar';
         }
-        return; // 🛑 Impede o fluxo normal de atualizar status
+        return;
     }
 
-    // --- Fluxo normal para os outros status ---
     fetch('/api/admin/atualizar-status', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'x-admin-key': 'admin123'
+            'x-admin-key': window.location.hostname.includes('web-production') ? 'staging123' : 'admin123'
         },
         body: JSON.stringify({
             telefone: telefone,
             status: status,
             observacao: observacao || null,
-            silenciar_bot: silenciarBot // 🆕 Envia a flag pro backend
+            silenciar_bot: silenciarBot
         })
     })
     .then(response => response.json())
@@ -502,17 +476,11 @@ async function confirmarAtualizacao(telefone) {
     });
 }
 
-// ============================================================
-// FECHAR MODAL
-// ============================================================
 function fecharModal() {
     const modal = document.getElementById('modalAtualizacao');
     if (modal) modal.remove();
 }
 
-// ============================================================
-// EXIBIR ALERTA
-// ============================================================
 function showAlert(message, type) {
     const container = document.getElementById('alertContainer');
     const alert = document.createElement('div');
@@ -522,9 +490,6 @@ function showAlert(message, type) {
     setTimeout(() => { alert.remove(); }, 5000);
 }
 
-// ============================================================
-// INICIAR
-// ============================================================
 document.addEventListener('DOMContentLoaded', loadClientes);
 </script>
 </body>
