@@ -281,7 +281,7 @@
             dados.forEach(ag => {
                 const clienteNome = ag.clientes?.nome || 'N/A';
                 const clienteTelefone = ag.clientes?.telefone || 'N/A';
-                const dataFormatada = ag.data_agendamento ? new Date(ag.data_agendamento).toLocaleDateString('pt-BR') : '-';
+                const dataFormatada = ag.data_agendamento ? new Date(ag.data_agendamento).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-';
                 const horaFormatada = ag.hora_agendamento ? ag.hora_agendamento.substring(0, 5) : '-';
                 const statusClass = ag.concluido ? 'concluido' : 'pendente';
                 const statusText = ag.concluido ? '✅ Concluído' : '⏳ Pendente';
