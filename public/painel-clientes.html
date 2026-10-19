@@ -373,7 +373,12 @@ function abrirModal(telefone, nome) {
             <select id="statusSelect">
                 ${selectHTML}
             </select>
-                      <input id="observacaoInput" placeholder="Observação (opcional)" maxlength="200">
+            
+            <input id="observacaoInput" placeholder="Observação (opcional)" maxlength="200">
+          <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="silenciarBotInput" style="width: 18px; height: 18px; cursor: pointer;">
+              <label for="silenciarBotInput" style="font-size: 14px; color: #333; cursor: pointer;">🔇 Silenciar bot para este cliente</label>
+          </div><input id="observacaoInput" placeholder="Observação (opcional)" maxlength="200">
           
           <!-- 🆕 Campos de Treinamento (escondidos por padrão) -->
           <div id="camposTreinamento" style="display: none; margin-top: 10px; padding: 10px; background: #f0f4f8; border-radius: 5px;">
@@ -412,6 +417,7 @@ function abrirModal(telefone, nome) {
 async function confirmarAtualizacao(telefone) {
     const status = document.getElementById('statusSelect').value;
     const observacao = document.getElementById('observacaoInput').value;
+    const silenciarBot = document.getElementById('silenciarBotInput').checked;
     const btnConfirmar = document.querySelector('.btn-confirmar');
     
     btnConfirmar.disabled = true;
@@ -472,7 +478,8 @@ async function confirmarAtualizacao(telefone) {
         body: JSON.stringify({
             telefone: telefone,
             status: status,
-            observacao: observacao || null
+            observacao: observacao || null,
+            silenciar_bot: silenciarBot // 🆕 Envia a flag pro backend
         })
     })
     .then(response => response.json())
