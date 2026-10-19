@@ -2770,6 +2770,7 @@ app.get('/api/portal/meu-processo', async (req, res) => {
         const ordemEtapas = [
             'formulario_enviado', 'analise_correcoes', 'abertura_processo',
             'boleto_emitido', 'boleto_pago', 'agendamento_realizado',
+            'treinamento_agendado', 'treinamento_realizado', 'entrevista_realizada', 'visto_agendado',
             'treinamento_realizado', 'entrevista_realizada', 'visto_aprovado',
             'passaporte_retornado'
         ];
@@ -2785,6 +2786,7 @@ app.get('/api/portal/meu-processo', async (req, res) => {
             'boleto_pago': 'boleto_pago',
             'agendado_casv': 'agendamento_realizado',
             'agendamento_realizado': 'agendamento_realizado',
+            'treinamento_agendado': 'treinamento_agendado',   // 🆕 ADICIONAR ESTA LINHA
             'treinamento_realizado': 'treinamento_realizado',
             'agendado_entrevista': 'agendamento_realizado',
             'entrevista_realizada': 'entrevista_realizada',
