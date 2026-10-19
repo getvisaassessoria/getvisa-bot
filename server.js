@@ -520,19 +520,40 @@ async function atualizarStatusCliente(telefone, novoStatus, dadosAdicionais = {}
         };
 
         const etapaEquivalente = mapaStatusParaEtapa[novoStatus];
-        if (etapaEquivalente) {
+                if (etapaEquivalente) {
             try {
-                await supabase
-                    .from('etapas_processo')
-                    .upsert({
-                        cliente_telefone: telefone,
-                        etapa_atual: etapaEquivalente,
-                        data_atualizacao: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    }, { onConflict: 'cliente_telefone' });
-                console.log(`✅ etapas_processo sincronizada: ${etapaEquivalente}`);
+                // 1) Busca o ID do cliente (id_cliente é NOT NULL na tabela)
+                const { data: clienteEtapa, error: cliErr } = await supabase
+                    .from('clientes')
+                    .select('id')
+                    .eq('telefone', telefone)
+                    .maybeSingle();
+
+                if (cliErr || !clienteEtapa) {
+                    console.error('❌ Cliente não encontrado pra sync etapas:', telefone, cliErr);
+                } else {
+                    // 2) Faz o upsert preenchendo id_cliente e cliente_id
+                    const { data: upsertData, error: upsertError } = await supabase
+                        .from('etapas_processo')
+                        .upsert({
+                            cliente_telefone: telefone,
+                            id_cliente: clienteEtapa.id,   // NOT NULL obrigatório
+                            cliente_id: clienteEtapa.id,   // FK correta
+                            etapa_atual: etapaEquivalente,
+                            data_atualizacao: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        }, { onConflict: 'cliente_telefone' })
+                        .select(); // 👈 força o retorno pra podermos checar o erro
+
+                    // 3) Checa o erro de verdade (não mente mais no log)
+                    if (upsertError) {
+                        console.error('❌ Erro REAL no upsert etapas_processo:', upsertError);
+                    } else {
+                        console.log(`✅ etapas_processo sincronizada: ${etapaEquivalente}`, upsertData);
+                    }
+                }
             } catch (syncError) {
-                console.error('❌ Erro ao sincronizar etapas_processo:', syncError);
+                console.error('❌ Erro inesperado no sync etapas_processo:', syncError);
             }
         }
 
