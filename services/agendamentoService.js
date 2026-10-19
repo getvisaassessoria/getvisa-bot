@@ -54,22 +54,38 @@ function extractAgendamentoDetailsFromText(pdfText) {
     // ============================================================
     // 1. EXTRAIR NOMES - PRIORIDADE: "Nome do Solicitante"
     // ============================================================
-    const nomes = [];
+        const nomes = [];
 
-    // Estratégia 1: "Nome do Solicitante"
+    // Estratégia 1: "Nome do Solicitante" (Varredura de linhas)
     console.log('🔍 Buscando "Nome do Solicitante"...');
-    const nomeRegex = /Nome do Solicitante[\s\r\n]+([A-ZÀ-Ú\s]+?)(?=[\s\r\n]+(?:Classe|Número|Número do passaporte)|$)/gi;
-    let match;
-    while ((match = nomeRegex.exec(pdfText)) !== null) {
-        let nome = match[1].trim();
-        nome = nome.replace(/[^A-Z\s]/g, '').trim();
-        if (nome && nome.length > 10 && nome.split(/\s+/).length >= 2) {
-            const headers = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 'PROTOCOLO',
-                           'INSTRUÇÕES', 'DEPARTAMENTO', 'DOCUMENTAÇÃO', 'VISITANTE', 'NEGÓCIOS',
-                           'TURISMO', 'TRATAMENTO', 'MÉDICO', 'TAXA', 'SOLICITAÇÃO', 'ENTREGA'];
-            if (!headers.some(h => nome.toUpperCase().includes(h))) {
-                nomes.push(nome);
-                console.log(`✅ Nome encontrado: ${nome}`);
+    const linhas = pdfText.split(/[\r\n]+/);
+    
+    for (let i = 0; i < linhas.length; i++) {
+        const linha = linhas[i];
+        if (linha.toLowerCase().includes('nome do solicitante')) {
+            // Remove o rótulo e pega o resto da linha
+            let nomeLimpo = linha.replace(/Nome do Solicitante/gi, '').trim();
+            
+            // Se a linha ficou vazia (o nome está na linha de baixo)
+            if (!nomeLimpo && linhas[i+1]) {
+                nomeLimpo = linhas[i+1].trim();
+            }
+            
+            // Remove "Classe", "Número" e qualquer coisa que venha depois deles
+            nomeLimpo = nomeLimpo.split(/Classe|Número|Número do passaporte/i)[0].trim();
+            
+            // Remove caracteres estranhos do PDF, deixando apenas letras e espaços
+            nomeLimpo = nomeLimpo.replace(/[^A-Za-zÀ-Ú\s]/g, '').replace(/\s+/g, ' ').trim();
+
+            if (nomeLimpo && nomeLimpo.length > 5) {
+                const headers = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 'PROTOCOLO',
+                               'INSTRUÇÕES', 'DEPARTAMENTO', 'DOCUMENTAÇÃO', 'VISITANTE', 'NEGÓCIOS',
+                               'TURISMO', 'TRATAMENTO', 'MÉDICO', 'TAXA', 'SOLICITAÇÃO', 'ENTREGA'];
+                
+                if (!headers.some(h => nomeLimpo.toUpperCase().includes(h))) {
+                    nomes.push(nomeLimpo);
+                    console.log(`✅ Nome encontrado: ${nomeLimpo}`);
+                }
             }
         }
     }
