@@ -4507,23 +4507,42 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
         }
 
         // ============================================================
-// PROTEÇÃO: nunca regride se entrevista já foi realizada
-// (antes disso, regressão é permitida — ex: cliente faltou e vai reagendar)
-// ============================================================
-const ETAPAS_BLOQUEADAS = [
-    'entrevista_realizada',
-    'visto_aprovado',
-    'visto_recusado',
-    'passaporte_retornado'
-];
+        // ============================================================
+        // PROTEÇÃO: nunca regride se entrevista já foi realizada
+        // ============================================================
+        const ETAPAS_BLOQUEADAS = [
+            'entrevista_realizada',
+            'visto_aprovado',
+            'visto_recusado',
+            'passaporte_retornado'
+        ];
 
-const { data: etapaAtualData } = await supabase
-    .from('etapas_processo')
-    .select('etapa_atual')
-    .eq('cliente_telefone', telefone)
-    .maybeSingle();
+        // 🆕 Busca a etapa e os dados antigos para comparar
+        const { data: etapaAtualData } = await supabase
+            .from('etapas_processo')
+            .select('etapa_atual, dados_casv, dados_entrevista') 
+            .eq('cliente_telefone', telefone)
+            .maybeSingle();
 
-const etapaAtualNome = etapaAtualData?.etapa_atual || 'formulario_enviado';
+        // 🆕 TRAVA DE SEGURANÇA: Evita envio duplicado de WhatsApp/E-mail
+        const dadosCasvAntigos = etapaAtualData?.dados_casv || {};
+        const dadosEntrevistaAntigos = etapaAtualData?.dados_entrevista || {};
+        
+        const isDuplicado = 
+            (casv.data === dadosCasvAntigos.data && casv.hora === dadosCasvAntigos.hora) &&
+            (entrevista.data === dadosEntrevistaAntigos.data && entrevista.hora === dadosEntrevistaAntigos.hora) &&
+            (casv.data && casv.data !== 'A definir');
+
+        if (isDuplicado) {
+            console.log(`🛡️ Agendamento idêntico já registrado. Pulando envio de WhatsApp/E-mail para ${telefone}.`);
+            return res.json({ 
+                success: true, 
+                message: 'Este agendamento já foi registrado anteriormente. Nenhuma mensagem duplicada foi enviada.',
+                data: { casv, entrevista, protocolo: req.protocolo || null, comunicacoes: { email: false, whatsapp: false } }
+            });
+        }
+
+        const etapaAtualNome = etapaAtualData?.etapa_atual || 'formulario_enviado';
 const estaBloqueada = ETAPAS_BLOQUEADAS.includes(etapaAtualNome);
 
 const etapaParaGravar = estaBloqueada ? etapaAtualNome : 'agendado_casv';
