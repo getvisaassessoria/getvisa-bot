@@ -2767,12 +2767,11 @@ app.get('/api/portal/meu-processo', async (req, res) => {
         // RESOLVE A ETAPA ATUAL — combina etapas_processo + clientes.status
         // (garante que funciona mesmo se só uma das tabelas foi atualizada)
         // ============================================================
-        const ordemEtapas = [
+                const ordemEtapas = [
             'formulario_enviado', 'analise_correcoes', 'abertura_processo',
             'boleto_emitido', 'boleto_pago', 'agendamento_realizado',
-            'treinamento_agendado', 'treinamento_realizado', 'entrevista_realizada', 'visto_agendado',
-            'treinamento_realizado', 'entrevista_realizada', 'visto_aprovado',
-            'passaporte_retornado'
+            'treinamento_agendado', 'treinamento_realizado', 'entrevista_realizada', 
+            'visto_aprovado', 'passaporte_retornado'
         ];
 
         const mapaStatusParaEtapa = {
