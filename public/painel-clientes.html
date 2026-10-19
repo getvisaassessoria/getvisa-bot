@@ -373,20 +373,43 @@ function abrirModal(telefone, nome) {
             <select id="statusSelect">
                 ${selectHTML}
             </select>
-            <input id="observacaoInput" placeholder="Observação (opcional)" maxlength="200">
-            <div class="modal-actions">
+                      <input id="observacaoInput" placeholder="Observação (opcional)" maxlength="200">
+          
+          <!-- 🆕 Campos de Treinamento (escondidos por padrão) -->
+          <div id="camposTreinamento" style="display: none; margin-top: 10px; padding: 10px; background: #f0f4f8; border-radius: 5px;">
+              <p style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold; color: #333;">Dados do Treinamento:</p>
+              <input id="dataTreinamento" type="date" style="width: 100%; margin-bottom: 10px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+              <input id="horarioTreinamento" type="time" style="width: 100%; margin-bottom: 10px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+              <select id="tipoTreinamento" style="width: 100%; margin-bottom: 10px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                  <option value="presencial">Presencial</option>
+                  <option value="online">Online</option>
+              </select>
+          </div>
+
+          <div class="modal-actions">
                 <button class="btn-confirmar" onclick="confirmarAtualizacao('${telefone}')">✅ Confirmar</button>
                 <button class="btn-cancelar" onclick="fecharModal()">❌ Cancelar</button>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
+        // 🆕 Lógica para mostrar/ocultar campos de treinamento
+    const selectStatus = document.getElementById('statusSelect');
+    const camposTreinamento = document.getElementById('camposTreinamento');
+    
+    selectStatus.addEventListener('change', function() {
+        if (this.value === 'treinamento_agendado') {
+            camposTreinamento.style.display = 'block';
+        } else {
+            camposTreinamento.style.display = 'none';
+        }
+    });
 }
 
 // ============================================================
 // CONFIRMAR ATUALIZAÇÃO
 // ============================================================
-function confirmarAtualizacao(telefone) {
+async function confirmarAtualizacao(telefone) {
     const status = document.getElementById('statusSelect').value;
     const observacao = document.getElementById('observacaoInput').value;
     const btnConfirmar = document.querySelector('.btn-confirmar');
@@ -394,6 +417,52 @@ function confirmarAtualizacao(telefone) {
     btnConfirmar.disabled = true;
     btnConfirmar.textContent = '⏳ Enviando...';
 
+    // 🆕 INTERCEPTADOR DO TREINAMENTO
+    if (status === 'treinamento_agendado') {
+        const dataTrein = document.getElementById('dataTreinamento').value;
+        const horarioTrein = document.getElementById('horarioTreinamento').value;
+        const tipoTrein = document.getElementById('tipoTreinamento').value;
+
+        if (!dataTrein || !horarioTrein) {
+            showAlert('⚠️ Por favor, preencha a data e o horário do treinamento.', 'error');
+            btnConfirmar.disabled = false;
+            btnConfirmar.textContent = '✅ Confirmar';
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/agendar-treinamento', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cliente_telefone: telefone, 
+                    data: dataTrein,
+                    horario: horarioTrein,
+                    tipo: tipoTrein
+                })
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('✅ Treinamento agendado com sucesso! O cliente receberá a notificação.', 'success');
+                fecharModal();
+                setTimeout(() => loadClientes(), 1000);
+            } else {
+                showAlert('❌ Erro: ' + result.message, 'error');
+                btnConfirmar.disabled = false;
+                btnConfirmar.textContent = '✅ Confirmar';
+            }
+        } catch (error) {
+            console.error('Erro:', error);
+            showAlert('❌ Erro de conexão ao agendar treinamento.', 'error');
+            btnConfirmar.disabled = false;
+            btnConfirmar.textContent = '✅ Confirmar';
+        }
+        return; // 🛑 Impede o fluxo normal de atualizar status
+    }
+
+    // --- Fluxo normal para os outros status ---
     fetch('/api/admin/atualizar-status', {
         method: 'POST',
         headers: {
