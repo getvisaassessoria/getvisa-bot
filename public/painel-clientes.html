@@ -469,17 +469,18 @@ async function confirmarAtualizacao(telefone) {
     }
 
     // --- Fluxo normal para os outros status ---
-    fetch('/api/admin/atualizar-status', {
+        fetch('/api/admin/atualizar-status', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'x-admin-key': 'admin123'
+            // 🆕 Pega a chave correta dependendo do ambiente
+            'x-admin-key': window.location.hostname.includes('web-production') ? 'staging123' : 'admin123'
         },
         body: JSON.stringify({
             telefone: telefone,
             status: status,
             observacao: observacao || null,
-            silenciar_bot: silenciarBot // 🆕 Envia a flag pro backend
+            silenciar_bot: silenciarBot
         })
     })
     .then(response => response.json())
