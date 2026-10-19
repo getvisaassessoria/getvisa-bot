@@ -566,29 +566,41 @@ async function atualizarStatusCliente(telefone, novoStatus, dadosAdicionais = {}
 }
 
 async function enviarNotificacaoStatus(telefone, status, nome) {
-    const mensagens = {
-               'lead': `👋 Olá ${nome}!\n\nQue bom ter você por aqui! Seu cadastro foi iniciado com sucesso ✅\n\n📌 Em breve enviaremos o link do formulário DS-160 pra começarmos seu processo.\n\n💡 *Dica:* tenha seu passaporte em mãos quando o link chegar!`,
-
-        'formulario_solicitado': `📋 Olá ${nome}!\n\nO link do formulário DS-160 foi enviado pra você 📲\n\n⚠️ *Preencha com atenção* e confira cada dado antes de enviar — essas informações vão direto pro consulado americano.\n\n✨ Quando você enviar, o sistema avisa nossa equipe automaticamente. Não precisa fazer mais nada!`,
-
-        'formulario_enviado': `✅ Olá ${nome}!\n\nRecebemos seu formulário DS-160 com sucesso! 🎉\n\n🔍 Nossa equipe já iniciou a revisão dos dados pra garantir que esteja tudo certo antes de seguir pra próxima etapa.\n\n📌 Se identificarmos qualquer ponto que precise da sua ajuda, entraremos em contato por aqui.`,
-
-        'em_analise': `🔍 Olá ${nome}!\n\nSua documentação está em revisão detalhada pela nossa equipe. Estamos conferindo cada informação com cuidado pra que seu processo siga sem imprevistos.\n\n📌 Assim que a análise terminar, você receberá uma nova atualização por aqui.\n\n✨ Obrigado pela paciência — estamos cuidando de cada detalhe!`,
-        'analise_correcoes': `📝 Olá ${nome}! Analisando o formulario, surgiram algumas dúvidas.\n\n📌 Em breve entraremos em contato!`,
-        'processo_aberto': `🎯 Olá ${nome}!\n\nFormulário aprovado! ✅ Agora vamos iniciar o processo junto ao consulado.\n\n📌 Próximo passo: você vai receber o boleto da *taxa consular (MRV)* para pagamento.\n\n✨ Qualquer dúvida, é só chamar!`,
-        'boleto_emitido': `💰 Olá ${nome}!\n\nO boleto/pix da *taxa consular (MRV)* foi emitido e enviado pra você. 📧\n\n📌 Efetue o pagamento e nos avise, por favor, quando concluir.\n\n✨ Assim que confirmarmos, seguimos com o agendamento!`,
-        'boleto_pago': `✅ Olá ${nome}! Confirmamos o pagamento da taxa consular!\n\n📌 Agora vamos prosseguir com o agendamento da sua entrevista.`,
-        'agendado_casv': `✅ Olá ${nome}!\n\nSeu CASV (coleta biométrica) foi agendado! 📅\n\n📌 Verifique os detalhes completos no documento que enviamos.\n\n⚠️ *Leve:* passaporte original + confirmação do agendamento impressa + *CONFIRMATION IMPRESSA*. Chegue com 30 min de antecedência!`,
-        'agendado_entrevista': `✅ Olá ${nome}!\n\nSua entrevista no consulado foi agendada! 🎤\n\n📌 Confira data, hora e endereço documento que enviamos.\n\n⚠️ *Leve:* passaporte + confirmação do agendamento impressa. Chegue com 30 min de antecedência!`,
-        'treinamento_realizado': `✅ Olá ${nome}! Seu treinamento para a entrevista foi concluído!\n\n🎯 Você está preparado(a) para a entrevista!\n\n📌 Lembre-se:\n• Confiança é a chave\n• Responda com clareza\n• Seja objetivo(a)`,
-        'entrevista_realizada': `🎤 Olá ${nome}! Sua entrevista foi realizada!\n\n⏳ Agora é aguardar a decisão consular.\n\n📌 O prazo médio é de 7 a 10 dias úteis.\n\n🌟 Fique tranquilo(a)! Em breve teremos novidades.`,
-        'visto_aprovado': `🎉🎉 *PARABÉNS, ${nome}!* 🎉🎉\n\nSeu visto americano foi *APROVADO*! 🛂✨\n\n📌 Agora é só aguardar: seu passaporte com o visto será liberado em 7 a 10 dias úteis e avisaremos assim que estiver liberado.\n\n🌟 Foi uma honra fazer parte dessa conquista. Boa viagem! 🇺🇸\n\n━━━━━━━━━━━━━━━━━━━━\n⭐ *Sua avaliação é muito importante!*\n\nSua avaliação dos nossos serviços nos ajuda a melhorar cada vez mais. Desde já, muito obrigado! 🙏\n\n👉 Avalie no Google: https://g.page/r/CZE0ve_rWpbqEBM/review`,
-        'visto_recusado': `😔 Olá ${nome},\n\nConforme conversamos, seu visto não foi aprovado desta vez.\n\n📌 Com a estratégia certa, muitos conseguem reverter.\n\n💬 Se surgir qualquer dúvida ou quiser conversar mais sobre os próximos passos, estamos à disposição:\n👉 [Fale com um especialista](https://wa.me/5521974601812)\n\n💪 Estamos juntos nessa. Isso não muda o seu objetivo!`,
-                'passaporte_retornado': `📦 Olá ${nome}!\n\nSeu passaporte com o visto já está disponível para retirada/entrega!\n\n✅ Processo concluído com sucesso!\n\n✈️ Agora é realizar seus sonhos!\n\n🌟 Agradecemos por confiar na GetVisa Assessoria!\n\n━━━━━━━━━━━━━━━━━━━━\n⭐ *Sua avaliação é muito importante!*\n\nSua avaliação dos nossos serviços nos ajuda a melhorar cada vez mais. Desde já, muito obrigado! 🙏\n\n👉 Avalie no Google: https://g.page/r/CZE0ve_rWpbqEBM/review`
-    };
-        const mensagem = mensagens[status] || `🔄 Seu status foi atualizado para: ${status}`;
-    const mensagemComLink = mensagem + rodapePortal();
     try {
+        // 🆕 BLINDAGEM: Busca o cliente no banco para checar silenciamento antes de enviar
+        const { data: clienteNotif } = await supabase
+            .from('clientes')
+            .select('silenciar_bot, tipo_contato')
+            .eq('telefone', telefone)
+            .maybeSingle();
+
+        if (clienteNotif && (clienteNotif.silenciar_bot === true || clienteNotif.tipo_contato === 'contato_pessoal')) {
+            console.log(`🔇 Notificação bloqueada para ${telefone} (flag=${clienteNotif.silenciar_bot}, tipo=${clienteNotif.tipo_contato})`);
+            return; // 🛑 Para aqui e não envia nada
+        }
+
+        const mensagens = {
+            'lead': `👋 Olá ${nome}!\n\nQue bom ter você por aqui! Seu cadastro foi iniciado com sucesso ✅\n\n📌 Em breve enviaremos o link do formulário DS-160 pra começarmos seu processo.\n\n💡 *Dica:* tenha seu passaporte em mãos quando o link chegar!`,
+            'formulario_solicitado': `📋 Olá ${nome}!\n\nO link do formulário DS-160 foi enviado pra você 📲\n\n⚠️ *Preencha com atenção* e confira cada dado antes de enviar — essas informações vão direto pro consulado americano.\n\n✨ Quando você enviar, o sistema avisa nossa equipe automaticamente. Não precisa fazer mais nada!`,
+            'formulario_enviado': `✅ Olá ${nome}!\n\nRecebemos seu formulário DS-160 com sucesso! 🎉\n\n🔍 Nossa equipe já iniciou a revisão dos dados pra garantir que esteja tudo certo antes de seguir pra próxima etapa.\n\n📌 Se identificarmos qualquer ponto que precise da sua ajuda, entraremos em contato por aqui.`,
+            'em_analise': `🔍 Olá ${nome}!\n\nSua documentação está em revisão detalhada pela nossa equipe. Estamos conferindo cada informação com cuidado pra que seu processo siga sem imprevistos.\n\n📌 Assim que a análise terminar, você receberá uma nova atualização por aqui.\n\n✨ Obrigado pela paciência — estamos cuidando de cada detalhe!`,
+            'analise_correcoes': `📝 Olá ${nome}! Analisando o formulario, surgiram algumas dúvidas.\n\n📌 Em breve entraremos em contato!`,
+            'processo_aberto': `🎯 Olá ${nome}!\n\nFormulário aprovado! ✅ Agora vamos iniciar o processo junto ao consulado.\n\n📌 Próximo passo: você vai receber o boleto da *taxa consular (MRV)* para pagamento.\n\n✨ Qualquer dúvida, é só chamar!`,
+            'boleto_emitido': `💰 Olá ${nome}!\n\nO boleto/pix da *taxa consular (MRV)* foi emitido e enviado pra você. 📧\n\n📌 Efetue o pagamento e nos avise, por favor, quando concluir.\n\n✨ Assim que confirmarmos, seguimos com o agendamento!`,
+            'boleto_pago': `✅ Olá ${nome}! Confirmamos o pagamento da taxa consular!\n\n📌 Agora vamos prosseguir com o agendamento da sua entrevista.`,
+            'agendado_casv': `✅ Olá ${nome}!\n\nSeu CASV (coleta biométrica) foi agendado! 📅\n\n📌 Verifique os detalhes completos no documento que enviamos.\n\n⚠️ *Leve:* passaporte original + confirmação do agendamento impressa + *CONFIRMATION IMPRESSA*. Chegue com 30 min de antecedência!`,
+            'agendado_entrevista': `✅ Olá ${nome}!\n\nSua entrevista no consulado foi agendada! 🎤\n\n📌 Confira data, hora e endereço documento que enviamos.\n\n⚠️ *Leve:* passaporte + confirmação do agendamento impressa. Chegue com 30 min de antecedência!`,
+            'treinamento_agendado': `🎯 Olá ${nome}! Seu treinamento foi agendado!\n\n📅 Data e horário enviados por e-mail.\n\n📌 Prepare-se! Estamos com você!`,
+            'treinamento_realizado': `✅ Olá ${nome}! Seu treinamento para a entrevista foi concluído!\n\n🎯 Você está preparado(a) para a entrevista!\n\n📌 Lembre-se:\n• Confiança é a chave\n• Responda com clareza\n• Seja objetivo(a)`,
+            'entrevista_realizada': `🎤 Olá ${nome}! Sua entrevista foi realizada!\n\n⏳ Agora é aguardar a decisão consular.\n\n📌 O prazo médio é de 7 a 10 dias úteis.\n\n🌟 Fique tranquilo(a)! Em breve teremos novidades.`,
+            'visto_aprovado': `🎉🎉 *PARABÉNS, ${nome}!* 🎉🎉\n\nSeu visto americano foi *APROVADO*! 🛂✨\n\n📌 Agora é só aguardar: seu passaporte com o visto será liberado em 7 a 10 dias úteis e avisaremos assim que estiver liberado.\n\n🌟 Foi uma honra fazer parte dessa conquista. Boa viagem! 🇺🇸\n\n━━━━━━━━━━━━━━━━━━━━\n⭐ *Sua avaliação é muito importante!*\n\nSua avaliação dos nossos serviços nos ajuda a melhorar cada vez mais. Desde já, muito obrigado! 🙏\n\n👉 Avalie no Google: https://g.page/r/CZE0ve_rWpbqEBM/review`,
+            'visto_recusado': `😔 Olá ${nome},\n\nConforme conversamos, seu visto não foi aprovado desta vez.\n\n📌 Com a estratégia certa, muitos conseguem reverter.\n\n💬 Se surgir qualquer dúvida ou quiser conversar mais sobre os próximos passos, estamos à disposição:\n👉 [Fale com um especialista](https://wa.me/5521974601812)\n\n💪 Estamos juntos nessa. Isso não muda o seu objetivo!`,
+            'passaporte_retornado': `📦 Olá ${nome}!\n\nSeu passaporte com o visto já está disponível para retirada/entrega!\n\n✅ Processo concluído com sucesso!\n\n✈️ Agora é realizar seus sonhos!\n\n🌟 Agradecemos por confiar na GetVisa Assessoria!\n\n━━━━━━━━━━━━━━━━━━━━\n⭐ *Sua avaliação é muito importante!*\n\nSua avaliação dos nossos serviços nos ajuda a melhorar cada vez mais. Desde já, muito obrigado! 🙏\n\n👉 Avalie no Google: https://g.page/r/CZE0ve_rWpbqEBM/review`
+        };
+        
+        const mensagem = mensagens[status] || `🔄 Seu status foi atualizado para: ${status}`;
+        const mensagemComLink = mensagem + rodapePortal();
+        
         await enviarWhatsApp(telefone, mensagemComLink);
         console.log(`📱 Notificação de status enviada para ${telefone}: ${status}`);
     } catch (error) {

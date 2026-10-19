@@ -323,7 +323,10 @@ function renderClientes(clientes) {
         const dataFormatada = dataParaExibir;
 
         tr.innerHTML = `
-            <td><strong>${cliente.nome || 'Cliente'}</strong></td>
+            <td>
+                <strong>${cliente.nome || 'Cliente'}</strong> 
+                ${cliente.silenciar_bot ? '<span style="font-size:11px; color:#c62828; margin-left:5px; background:#ffebee; padding:2px 6px; border-radius:4px;" title="Bot Silenciado">🔇 Silenciado</span>' : ''}
+            </td>
             <td>${cliente.telefone || '-'}</td>
             <td>${cliente.email || '-'}</td>
             <td>${cliente.consulado || '-'}</td>
