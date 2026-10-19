@@ -988,7 +988,7 @@ Digite o número da opção (1, 2 ou 3)`;
                     console.error('❌ Erro ao enviar despedida:', e);
                 }
 
-                                const { data, error } = await supabase.from('clientes').upsert({
+                const { data, error } = await supabase.from('clientes').upsert({
                     telefone: phone,
                     nome: 'Contato Pessoal',
                     tipo_contato: 'contato_pessoal',
