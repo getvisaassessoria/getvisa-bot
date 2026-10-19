@@ -5040,13 +5040,55 @@ app.get('/api/dashboard-data', async (req, res) => {
 
 app.post('/api/agendar-treinamento', async (req, res) => {
     try {
-        const { cliente_id, entrevista_id, tipo, data, horario } = req.body;
-        if (!cliente_id || !data || !horario) return res.status(400).json({ success: false, message: 'Dados incompletos' });
-        const { data: cliente, error: clienteError } = await supabase.from('clientes').select('id, telefone, nome').eq('id', cliente_id).single();
-        if (clienteError || !cliente) return res.status(404).json({ success: false, message: 'Cliente não encontrado' });
+        const { cliente_id, cliente_telefone, entrevista_id, tipo, data, horario } = req.body;
         
-        const novoAgendamento = { cliente_id, atividade: 'Treinamento', data_agendamento: data, hora_agendamento: horario, local_agendamento: tipo, observacoes: `Treinamento para entrevista. Tipo: ${tipo}. Entrevista ID: ${entrevista_id || 'N/A'}`, concluido: false };
-        const { data: agendamento, error } = await supabase.from('agendamentos').insert([novoAgendamento]).select().single();
+        // Validação básica: precisa de data e horário, e de um dos dois identificadores
+        if ((!cliente_id && !cliente_telefone) || !data || !horario) {
+            return res.status(400).json({ success: false, message: 'Dados incompletos' });
+        }
+
+        let cliente = null;
+        let clienteError = null;
+
+        // Busca o cliente pelo ID (UUID) OU pelo telefone
+        if (cliente_id) {
+            const { data: c1, error: e1 } = await supabase
+                .from('clientes')
+                .select('id, telefone, nome')
+                .eq('id', cliente_id)
+                .maybeSingle();
+            cliente = c1;
+            clienteError = e1;
+        } else if (cliente_telefone) {
+            const { data: c2, error: e2 } = await supabase
+                .from('clientes')
+                .select('id, telefone, nome')
+                .eq('telefone', cliente_telefone)
+                .maybeSingle();
+            cliente = c2;
+            clienteError = e2;
+        }
+
+        if (clienteError || !cliente) {
+            return res.status(404).json({ success: false, message: 'Cliente não encontrado' });
+        }
+        
+        const novoAgendamento = { 
+            cliente_id: cliente.id, // Usa o ID correto extraído do banco
+            atividade: 'Treinamento', 
+            data_agendamento: data, 
+            hora_agendamento: horario, 
+            local_agendamento: tipo, 
+            observacoes: `Treinamento para entrevista. Tipo: ${tipo}. Entrevista ID: ${entrevista_id || 'N/A'}`, 
+            concluido: false 
+        };
+        
+        const { data: agendamento, error } = await supabase
+            .from('agendamentos')
+            .insert([novoAgendamento])
+            .select()
+            .single();
+            
         if (error) return res.status(500).json({ success: false, message: error.message });
         
         // 🆕 Avança a etapa/status pro 'treinamento_agendado'
@@ -5065,7 +5107,9 @@ app.post('/api/agendar-treinamento', async (req, res) => {
         }
         
         res.json({ success: true, message: 'Treinamento agendado com sucesso!', data: agendamento });
-    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+    } catch (error) { 
+        res.status(500).json({ success: false, message: error.message }); 
+    }
 });
 
 // ============================================================
