@@ -4937,12 +4937,32 @@ app.post('/api/admin/atualizar-status', async (req, res) => {
     try {
         const adminKey = req.headers['x-admin-key'];
         if (adminKey !== ADMIN_API_KEY) return res.status(401).json({ error: 'Não autorizado' });
-        const { telefone, status } = req.body;
-        if (!telefone || !status) return res.status(400).json({ success: false, message: 'Telefone e status são obrigatórios' });
-        const resultado = await atualizarStatusCliente(telefone, status);
-        if (resultado.success) res.json({ success: true, message: `Status atualizado para "${status}"`, cliente: resultado.data });
-        else res.status(500).json({ success: false, error: resultado.error });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+        
+        const { telefone, status, observacao, silenciar_bot } = req.body;
+        
+        if (!telefone || !status) {
+            return res.status(400).json({ success: false, message: 'Telefone e status são obrigatórios' });
+        }
+
+        // 1. Atualiza a flag de silenciamento (se enviada)
+        if (silenciar_bot !== undefined) {
+            await supabase
+                .from('clientes')
+                .update({ silenciar_bot: silenciar_bot })
+                .eq('telefone', telefone);
+        }
+
+        // 2. Chama a função principal que já faz o avanço de etapa e o upsert
+        const resultado = await atualizarStatusCliente(telefone, status, { observacao });
+        
+        if (resultado.success) {
+            res.json({ success: true, message: `Status atualizado para "${status}"`, cliente: resultado.data });
+        } else {
+            res.status(500).json({ success: false, error: resultado.error });
+        }
+    } catch (error) { 
+        res.status(500).json({ success: false, error: error.message }); 
+    }
 });
 
 app.post('/api/admin/atualizar-treinamento', async (req, res) => {
