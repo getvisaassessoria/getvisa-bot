@@ -58,7 +58,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
 
     // Estratégia 1: "Nome do Solicitante"
     console.log('🔍 Buscando "Nome do Solicitante"...');
-    const nomeRegex = /Nome do Solicitante\s+([A-Z\s]+?)(?=\s+Classe|$|\n)/gi;
+    const nomeRegex = /Nome do Solicitante[\s\r\n]+([A-ZÀ-Ú\s]+?)(?=[\s\r\n]+(?:Classe|Número|Número do passaporte)|$)/gi;
     let match;
     while ((match = nomeRegex.exec(pdfText)) !== null) {
         let nome = match[1].trim();
