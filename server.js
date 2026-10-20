@@ -942,23 +942,25 @@ Digite *0* para recomeçar.`;
     }
 
     // Função para resetar para a mensagem de boas-vindas (usada quando entrada inválida)
+    // Função para resetar para a mensagem de boas-vindas
     async function resetarParaBoasVindas() {
         state.step = TRIAGEM_STEPS.PERGUNTAR_TIPO;
         state.tipo = null;
         state.nome = null;
         state.email = null;
         userState.set(phone, state);
+        
         const msg = `👋 Olá! Seja bem-vindo(a) à **GetVisa Assessoria**! 🇺🇸
 
 Somos especialistas em vistos americanos e viagens internacionais!
 
 Para eu saber como posso te ajudar melhor, me diga:
 
-1️⃣ - Cliente (já estou em processo de visto)
-2️⃣ - Quero informações sobre Vistos, eTA, ESTA, Passaporte
+1️⃣ - Sou Cliente (já estou em processo de visto)
+2️⃣ - Informações sobre Vistos, eTA, ESTA, Passaporte
 3️⃣ - Outros assuntos (contato pessoal, fornecedor, etc)
 
-Digite o número da opção (1, 2 ou 3)`;
+👉 *Responda com o número da opção desejada.*`;
         await enviarWhatsApp(phone, msg);
     }
 
@@ -970,11 +972,11 @@ Somos especialistas em vistos americanos e viagens internacionais!
 
 Para eu saber como posso te ajudar melhor, me diga:
 
-1️⃣ - Cliente (já estou em processo de visto)
-2️⃣ - Quero informações sobre Vistos, eTA, ESTA, Passaporte
+1️⃣ - Sou Cliente (já estou em processo de visto)
+2️⃣ - Informações sobre Vistos, eTA, ESTA, Passaporte
 3️⃣ - Outros assuntos (contato pessoal, fornecedor, etc)
 
-Digite o número da opção (1, 2 ou 3)`;
+👉 *Responda com o número da opção desejada.*`;
             await enviarWhatsApp(phone, msg);
             state.step = TRIAGEM_STEPS.AGUARDANDO_RESPOSTA;
             userState.set(phone, state);
@@ -982,12 +984,28 @@ Digite o número da opção (1, 2 ou 3)`;
         }
 
         case TRIAGEM_STEPS.AGUARDANDO_RESPOSTA: {
-            const opcao = message.trim();
+            let opcao = message.trim().toLowerCase();
+
+            // 🆕 INTELIGÊNCIA DE TEXTO: Se a pessoa digitar palavras-chave, assume Opção 3
+            if (
+                opcao.includes('fornecedor') || 
+                opcao.includes('contato pessoal') || 
+                opcao.includes('pessoal') || 
+                opcao.includes('outros') || 
+                opcao.includes('não sou cliente') || 
+                opcao.includes('nao sou cliente') ||
+                opcao.includes('não sou') ||
+                opcao.includes('nao sou')
+            ) {
+                opcao = '3';
+            }
+
             if (!['1','2','3'].includes(opcao)) {
                 await encaminharParaEspecialista();
                 return;
             }
-                        if (opcao === '3') {
+
+            if (opcao === '3') {
                 console.log(`🔇 Opção 3 detectada para ${phone}, salvando como contato_pessoal...`);
 
                 // 🆕 Última mensagem do bot para este número
@@ -1009,6 +1027,7 @@ Digite o número da opção (1, 2 ou 3)`;
                     data_contato: new Date().toISOString(),
                     onboarding_completo: true
                 }, { onConflict: 'telefone' });
+                
                 if (error) {
                     console.error(`❌ Erro ao salvar contato pessoal:`, error);
                 } else {
@@ -1018,6 +1037,7 @@ Digite o número da opção (1, 2 ou 3)`;
                 console.log(`🔇 Contato pessoal ${phone} silenciado (próximas mensagens não serão respondidas).`);
                 return;
             }
+            
             if (opcao === '1') {
                 state.tipo = 'cliente';
                 state.step = TRIAGEM_STEPS.AGUARDANDO_EMAIL_CLIENTE;
@@ -1025,6 +1045,7 @@ Digite o número da opção (1, 2 ou 3)`;
                 await enviarWhatsApp(phone, `✅ Entendi! Você já está em processo de visto.\n\nPara verificar o andamento do seu processo, me informe:\n\n📧 **Qual é o seu e-mail cadastrado?**\n\nEx: maria@email.com`);
                 return;
             }
+            
             if (opcao === '2') {
                 state.tipo = 'lead';
                 state.step = TRIAGEM_STEPS.AGUARDANDO_NOME_LEAD;
