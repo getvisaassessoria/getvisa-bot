@@ -5375,7 +5375,7 @@ cron.schedule('*/5 * * * *', async () => {
         }
 
         // Roda apenas na hora definida (MUDE PARA A HORA ATUAL PARA TESTAR)
-        if (horaBrasil.getHours() !== 14) return; // Troque o 14 pela hora atual do Brasil
+        if (horaBrasil.getHours() !== 12) return; // Troque o 14 pela hora atual do Brasil
 
         console.log('⏰ Cron job executado (lembretes) - Checando agendamentos de amanhã e depois de amanhã...');
 
