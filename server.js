@@ -5358,10 +5358,83 @@ cron.schedule('*/30 * * * *', () => {
     watchdogZapi();
 });
 
-// Cron job para lembretes (placeholder – pode ser implementado depois)
-cron.schedule('*/5 * * * *', () => {
-    console.log('⏰ Cron job executado (lembretes)');
-    // Aqui você pode adicionar a lógica real de lembretes, se desejar
+// Cron job para lembretes (agora funcional)
+const lembretesEnviadosHoje = new Set();
+let dataUltimaLimpezaLembretes = new Date().toDateString();
+
+cron.schedule('*/5 * * * *', async () => {
+    try {
+        const agora = new Date();
+        // Ajusta para o fuso do Brasil (UTC-3)
+        const horaBrasil = new Date(agora.getTime() - (3 * 60 * 60 * 1000));
+        
+        // Limpa o cache de lembretes se mudou o dia
+        if (dataUltimaLimpezaLembretes !== horaBrasil.toDateString()) {
+            lembretesEnviadosHoje.clear();
+            dataUltimaLimpezaLembretes = horaBrasil.toDateString();
+        }
+
+        // Roda apenas na hora definida (MUDE PARA A HORA ATUAL PARA TESTAR)
+        if (horaBrasil.getHours() !== 12) return; // Troque o 14 pela hora atual do Brasil
+
+        console.log('⏰ Cron job executado (lembretes) - Checando agendamentos de amanhã e depois de amanhã...');
+
+        // Calcula datas alvo
+        const dataAmanha = new Date(horaBrasil);
+        dataAmanha.setDate(dataAmanha.getDate() + 1);
+        const strAmanha = dataAmanha.toISOString().split('T')[0];
+
+        const dataDoisDias = new Date(horaBrasil);
+        dataDoisDias.setDate(dataDoisDias.getDate() + 2);
+        const strDoisDias = dataDoisDias.toISOString().split('T')[0];
+
+        // Busca no banco
+        const { data: agendamentos, error } = await supabase
+            .from('agendamentos')
+            .select(`
+                id, atividade, data_agendamento, hora_agendamento, local_agendamento,
+                clientes (nome, telefone, silenciar_bot, tipo_contato)
+            `)
+            .in('data_agendamento', [strAmanha, strDoisDias]);
+
+        if (error) throw error;
+        if (!agendamentos || agendamentos.length === 0) return;
+
+        for (const ag of agendamentos) {
+            const cliente = ag.clientes;
+            if (!cliente || !cliente.telefone) continue;
+            
+            // Respeita o silenciamento do bot
+            if (cliente.silenciar_bot === true || cliente.tipo_contato === 'contato_pessoal') {
+                continue;
+            }
+
+            // Evita mandar o mesmo lembrete duas vezes no mesmo dia
+            const chaveCache = `${ag.id}-${horaBrasil.toISOString().split('T')[0]}`;
+            if (lembretesEnviadosHoje.has(chaveCache)) continue;
+            lembretesEnviadosHoje.add(chaveCache);
+
+            const isAmanha = ag.data_agendamento === strAmanha;
+            const quando = isAmanha ? 'amanhã' : 'em 2 dias';
+            const dataFormatada = ag.data_agendamento.split('-').reverse().join('/');
+            
+            let mensagem = `⏰ *LEMBRETE DE AGENDAMENTO - GETVISA*\n\nOlá *${cliente.nome.split(' ')[0]}*!\n\n`;
+            mensagem += `Passando para lembrar do seu compromisso *${quando}*:\n\n`;
+            mensagem += `📌 *${ag.atividade}*\n`;
+            mensagem += `📅 Data: *${dataFormatada}*\n`;
+            mensagem += `⏰ Hora: *${ag.hora_agendamento.substring(0, 5)}*\n`;
+            mensagem += `📍 Local: ${ag.local_agendamento}\n\n`;
+            mensagem += `⚠️ *Não esqueça de levar:*\n`;
+            mensagem += `• Passaporte original\n`;
+            mensagem += `• Página de confirmação impressa\n\n`;
+            mensagem += `Boa sorte! Estamos com você. ✈️`;
+            
+            await enviarWhatsApp(cliente.telefone, mensagem);
+            console.log(`✅ Lembrete enviado para ${cliente.telefone} (${ag.atividade} - ${dataFormatada})`);
+        }
+    } catch (err) {
+        console.error('❌ Erro no cron de lembretes:', err);
+    }
 });
 
 // 🔥 Limpeza automática de estados inativos (timeout de 5 minutos)
