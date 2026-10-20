@@ -17,11 +17,12 @@ const fs = require('fs');
 const cron = require('node-cron');
 const multer = require('multer');
 const auth = require('./middleware/auth');
-
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY || '');
 const PORT = process.env.PORT || 10000;
 const LINK_PORTAL = 'https://app.getvisa.com.br/meu-processo';
+const userState = new Map(); // (ou como estiver no seu código)
+const userTimeouts = new Map(); // 🆕 Controle de Debounce
 
 function rodapePortal() {
     return `\n\n━━━━━━━━━━━━━━━━━━━━\n` +
@@ -4507,23 +4508,42 @@ app.post('/api/agendamentos/upload-pdf', uploadMemory.single('pdfFile'), async (
         }
 
         // ============================================================
-// PROTEÇÃO: nunca regride se entrevista já foi realizada
-// (antes disso, regressão é permitida — ex: cliente faltou e vai reagendar)
-// ============================================================
-const ETAPAS_BLOQUEADAS = [
-    'entrevista_realizada',
-    'visto_aprovado',
-    'visto_recusado',
-    'passaporte_retornado'
-];
+        // ============================================================
+        // PROTEÇÃO: nunca regride se entrevista já foi realizada
+        // ============================================================
+        const ETAPAS_BLOQUEADAS = [
+            'entrevista_realizada',
+            'visto_aprovado',
+            'visto_recusado',
+            'passaporte_retornado'
+        ];
 
-const { data: etapaAtualData } = await supabase
-    .from('etapas_processo')
-    .select('etapa_atual')
-    .eq('cliente_telefone', telefone)
-    .maybeSingle();
+        // 🆕 Busca a etapa e os dados antigos para comparar
+        const { data: etapaAtualData } = await supabase
+            .from('etapas_processo')
+            .select('etapa_atual, dados_casv, dados_entrevista') 
+            .eq('cliente_telefone', telefone)
+            .maybeSingle();
 
-const etapaAtualNome = etapaAtualData?.etapa_atual || 'formulario_enviado';
+        // 🆕 TRAVA DE SEGURANÇA: Evita envio duplicado de WhatsApp/E-mail
+        const dadosCasvAntigos = etapaAtualData?.dados_casv || {};
+        const dadosEntrevistaAntigos = etapaAtualData?.dados_entrevista || {};
+        
+        const isDuplicado = 
+            (casv.data === dadosCasvAntigos.data && casv.hora === dadosCasvAntigos.hora) &&
+            (entrevista.data === dadosEntrevistaAntigos.data && entrevista.hora === dadosEntrevistaAntigos.hora) &&
+            (casv.data && casv.data !== 'A definir');
+
+        if (isDuplicado) {
+            console.log(`🛡️ Agendamento idêntico já registrado. Pulando envio de WhatsApp/E-mail para ${telefone}.`);
+            return res.json({ 
+                success: true, 
+                message: 'Este agendamento já foi registrado anteriormente. Nenhuma mensagem duplicada foi enviada.',
+                data: { casv, entrevista, protocolo: req.protocolo || null, comunicacoes: { email: false, whatsapp: false } }
+            });
+        }
+
+        const etapaAtualNome = etapaAtualData?.etapa_atual || 'formulario_enviado';
 const estaBloqueada = ETAPAS_BLOQUEADAS.includes(etapaAtualNome);
 
 const etapaParaGravar = estaBloqueada ? etapaAtualNome : 'agendado_casv';
@@ -4645,8 +4665,22 @@ app.post('/api/webhook/zapi', async (req, res) => {
                 return;
             }
 
-            const telefoneLimpo = limparTelefone(telefone);
-            if (telefoneLimpo) await processarMensagem(telefoneLimpo, mensagem);
+                        const telefoneLimpo = limparTelefone(telefone);
+            
+            if (telefoneLimpo) {
+                // 🆕 DEBOUNCE: Evita respostas múltiplas para mensagens picadas
+                if (userTimeouts.has(telefoneLimpo)) {
+                    clearTimeout(userTimeouts.get(telefoneLimpo));
+                    console.log(`⏳ Aguardando cliente terminar de digitar... (${telefoneLimpo})`);
+                }
+                
+                const timeoutId = setTimeout(async () => {
+                    await processarMensagem(telefoneLimpo, mensagem);
+                    userTimeouts.delete(telefoneLimpo);
+                }, 3000); // Espera 3 segundos antes de responder
+                
+                userTimeouts.set(telefoneLimpo, timeoutId);
+            }
         } catch (err) { console.error('❌ Erro no webhook:', err); }
     })();
 });
