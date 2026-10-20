@@ -21,7 +21,6 @@ const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY || '');
 const PORT = process.env.PORT || 10000;
 const LINK_PORTAL = 'https://app.getvisa.com.br/meu-processo';
-const userState = new Map(); // (ou como estiver no seu código)
 const userTimeouts = new Map(); // 🆕 Controle de Debounce
 
 function rodapePortal() {
