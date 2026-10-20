@@ -290,6 +290,8 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             return { success: false, message: 'Nenhum agendamento encontrado no PDF.' };
         }
 
+        const agendamentosSalvos = [];
+
         // ============================================================
         // COLETA TODOS OS MEMBROS ÚNICOS
         // ============================================================
