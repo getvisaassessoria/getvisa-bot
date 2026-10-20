@@ -46,49 +46,39 @@ function mapAtividadeToText(atividade) {
 // ============================================================
 // FUNÇÃO DE EXTRAÇÃO SIMPLIFICADA
 // ============================================================
-function extractAgendamentoDetailsFromText(pdfText) {
-    const agendamentos = [];
-
-    console.log('🔍 Extraindo dados do PDF...');
-
-    // ============================================================
-    // 1. EXTRAIR NOMES - PRIORIDADE: "Nome do Solicitante"
-    // ============================================================
-        const nomes = [];
-
-    // Estratégia 1: "Nome do Solicitante" (Varredura de linhas)
-    console.log('🔍 Buscando "Nome do Solicitante"...');
-    const linhas = pdfText.split(/[\r\n]+/);
+    // Estratégia 1: Buscar nomes baseados no padrão da tabela do consulado (Nome seguido de Passaporte)
+    console.log('🔍 Buscando nomes baseados no padrão da tabela...');
     
-    for (let i = 0; i < linhas.length; i++) {
-        const linha = linhas[i];
-        if (linha.toLowerCase().includes('nome do solicitante')) {
-            // Remove o rótulo e pega o resto da linha
-            let nomeLimpo = linha.replace(/Nome do Solicitante/gi, '').trim();
-            
-            // Se a linha ficou vazia (o nome está na linha de baixo)
-            if (!nomeLimpo && linhas[i+1]) {
-                nomeLimpo = linhas[i+1].trim();
-            }
-            
-            // Remove "Classe", "Número" e qualquer coisa que venha depois deles
-            nomeLimpo = nomeLimpo.split(/Classe|Número|Número do passaporte/i)[0].trim();
-            
-            // Remove caracteres estranhos do PDF, deixando apenas letras e espaços
-            nomeLimpo = nomeLimpo.replace(/[^A-Za-zÀ-Ú\s]/g, '').replace(/\s+/g, ' ').trim();
+    // Pega sequências de letras maiúsculas que antecedem um passaporte (2 letras + 6 números)
+    const regexNomesTabela = /([A-ZÀ-Ú][A-ZÀ-Ú\s]{10,}?)(?=\s+[A-Z]{2}\d{6})/g;
+    let matchNome;
+    
+    while ((matchNome = regexNomesTabela.exec(pdfText)) !== null) {
+        let nomeLimpo = matchNome[1].trim().replace(/\s+/g, ' ');
+        if (nomeLimpo && nomeLimpo.length > 5) {
+            nomes.push(nomeLimpo);
+            console.log(`✅ Nome encontrado: ${nomeLimpo}`);
+        }
+    }
 
-            if (nomeLimpo && nomeLimpo.length > 5) {
-                const headers = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 'PROTOCOLO',
-                               'INSTRUÇÕES', 'DEPARTAMENTO', 'DOCUMENTAÇÃO', 'VISITANTE', 'NEGÓCIOS',
-                               'TURISMO', 'TRATAMENTO', 'MÉDICO', 'TAXA', 'SOLICITAÇÃO', 'ENTREGA'];
+    // Fallback caso a regex não encontre (ex: PDFs de solicitante único)
+    if (nomes.length === 0) {
+        const linhas = pdfText.split(/[\r\n]+/);
+        for (let i = 0; i < linhas.length; i++) {
+            const linha = linhas[i];
+            if (linha.toLowerCase().includes('nome do solicitante')) {
+                let nomeLimpo = linha.replace(/Nome do Solicitante/gi, '').trim();
+                if (!nomeLimpo && linhas[i+1]) nomeLimpo = linhas[i+1].trim();
+                nomeLimpo = nomeLimpo.split(/Classe|Número|Número do passaporte/i)[0].trim();
+                nomeLimpo = nomeLimpo.replace(/[^A-Za-zÀ-Ú\s]/g, '').replace(/\s+/g, ' ').trim();
                 
-                if (!headers.some(h => nomeLimpo.toUpperCase().includes(h))) {
+                if (nomeLimpo && nomeLimpo.length > 5) {
                     nomes.push(nomeLimpo);
-                    console.log(`✅ Nome encontrado: ${nomeLimpo}`);
+                    console.log(`✅ Nome encontrado (fallback): ${nomeLimpo}`);
                 }
             }
         }
-    }
+    
 
     // Estratégia 2: Fallback - linhas em maiúsculas
     if (nomes.length === 0) {
@@ -396,18 +386,23 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
                 continue;
             }
 
-            // 🆕 Tenta encontrar o ID do membro da família pelo nome exato
+                        // 🆕 Tenta encontrar o ID do membro da família pelo primeiro nome (evita erro de acentos)
             let idParaSalvar = clienteId;
-            if (nomeCliente && nomeCliente !== 'undefined' && nomeCliente.length > 3) {
-                const { data: membro } = await supabase
-                    .from('clientes')
-                    .select('id')
-                    .ilike('nome', `%${nomeCliente.trim()}%`)
-                    .limit(1)
-                    .maybeSingle();
+            if (nomeCliente && typeof nomeCliente === 'string' && nomeCliente.trim().length > 3) {
+                try {
+                    const primeiroNome = nomeCliente.trim().split(/\s+/)[0];
+                    const { data: membro } = await supabase
+                        .from('clientes')
+                        .select('id')
+                        .ilike('nome', `%${primeiroNome}%`)
+                        .limit(1)
+                        .maybeSingle();
 
-                if (membro && membro.id) {
-                    idParaSalvar = membro.id;
+                    if (membro && membro.id) {
+                        idParaSalvar = membro.id;
+                    }
+                } catch (buscaErr) {
+                    console.error(`⚠️ Erro ao buscar membro ${nomeCliente}:`, buscaErr.message);
                 }
             }
 
