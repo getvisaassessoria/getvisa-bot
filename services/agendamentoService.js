@@ -386,14 +386,27 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         // ============================================================
         // SALVAR AGENDAMENTOS
         // ============================================================
-        const agendamentosSalvos = [];
-
-        for (const agendamentoData of agendamentosExtraidos) {
+                for (const agendamentoData of agendamentosExtraidos) {
             const { nomeCliente, atividade, dataCompromisso, horaCompromisso, localCompromisso } = agendamentoData;
 
             if (!atividade || !dataCompromisso || !horaCompromisso || !localCompromisso) {
                 console.warn('⚠️ Dados de agendamento incompletos, pulando.');
                 continue;
+            }
+
+            // 🆕 Tenta encontrar o ID do membro da família pelo nome exato
+            let idParaSalvar = clienteId;
+            if (nomeCliente && nomeCliente !== 'undefined' && nomeCliente.length > 3) {
+                const { data: membro } = await supabase
+                    .from('clientes')
+                    .select('id')
+                    .ilike('nome', `%${nomeCliente.trim()}%`)
+                    .limit(1)
+                    .maybeSingle();
+
+                if (membro && membro.id) {
+                    idParaSalvar = membro.id;
+                }
             }
 
             const [dia, mes, ano] = dataCompromisso.split('/');
@@ -402,23 +415,23 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             const localTexto = mapLocalToText(localCompromisso);
             const atividadeTexto = mapAtividadeToText(atividade);
 
-            // Verificar duplicata
+            // Verificar duplicata (agora usando o ID correto do membro)
             const { data: existentes } = await supabase
                 .from('agendamentos')
                 .select('id')
-                .eq('cliente_id', clienteId)
+                .eq('cliente_id', idParaSalvar)
                 .eq('data_agendamento', dataFormatadaParaBanco)
                 .eq('hora_agendamento', horaCompromisso)
                 .eq('atividade', atividadeTexto)
                 .maybeSingle();
 
             if (existentes) {
-                console.log(`⏭️ Agendamento duplicado ignorado: ${atividadeTexto} - ${dataFormatadaParaBanco}`);
+                console.log(`⏭️ Agendamento duplicado ignorado: ${nomeCliente} - ${atividadeTexto} - ${dataFormatadaParaBanco}`);
                 continue;
             }
 
             const novoAgendamento = {
-                cliente_id: clienteId,
+                cliente_id: idParaSalvar, // 🆕 Usa o ID do familiar encontrado
                 atividade: atividadeTexto,
                 data_agendamento: dataFormatadaParaBanco,
                 hora_agendamento: horaCompromisso,
@@ -427,7 +440,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
                 observacoes: `Membro: ${nomeCliente}`
             };
 
-            console.log(`📝 Salvando agendamento: ${atividadeTexto} - ${dataFormatadaParaBanco} ${horaCompromisso}`);
+            console.log(`📝 Salvando agendamento para ${nomeCliente} (ID: ${idParaSalvar}): ${atividadeTexto} - ${dataFormatadaParaBanco} ${horaCompromisso}`);
 
             const { data: salvo, error: saveError } = await supabase
                 .from('agendamentos')
@@ -443,7 +456,6 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             agendamentosSalvos.push(salvo);
             console.log(`✅ Agendamento salvo: ${salvo.id}`);
         }
-
         // ============================================================
         // ENVIAR WHATSAPP
         // ============================================================
