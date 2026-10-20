@@ -17,11 +17,11 @@ const fs = require('fs');
 const cron = require('node-cron');
 const multer = require('multer');
 const auth = require('./middleware/auth');
-
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY || '');
 const PORT = process.env.PORT || 10000;
 const LINK_PORTAL = 'https://app.getvisa.com.br/meu-processo';
+const userTimeouts = new Map(); // 🆕 Controle de Debounce
 
 function rodapePortal() {
     return `\n\n━━━━━━━━━━━━━━━━━━━━\n` +
@@ -4664,8 +4664,22 @@ app.post('/api/webhook/zapi', async (req, res) => {
                 return;
             }
 
-            const telefoneLimpo = limparTelefone(telefone);
-            if (telefoneLimpo) await processarMensagem(telefoneLimpo, mensagem);
+                        const telefoneLimpo = limparTelefone(telefone);
+            
+            if (telefoneLimpo) {
+                // 🆕 DEBOUNCE: Evita respostas múltiplas para mensagens picadas
+                if (userTimeouts.has(telefoneLimpo)) {
+                    clearTimeout(userTimeouts.get(telefoneLimpo));
+                    console.log(`⏳ Aguardando cliente terminar de digitar... (${telefoneLimpo})`);
+                }
+                
+                const timeoutId = setTimeout(async () => {
+                    await processarMensagem(telefoneLimpo, mensagem);
+                    userTimeouts.delete(telefoneLimpo);
+                }, 3000); // Espera 3 segundos antes de responder
+                
+                userTimeouts.set(telefoneLimpo, timeoutId);
+            }
         } catch (err) { console.error('❌ Erro no webhook:', err); }
     })();
 });
