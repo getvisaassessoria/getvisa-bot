@@ -4433,6 +4433,74 @@ app.post('/api/submit-passaporte', async (req, res) => {
 
         if (errForm) throw errForm;
 
+        // ============================================================
+        // 🆕 ENVIO DO E-MAIL FORMATADO PARA A EQUIPE
+        // ============================================================
+        try {
+            const emailEquipe = process.env.EMAIL_EQUIPE || 'getvisa.assessoria@gmail.com'; // Ajuste se necessário
+            
+            await resend.emails.send({
+                from: 'GetVisa <contato@getvisa.com.br>',
+                to: emailEquipe,
+                subject: `📄 Novo Pedido de Passaporte - ${nome}`,
+                html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 20px; border-radius: 8px;">
+                    <div style="background: #003366; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                        <h2 style="margin: 0;">📄 Novo Pedido de Passaporte</h2>
+                        <p style="margin: 5px 0 0; font-size: 14px;">ID: ${formInserido.id.slice(0,8)}</p>
+                    </div>
+                    
+                    <div style="background: white; padding: 20px; border: 1px solid #ddd; border-top: none; border-radius: 0 0 8px 8px;">
+                        
+                        <h3 style="color: #003366; border-bottom: 2px solid #003366; padding-bottom: 5px;">👤 Dados Básicos</h3>
+                        <p><strong>Nome:</strong> ${nome}<br>
+                        <strong>E-mail:</strong> ${email}<br>
+                        <strong>Telefone:</strong> ${telefoneRealVal}<br>
+                        <strong>CPF:</strong> ${cpfLimpo}<br>
+                        <strong>Cidade:</strong> ${cidade}</p>
+
+                        <h3 style="color: #003366; border-bottom: 2px solid #003366; padding-bottom: 5px; margin-top: 20px;">📋 Dados Pessoais</h3>
+                        <p><strong>Nascimento:</strong> ${dados.data_nascimento || 'N/A'}<br>
+                        <strong>Sexo:</strong> ${dados.sexo || 'N/A'}<br>
+                        <strong>Estado Civil:</strong> ${dados.estado_civil || 'N/A'}<br>
+                        <strong>Nacionalidade:</strong> ${dados.nacionalidade || 'N/A'}<br>
+                        <strong>Naturalidade:</strong> ${dados.cidade_nascimento || 'N/A'} - ${dados.estado_nascimento || 'N/A'}</p>
+
+                        <h3 style="color: #003366; border-bottom: 2px solid #003366; padding-bottom: 5px; margin-top: 20px;">👨‍👩‍👧 Filiação</h3>
+                        <p><strong>Pai:</strong> ${dados.nome_pai || 'N/A'}<br>
+                        <strong>Mãe:</strong> ${dados.nome_mae || 'N/A'}</p>
+
+                        <h3 style="color: #003366; border-bottom: 2px solid #003366; padding-bottom: 5px; margin-top: 20px;">📍 Endereço</h3>
+                        <p>
+                            ${dados.endereco_rua || ''}, ${dados.endereco_numero || ''} ${dados.endereco_complemento ? '- ' + dados.endereco_complemento : ''}<br>
+                            Bairro: ${dados.endereco_bairro || 'N/A'}<br>
+                            CEP: ${dados.cep || 'N/A'}
+                        </p>
+
+                        <div style="margin-top: 30px; text-align: center;">
+                            <a href="https://app.getvisa.com.br/painel?api_key=admin123" style="background: #003366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar o Painel Admin</a>
+                        </div>
+                    </div>
+                </div>
+                `
+            });
+            console.log('📧 E-mail formatado enviado para a equipe.');
+        } catch (emailError) {
+            console.error('❌ Erro ao enviar e-mail formatado para a equipe:', emailError);
+        }
+        // ============================================================
+
+        return res.json({
+            ok: true,
+            id: formInserido.id,
+            cliente_id: clienteId,
+            cliente_titular_id: titularId,
+            telefone: telefoneRealVal,
+            telefone_vinculacao: telefoneVinculacao,
+            cliente_novo: clienteEhNovo,
+            created_at: formInserido.created_at
+        });
+
         return res.json({
             ok: true,
             id: formInserido.id,
