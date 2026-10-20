@@ -132,11 +132,20 @@ document.getElementById('uploadForm').addEventListener('submit', async function(
 
         if (result.success) {
             status.className = 'success';
+            
+            // 🆕 Verifica se as mensagens foram enviadas ou bloqueadas
+            let statusComunicacao = '';
+            if (result.data?.comunicacoes?.whatsapp || result.data?.comunicacoes?.email) {
+                statusComunicacao = '📧 E-mail e WhatsApp enviados para o cliente!';
+            } else {
+                statusComunicacao = '🛡️ <strong>Agendamento já existia. Nenhuma mensagem duplicada foi enviada.</strong>';
+            }
+
             status.innerHTML = `
-                ✅ PDF enviado com sucesso!<br>
+                ✅ PDF processado com sucesso!<br>
                 📅 CASV: ${result.data?.casv?.data || 'Extraído'}<br>
                 🎤 Entrevista: ${result.data?.entrevista?.data || 'Extraído'}<br>
-                📧 E-mail e WhatsApp enviados para o cliente!
+                ${statusComunicacao}
             `;
             status.style.display = 'block';
             document.getElementById('pdfFile').value = '';
@@ -151,6 +160,7 @@ document.getElementById('uploadForm').addEventListener('submit', async function(
         status.style.display = 'block';
     }
 
+    // Reabilita o botão no final
     btn.disabled = false;
     btn.textContent = '📤 Enviar PDF';
 });
