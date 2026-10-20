@@ -5376,7 +5376,7 @@ cron.schedule('*/5 * * * *', async () => {
 
         // Roda apenas na hora definida (MUDE PARA A HORA ATUAL PARA TESTAR)
         if (horaBrasil.getHours() !== 7) return; 
-        
+
         console.log('⏰ Cron job executado (lembretes) - Checando agendamentos de amanhã e depois de amanhã...');
 
         // Calcula datas alvo
@@ -5400,7 +5400,7 @@ cron.schedule('*/5 * * * *', async () => {
         if (error) throw error;
         if (!agendamentos || agendamentos.length === 0) return;
 
-        for (const ag of agendamentos) {
+                for (const ag of agendamentos) {
             const cliente = ag.clientes;
             if (!cliente || !cliente.telefone) continue;
             
@@ -5417,16 +5417,33 @@ cron.schedule('*/5 * * * *', async () => {
             const isAmanha = ag.data_agendamento === strAmanha;
             const quando = isAmanha ? 'amanhã' : 'em 2 dias';
             const dataFormatada = ag.data_agendamento.split('-').reverse().join('/');
-            
+            const atividadeLower = ag.atividade.toLowerCase();
+
+            // 🆕 Personaliza o checklist baseado no tipo de agendamento
+            let checklist = '';
+            if (atividadeLower.includes('treinamento')) {
+                checklist = `• Esteja em um local tranquilo e silencioso\n• Tenha seu passaporte e DS-160 em mãos (para tirar dúvidas)\n• Anote suas perguntas`;
+            } else if (atividadeLower.includes('casv')) {
+                checklist = `• Passaporte original\n• Página de confirmação impressa (DS-160)\n• Chegue com 30 min de antecedência`;
+            } else if (atividadeLower.includes('entrevista')) {
+                checklist = `• Passaporte original\n• Página de confirmação impressa\n• Chegue com 30 min de antecedência`;
+            } else {
+                checklist = `• Documento de identificação`;
+            }
+
+            // Define o ícone da atividade
+            let iconeAtividade = '📌';
+            if (atividadeLower.includes('treinamento')) iconeAtividade = '🎯';
+            if (atividadeLower.includes('casv')) iconeAtividade = '🏢';
+            if (atividadeLower.includes('entrevista')) iconeAtividade = '🎤';
+
             let mensagem = `⏰ *LEMBRETE DE AGENDAMENTO - GETVISA*\n\nOlá *${cliente.nome.split(' ')[0]}*!\n\n`;
             mensagem += `Passando para lembrar do seu compromisso *${quando}*:\n\n`;
-            mensagem += `📌 *${ag.atividade}*\n`;
+            mensagem += `${iconeAtividade} *${ag.atividade}*\n`;
             mensagem += `📅 Data: *${dataFormatada}*\n`;
             mensagem += `⏰ Hora: *${ag.hora_agendamento.substring(0, 5)}*\n`;
             mensagem += `📍 Local: ${ag.local_agendamento}\n\n`;
-            mensagem += `⚠️ *Não esqueça de levar:*\n`;
-            mensagem += `• Passaporte original\n`;
-            mensagem += `• Página de confirmação impressa\n\n`;
+            mensagem += `⚠️ *Não esqueça:*\n${checklist}\n\n`;
             mensagem += `Boa sorte! Estamos com você. ✈️`;
             
             await enviarWhatsApp(cliente.telefone, mensagem);
