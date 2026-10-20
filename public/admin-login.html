@@ -73,7 +73,14 @@
                 <option value="Entrevista">Entrevista</option>
             </select>
 
-            <input type="text" id="localFilter" placeholder="Filtrar por local..." onkeyup="filtrarTabela()">
+            <select id="localFilter" onchange="filtrarTabela()">
+                <option value="">Todos os locais</option>
+                <option value="Rio">Rio de Janeiro (RJ)</option>
+                <option value="Paulo">São Paulo (SP)</option>
+                <option value="Brasília">Brasília (DF)</option>
+                <option value="Recife">Recife (PE)</option>
+                <option value="Porto">Porto Alegre (RS)</option>
+            </select>
             
             <input type="date" id="dateFilter" onchange="filtrarTabela()">
             
@@ -139,9 +146,25 @@
 
             // Filtro por Local
             if (localFilter) {
-                filtrados = filtrados.filter(a => 
-                    (a.local_agendamento || '').toLowerCase().includes(localFilter)
-                );
+                filtrados = filtrados.filter(a => {
+                    const localTexto = (a.local_agendamento || '').toLowerCase();
+                    
+                    // Se o usuário escolheu "Rio", procura por "rio de janeiro" OU "avenida almirante"
+                    if (localFilter === 'rio') {
+                        return localTexto.includes('rio') || localTexto.includes('almirante');
+                    }
+                    // Se escolheu "Paulo", procura por "são paulo" ou "sao paulo"
+                    if (localFilter === 'paulo') {
+                        return localTexto.includes('paulo');
+                    }
+                    // Se escolheu "Brasília"
+                    if (localFilter === 'brasília') {
+                        return localTexto.includes('brasília') || localTexto.includes('brasilia');
+                    }
+                    
+                    // Para Recife e Porto Alegre, a busca direta já funciona
+                    return localTexto.includes(localFilter);
+                });
             }
 
             // Filtro por Data
