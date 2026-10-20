@@ -1,7 +1,5 @@
 // services/agendamentoService.js
 const supabase = require('../config/supabase');
-const clientRepository = require('../repositories/clientRepository');
-const lembretesService = require('./lembretes.service');
 const pdfParse = require('pdf-parse');
 const { enviarWhatsApp } = require('../utils/whatsappClient');
 
@@ -44,47 +42,48 @@ function mapAtividadeToText(atividade) {
 }
 
 // ============================================================
-// FUNÇÃO DE EXTRAÇÃO SIMPLIFICADA
+// FUNÇÃO DE EXTRAÇÃO SIMPLIFICADA (RESTAURADA)
 // ============================================================
 function extractAgendamentoDetailsFromText(pdfText) {
     const agendamentos = [];
+    const nomes = [];
+    let match; // Declarado no escopo da função
 
     console.log('🔍 Extraindo dados do PDF...');
 
     // ============================================================
     // 1. EXTRAIR NOMES - PRIORIDADE: "Nome do Solicitante"
     // ============================================================
-        const nomes = [];
-
-    // Estratégia 1: "Nome do Solicitante" (Varredura de linhas)
-    console.log('🔍 Buscando "Nome do Solicitante"...');
-    const linhas = pdfText.split(/[\r\n]+/);
+    console.log('🔍 Buscando nomes baseados no padrão da tabela...');
     
-    for (let i = 0; i < linhas.length; i++) {
-        const linha = linhas[i];
-        if (linha.toLowerCase().includes('nome do solicitante')) {
-            // Remove o rótulo e pega o resto da linha
-            let nomeLimpo = linha.replace(/Nome do Solicitante/gi, '').trim();
-            
-            // Se a linha ficou vazia (o nome está na linha de baixo)
-            if (!nomeLimpo && linhas[i+1]) {
-                nomeLimpo = linhas[i+1].trim();
-            }
-            
-            // Remove "Classe", "Número" e qualquer coisa que venha depois deles
-            nomeLimpo = nomeLimpo.split(/Classe|Número|Número do passaporte/i)[0].trim();
-            
-            // Remove caracteres estranhos do PDF, deixando apenas letras e espaços
-            nomeLimpo = nomeLimpo.replace(/[^A-Za-zÀ-Ú\s]/g, '').replace(/\s+/g, ' ').trim();
+    // Pega sequências de letras maiúsculas que antecedem um passaporte (2 letras + 6 números)
+    const regexNomesTabela = /([A-ZÀ-Ú][A-ZÀ-Ú\s]{10,}?)(?=\s+[A-Z]{2}\d{6})/g;
+    let matchNome;
+    
+    while ((matchNome = regexNomesTabela.exec(pdfText)) !== null) {
+        let nomeLimpo = matchNome[1].trim().replace(/\s+/g, ' ');
+        if (nomeLimpo && nomeLimpo.length > 5) {
+            nomes.push(nomeLimpo);
+            console.log(`✅ Nome encontrado: ${nomeLimpo}`);
+        }
+    }
 
-            if (nomeLimpo && nomeLimpo.length > 5) {
-                const headers = ['DATA', 'HORA', 'LOCAL', 'CASV', 'ENTREVISTA', 'CONSULADO', 'PROTOCOLO',
-                               'INSTRUÇÕES', 'DEPARTAMENTO', 'DOCUMENTAÇÃO', 'VISITANTE', 'NEGÓCIOS',
-                               'TURISMO', 'TRATAMENTO', 'MÉDICO', 'TAXA', 'SOLICITAÇÃO', 'ENTREGA'];
+    // Fallback caso a regex não encontre (ex: PDFs de solicitante único)
+    if (nomes.length === 0) {
+        const linhas = pdfText.split(/[\r\n]+/);
+        for (let i = 0; i < linhas.length; i++) {
+            const linha = linhas[i];
+            if (linha.toLowerCase().includes('nome do solicitante')) {
+                let nomeLimpo = linha.replace(/Nome do Solicitante/gi, '').trim();
+                if (!nomeLimpo && linhas[i+1]) {
+                    nomeLimpo = linhas[i+1].trim();
+                }
+                nomeLimpo = nomeLimpo.split(/Classe|Número|Número do passaporte/i)[0].trim();
+                nomeLimpo = nomeLimpo.replace(/[^A-Za-zÀ-Ú\s]/g, '').replace(/\s+/g, ' ').trim();
                 
-                if (!headers.some(h => nomeLimpo.toUpperCase().includes(h))) {
+                if (nomeLimpo && nomeLimpo.length > 5) {
                     nomes.push(nomeLimpo);
-                    console.log(`✅ Nome encontrado: ${nomeLimpo}`);
+                    console.log(`✅ Nome encontrado (fallback): ${nomeLimpo}`);
                 }
             }
         }
@@ -93,9 +92,9 @@ function extractAgendamentoDetailsFromText(pdfText) {
     // Estratégia 2: Fallback - linhas em maiúsculas
     if (nomes.length === 0) {
         console.log('🔍 Fallback: buscando nomes em maiúsculas...');
-        const linhas = pdfText.split('\n');
+        const linhasFallback = pdfText.split('\n');
         let nomesTemp = [];
-        for (const linha of linhas) {
+        for (const linha of linhasFallback) {
             const trimmed = linha.trim();
             if (trimmed === trimmed.toUpperCase() &&
                 trimmed.length > 15 &&
@@ -290,6 +289,8 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             return { success: false, message: 'Nenhum agendamento encontrado no PDF.' };
         }
 
+        const agendamentosSalvos = []; // Inicializado corretamente
+
         // ============================================================
         // COLETA TODOS OS MEMBROS ÚNICOS
         // ============================================================
@@ -341,7 +342,6 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         let cliente = null;
         let clienteError = null;
 
-        // 1. Tenta buscar cliente existente
         const { data: clienteExistente, error: errBusca } = await supabase
             .from('clientes')
             .select('*')
@@ -351,11 +351,9 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         if (errBusca) {
             clienteError = errBusca;
         } else if (clienteExistente) {
-            // Já existe — usa o cliente existente SEM MODIFICAR nada
             cliente = clienteExistente;
             console.log(`✅ Cliente existente: ${cliente.nome} (${cliente.telefone})`);
         } else {
-            // Não existe — cria novo
             const { data: novoCliente, error: errNovo } = await supabase
                 .from('clientes')
                 .insert({
@@ -386,14 +384,33 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         // ============================================================
         // SALVAR AGENDAMENTOS
         // ============================================================
-        const agendamentosSalvos = [];
-
         for (const agendamentoData of agendamentosExtraidos) {
             const { nomeCliente, atividade, dataCompromisso, horaCompromisso, localCompromisso } = agendamentoData;
 
             if (!atividade || !dataCompromisso || !horaCompromisso || !localCompromisso) {
                 console.warn('⚠️ Dados de agendamento incompletos, pulando.');
                 continue;
+            }
+
+            // 🆕 Tenta encontrar o ID do membro da família pelo primeiro nome (evita erro de acentos)
+            let idParaSalvar = clienteId;
+            
+            if (nomeCliente && typeof nomeCliente === 'string' && nomeCliente.trim().length > 3) {
+                try {
+                    const primeiroNome = nomeCliente.trim().split(/\s+/)[0];
+                    const { data: membro } = await supabase
+                        .from('clientes')
+                        .select('id')
+                        .ilike('nome', `%${primeiroNome}%`)
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (membro && membro.id) {
+                        idParaSalvar = membro.id;
+                    }
+                } catch (buscaErr) {
+                    console.error(`⚠️ Erro ao buscar membro ${nomeCliente}:`, buscaErr.message);
+                }
             }
 
             const [dia, mes, ano] = dataCompromisso.split('/');
@@ -406,19 +423,19 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             const { data: existentes } = await supabase
                 .from('agendamentos')
                 .select('id')
-                .eq('cliente_id', clienteId)
+                .eq('cliente_id', idParaSalvar)
                 .eq('data_agendamento', dataFormatadaParaBanco)
                 .eq('hora_agendamento', horaCompromisso)
                 .eq('atividade', atividadeTexto)
                 .maybeSingle();
 
             if (existentes) {
-                console.log(`⏭️ Agendamento duplicado ignorado: ${atividadeTexto} - ${dataFormatadaParaBanco}`);
+                console.log(`⏭️ Agendamento duplicado ignorado: ${nomeCliente} - ${atividadeTexto} - ${dataFormatadaParaBanco}`);
                 continue;
             }
 
             const novoAgendamento = {
-                cliente_id: clienteId,
+                cliente_id: idParaSalvar,
                 atividade: atividadeTexto,
                 data_agendamento: dataFormatadaParaBanco,
                 hora_agendamento: horaCompromisso,
@@ -427,7 +444,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
                 observacoes: `Membro: ${nomeCliente}`
             };
 
-            console.log(`📝 Salvando agendamento: ${atividadeTexto} - ${dataFormatadaParaBanco} ${horaCompromisso}`);
+            console.log(`📝 Salvando agendamento para ${nomeCliente} (ID: ${idParaSalvar}): ${atividadeTexto} - ${dataFormatadaParaBanco} ${horaCompromisso}`);
 
             const { data: salvo, error: saveError } = await supabase
                 .from('agendamentos')
@@ -445,7 +462,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         }
 
         // ============================================================
-        // ENVIAR WHATSAPP
+        // ENVIAR WHATSAPP (Apenas para o telefone principal)
         // ============================================================
         if (agendamentosSalvos.length > 0 && enviarWhatsApp) {
             try {
@@ -463,9 +480,6 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             console.log(`⏭️ Envio de WhatsApp DESABILITADO (flag enviarWhatsApp: false)`);
         }
 
-        // ============================================================
-        // RETORNO
-        // ============================================================
         return {
             success: true,
             agendamentosSalvos,
