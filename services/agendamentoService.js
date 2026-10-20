@@ -1,7 +1,5 @@
 // services/agendamentoService.js
 const supabase = require('../config/supabase');
-const clientRepository = require('../repositories/clientRepository');
-const lembretesService = require('./lembretes.service');
 const pdfParse = require('pdf-parse');
 const { enviarWhatsApp } = require('../utils/whatsappClient');
 
@@ -44,9 +42,18 @@ function mapAtividadeToText(atividade) {
 }
 
 // ============================================================
-// FUNÇÃO DE EXTRAÇÃO SIMPLIFICADA
+// FUNÇÃO DE EXTRAÇÃO SIMPLIFICADA (RESTAURADA)
 // ============================================================
-    // Estratégia 1: Buscar nomes baseados no padrão da tabela do consulado (Nome seguido de Passaporte)
+function extractAgendamentoDetailsFromText(pdfText) {
+    const agendamentos = [];
+    const nomes = [];
+    let match; // Declarado no escopo da função
+
+    console.log('🔍 Extraindo dados do PDF...');
+
+    // ============================================================
+    // 1. EXTRAIR NOMES - PRIORIDADE: "Nome do Solicitante"
+    // ============================================================
     console.log('🔍 Buscando nomes baseados no padrão da tabela...');
     
     // Pega sequências de letras maiúsculas que antecedem um passaporte (2 letras + 6 números)
@@ -68,7 +75,9 @@ function mapAtividadeToText(atividade) {
             const linha = linhas[i];
             if (linha.toLowerCase().includes('nome do solicitante')) {
                 let nomeLimpo = linha.replace(/Nome do Solicitante/gi, '').trim();
-                if (!nomeLimpo && linhas[i+1]) nomeLimpo = linhas[i+1].trim();
+                if (!nomeLimpo && linhas[i+1]) {
+                    nomeLimpo = linhas[i+1].trim();
+                }
                 nomeLimpo = nomeLimpo.split(/Classe|Número|Número do passaporte/i)[0].trim();
                 nomeLimpo = nomeLimpo.replace(/[^A-Za-zÀ-Ú\s]/g, '').replace(/\s+/g, ' ').trim();
                 
@@ -78,14 +87,14 @@ function mapAtividadeToText(atividade) {
                 }
             }
         }
-    
+    }
 
     // Estratégia 2: Fallback - linhas em maiúsculas
     if (nomes.length === 0) {
         console.log('🔍 Fallback: buscando nomes em maiúsculas...');
-        const linhas = pdfText.split('\n');
+        const linhasFallback = pdfText.split('\n');
         let nomesTemp = [];
-        for (const linha of linhas) {
+        for (const linha of linhasFallback) {
             const trimmed = linha.trim();
             if (trimmed === trimmed.toUpperCase() &&
                 trimmed.length > 15 &&
@@ -280,7 +289,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             return { success: false, message: 'Nenhum agendamento encontrado no PDF.' };
         }
 
-        const agendamentosSalvos = [];
+        const agendamentosSalvos = []; // Inicializado corretamente
 
         // ============================================================
         // COLETA TODOS OS MEMBROS ÚNICOS
@@ -333,7 +342,6 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         let cliente = null;
         let clienteError = null;
 
-        // 1. Tenta buscar cliente existente
         const { data: clienteExistente, error: errBusca } = await supabase
             .from('clientes')
             .select('*')
@@ -343,11 +351,9 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         if (errBusca) {
             clienteError = errBusca;
         } else if (clienteExistente) {
-            // Já existe — usa o cliente existente SEM MODIFICAR nada
             cliente = clienteExistente;
             console.log(`✅ Cliente existente: ${cliente.nome} (${cliente.telefone})`);
         } else {
-            // Não existe — cria novo
             const { data: novoCliente, error: errNovo } = await supabase
                 .from('clientes')
                 .insert({
@@ -378,7 +384,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         // ============================================================
         // SALVAR AGENDAMENTOS
         // ============================================================
-                for (const agendamentoData of agendamentosExtraidos) {
+        for (const agendamentoData of agendamentosExtraidos) {
             const { nomeCliente, atividade, dataCompromisso, horaCompromisso, localCompromisso } = agendamentoData;
 
             if (!atividade || !dataCompromisso || !horaCompromisso || !localCompromisso) {
@@ -386,8 +392,9 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
                 continue;
             }
 
-                        // 🆕 Tenta encontrar o ID do membro da família pelo primeiro nome (evita erro de acentos)
+            // 🆕 Tenta encontrar o ID do membro da família pelo primeiro nome (evita erro de acentos)
             let idParaSalvar = clienteId;
+            
             if (nomeCliente && typeof nomeCliente === 'string' && nomeCliente.trim().length > 3) {
                 try {
                     const primeiroNome = nomeCliente.trim().split(/\s+/)[0];
@@ -412,7 +419,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             const localTexto = mapLocalToText(localCompromisso);
             const atividadeTexto = mapAtividadeToText(atividade);
 
-            // Verificar duplicata (agora usando o ID correto do membro)
+            // Verificar duplicata
             const { data: existentes } = await supabase
                 .from('agendamentos')
                 .select('id')
@@ -428,7 +435,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             }
 
             const novoAgendamento = {
-                cliente_id: idParaSalvar, // 🆕 Usa o ID do familiar encontrado
+                cliente_id: idParaSalvar,
                 atividade: atividadeTexto,
                 data_agendamento: dataFormatadaParaBanco,
                 hora_agendamento: horaCompromisso,
@@ -453,8 +460,9 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             agendamentosSalvos.push(salvo);
             console.log(`✅ Agendamento salvo: ${salvo.id}`);
         }
+
         // ============================================================
-        // ENVIAR WHATSAPP
+        // ENVIAR WHATSAPP (Apenas para o telefone principal)
         // ============================================================
         if (agendamentosSalvos.length > 0 && enviarWhatsApp) {
             try {
@@ -472,9 +480,6 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             console.log(`⏭️ Envio de WhatsApp DESABILITADO (flag enviarWhatsApp: false)`);
         }
 
-        // ============================================================
-        // RETORNO
-        // ============================================================
         return {
             success: true,
             agendamentosSalvos,
