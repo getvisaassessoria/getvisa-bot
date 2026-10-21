@@ -1,6 +1,0 @@
-# nixpacks.toml
-# Força a instalação do libatomic1, necessária para o Node.js.
-# Usa comandos manuais que toleram falhas no mirror do apt (erro 100).
-
-[phases.setup]
-aptPkgs = ["libatomic1"]
