@@ -4433,12 +4433,102 @@ app.post('/api/submit-passaporte', async (req, res) => {
 
         if (errForm) throw errForm;
 
-        // ============================================================
-        // 🆕 ENVIO DO E-MAIL FORMATADO PARA A EQUIPE
+               // ============================================================
+        // 🆕 GERA PDF E ENVIA E-MAILS (EQUIPE E CLIENTE)
         // ============================================================
         try {
-            const emailEquipe = process.env.EMAIL_EQUIPE || 'getvisa.assessoria@gmail.com'; // Ajuste se necessário
-            
+            // 1. Gerar o PDF com pdfkit
+            const PDFDocument = require('pdfkit');
+            const pdfBuffer = await new Promise((resolve, reject) => {
+                const doc = new PDFDocument({ margin: 50 });
+                const buffers = [];
+                doc.on('data', buffers.push.bind(buffers));
+                doc.on('end', () => resolve(Buffer.concat(buffers)));
+                doc.on('error', reject);
+
+                // Cabeçalho do PDF
+                doc.fontSize(20).fillColor('#003366').text('GetVisa Assessoria', { align: 'center' });
+                doc.fontSize(14).fillColor('#333').text('Solicitação de Passaporte', { align: 'center' });
+                doc.moveDown();
+                doc.fontSize(10).fillColor('#666').text(`Protocolo: ${formInserido.id}`, { align: 'right' });
+                doc.text(`Data: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
+                doc.moveDown(2);
+
+                // Função auxiliar para desenhar as seções
+                const escreverSecao = (titulo, campos) => {
+                    doc.fontSize(14).fillColor('#003366').text(titulo);
+                    doc.moveTo(50, doc.y).lineTo(550, doc.y).strokeColor('#003366').stroke();
+                    doc.moveDown(0.5);
+                    doc.fontSize(11).fillColor('#333');
+                    for (const [label, valor] of Object.entries(campos)) {
+                        if (valor && valor !== 'null' && valor !== 'undefined') {
+                            doc.text(`${label}: ${valor}`);
+                        }
+                    }
+                    doc.moveDown(1.5);
+                };
+
+                escreverSecao('1. Dados Básicos', {
+                    'Nome Completo': nome,
+                    'E-mail': email,
+                    'Telefone': telefoneRealVal,
+                    'CPF': cpfLimpo,
+                    'Cidade': cidade
+                });
+
+                escreverSecao('2. Dados Pessoais', {
+                    'Data de Nascimento': dados.data_nascimento,
+                    'Sexo': dados.sexo,
+                    'Raça/Cor': dados.raca_cor,
+                    'Estado Civil': dados.estado_civil,
+                    'Nacionalidade': dados.nacionalidade,
+                    'Naturalidade': `${dados.cidade_nascimento || ''} - ${dados.estado_nascimento || ''}`
+                });
+
+                escreverSecao('3. Filiação', {
+                    'Pai': dados.nome_pai,
+                    'Mãe': dados.nome_mae
+                });
+
+                escreverSecao('4. Documentação', {
+                    'Tipo de Documento': dados.doc_tipo,
+                    'Número do Documento': dados.doc_numero,
+                    'Órgão Emissor': dados.doc_orgao_emissor,
+                    'UF': dados.doc_uf,
+                    'CPF do Responsável': dados.cpf_responsavel
+                });
+
+                escreverSecao('5. Passaporte Anterior', {
+                    'Possui Passaporte Anterior': dados.possui_passaporte_anterior,
+                    'Situação': dados.passaporte_situacao,
+                    'Número': dados.passaporte_anterior_numero,
+                    'Emissão': dados.passaporte_anterior_emissao,
+                    'Validade': dados.passaporte_anterior_validade
+                });
+
+                if (dados.sexo === 'Masculino') {
+                    escreverSecao('6. Situação Militar', {
+                        'Tipo': dados.militar_tipo,
+                        'Número': dados.militar_numero,
+                        'Órgão': dados.militar_orgao
+                    });
+                }
+
+                escreverSecao('7. Dados Complementares e Endereço', {
+                    'Profissão': dados.profissao,
+                    'CEP': dados.cep,
+                    'Endereço': `${dados.endereco_rua || ''}, ${dados.endereco_numero || ''} ${dados.endereco_complemento || ''}`,
+                    'Bairro': dados.endereco_bairro,
+                    'Cidade/UF': `${dados['text-74'] || ''} - ${dados.endereco_uf || ''}`
+                });
+
+                doc.end();
+            });
+
+            const nomeArquivoPdf = `Passaporte_${nome.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+
+            // 2. Enviar e-mail para a EQUIPE (com PDF anexo)
+            const emailEquipe = process.env.EMAIL_EQUIPE || 'getvisa.assessoria@gmail.com';
             await resend.emails.send({
                 from: 'GetVisa <contato@getvisa.com.br>',
                 to: emailEquipe,
@@ -4447,47 +4537,54 @@ app.post('/api/submit-passaporte', async (req, res) => {
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 20px; border-radius: 8px;">
                     <div style="background: #003366; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
                         <h2 style="margin: 0;">📄 Novo Pedido de Passaporte</h2>
-                        <p style="margin: 5px 0 0; font-size: 14px;">ID: ${formInserido.id.slice(0,8)}</p>
+                        <p style="margin: 5px 0 0; font-size: 14px;">Protocolo: ${formInserido.id.slice(0,8)}</p>
                     </div>
-                    
                     <div style="background: white; padding: 20px; border: 1px solid #ddd; border-top: none; border-radius: 0 0 8px 8px;">
-                        
-                        <h3 style="color: #003366; border-bottom: 2px solid #003366; padding-bottom: 5px;">👤 Dados Básicos</h3>
+                        <p>Olá, equipe! Um novo formulário de passaporte foi recebido.</p>
                         <p><strong>Nome:</strong> ${nome}<br>
                         <strong>E-mail:</strong> ${email}<br>
-                        <strong>Telefone:</strong> ${telefoneRealVal}<br>
-                        <strong>CPF:</strong> ${cpfLimpo}<br>
-                        <strong>Cidade:</strong> ${cidade}</p>
-
-                        <h3 style="color: #003366; border-bottom: 2px solid #003366; padding-bottom: 5px; margin-top: 20px;">📋 Dados Pessoais</h3>
-                        <p><strong>Nascimento:</strong> ${dados.data_nascimento || 'N/A'}<br>
-                        <strong>Sexo:</strong> ${dados.sexo || 'N/A'}<br>
-                        <strong>Estado Civil:</strong> ${dados.estado_civil || 'N/A'}<br>
-                        <strong>Nacionalidade:</strong> ${dados.nacionalidade || 'N/A'}<br>
-                        <strong>Naturalidade:</strong> ${dados.cidade_nascimento || 'N/A'} - ${dados.estado_nascimento || 'N/A'}</p>
-
-                        <h3 style="color: #003366; border-bottom: 2px solid #003366; padding-bottom: 5px; margin-top: 20px;">👨‍👩‍👧 Filiação</h3>
-                        <p><strong>Pai:</strong> ${dados.nome_pai || 'N/A'}<br>
-                        <strong>Mãe:</strong> ${dados.nome_mae || 'N/A'}</p>
-
-                        <h3 style="color: #003366; border-bottom: 2px solid #003366; padding-bottom: 5px; margin-top: 20px;">📍 Endereço</h3>
-                        <p>
-                            ${dados.endereco_rua || ''}, ${dados.endereco_numero || ''} ${dados.endereco_complemento ? '- ' + dados.endereco_complemento : ''}<br>
-                            Bairro: ${dados.endereco_bairro || 'N/A'}<br>
-                            CEP: ${dados.cep || 'N/A'}
-                        </p>
-
+                        <strong>Telefone:</strong> ${telefoneRealVal}</p>
+                        <p>O PDF completo com todos os dados do formulário está em anexo.</p>
                         <div style="margin-top: 30px; text-align: center;">
                             <a href="https://app.getvisa.com.br/painel?api_key=admin123" style="background: #003366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar o Painel Admin</a>
                         </div>
                     </div>
                 </div>
-                `
+                `,
+                attachments: [{ filename: nomeArquivoPdf, content: pdfBuffer.toString('base64') }]
             });
-            console.log('📧 E-mail formatado enviado para a equipe.');
+            console.log('📧 E-mail enviado para a equipe (com PDF anexo).');
+
+            // 3. Enviar e-mail de CONFIRMAÇÃO para o CLIENTE (se e-mail preenchido)
+            if (email && email.trim()) {
+                const primeiroNome = nome.split(' ')[0];
+                await resend.emails.send({
+                    from: 'GetVisa <contato@getvisa.com.br>',
+                    to: email,
+                    subject: `📄 Recebemos sua solicitação de passaporte!`,
+                    html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 20px; border-radius: 8px;">
+                        <div style="background: #003366; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                            <h2 style="margin: 0;">Recebemos seus dados!</h2>
+                        </div>
+                        <div style="background: white; padding: 20px; border: 1px solid #ddd; border-top: none; border-radius: 0 0 8px 8px;">
+                            <p>Olá, <strong>${primeiroNome}</strong>!</p>
+                            <p>Confirmamos o recebimento da sua solicitação de passaporte. Nossa equipe já está analisando os dados e, se houver qualquer pendência, entraremos em contato.</p>
+                            <p>Em anexo está uma cópia em PDF de todas as informações que você nos enviou. Guarde-a para conferência.</p>
+                            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                            <p style="color: #666; font-size: 12px; text-align: center;">GetVisa Assessoria - Cuidando do seu visto com carinho.</p>
+                        </div>
+                    </div>
+                    `,
+                    attachments: [{ filename: nomeArquivoPdf, content: pdfBuffer.toString('base64') }]
+                });
+                console.log('📧 E-mail de confirmação enviado para o cliente.');
+            }
+
         } catch (emailError) {
-            console.error('❌ Erro ao enviar e-mail formatado para a equipe:', emailError);
+            console.error('❌ Erro ao gerar PDF ou enviar e-mails:', emailError);
         }
+        // ============================================================
         // ============================================================
 
         return res.json({
