@@ -221,12 +221,20 @@ function limparTelefone(telefone) {
         const sufixo = match[2];
         // Remove DDI 55 se presente
         if (base.startsWith('55') && base.length > 11) base = base.substring(2);
+        
+        // 🆕 Adiciona o 9º dígito se for celular antigo (10 dígitos)
+        if (base.length === 10) base = base.substring(0, 2) + '9' + base.substring(2);
+        
         return base + '-' + sufixo;
     }
 
     // Telefone normal (sem sufixo)
     let limpo = str.replace(/\D/g, '');
-    if (limpo.startsWith('55')) limpo = limpo.substring(2);
+    if (limpo.startsWith('55') && limpo.length > 10) limpo = limpo.substring(2);
+    
+    // 🆕 Adiciona o 9º dígito se for celular antigo (10 dígitos)
+    if (limpo.length === 10) limpo = limpo.substring(0, 2) + '9' + limpo.substring(2);
+    
     return limpo;
 }
 
