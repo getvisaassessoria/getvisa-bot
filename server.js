@@ -1369,7 +1369,14 @@ async function processarLead(phone, message, cliente) {
         return;
     }
     
-    // FALLBACK (sem link do WhatsApp)
+        // 🆕 BLINDAGEM: Se estiver silenciado, o bot fica em silêncio absoluto.
+    // Clientes normais AINDA recebem o fallback para saber que um humano vai responder.
+    if (cliente && cliente.silenciar_bot === true) {
+        console.log(`🤫 Bot ignorou fallback para cliente silenciado: ${phone}`);
+        return;
+    }
+
+    // FALLBACK (para clientes normais e leads)
     const nomeCliente = obterNomeExibicao(cliente?.nome || 'Cliente');
     const msgFallback = `🤔 *Olá ${nomeCliente}!*
 
