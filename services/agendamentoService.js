@@ -145,10 +145,29 @@ function extractAgendamentoDetailsFromText(pdfText) {
         }
     }
 
-    if (nomes.length === 0) {
+        if (nomes.length === 0) {
         console.log('❌ Nenhum nome encontrado!');
         return agendamentos;
     }
+
+    // 🆕 FILTRO GLOBAL: Remove qualquer frase de instrução antes de consolidar os nomes
+    const nomesFiltrados = nomes.filter(nome => {
+        const nomeUpper = nome.toUpperCase();
+        const palavrasProibidas = [
+            'FOTO', 'PRECISAM', 'TRAZER', 'NORMAS', 'IMPRESSA', 
+            'ACORDO', 'ACIMA', 'MENORES', 'ANOS', 'DOCUMENTAÇÃO',
+            'INSTRUÇÕES', 'DEPARTAMENTO', 'SOLICITANTE'
+        ];
+        const isInstrucao = palavrasProibidas.some(p => nomeUpper.includes(p));
+        return !isInstrucao && nome.length < 60; // Nomes reais não passam de 60 caracteres
+    });
+
+    if (nomesFiltrados.length === 0) {
+        console.log('❌ Nenhum nome válido encontrado após filtro!');
+        return agendamentos;
+    }
+
+    const nomesUnicos = [...new Set(nomesFiltrados)];
 
     const nomesUnicos = [...new Set(nomes)];
     console.log(`📋 ${nomesUnicos.length} nomes encontrados:`);
