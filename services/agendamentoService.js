@@ -151,7 +151,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
     let entrevistaData = null, entrevistaHora = null, entrevistaLocal = null;
 
     // CASV
-    const casvRegex = /Data do Agendamento no CASV:\s*(\d{1,2})\s+([A-Za-z]+),\s+(\d{4}),\s+(\d{2}:\d{2})/i;
+    const casvRegex = /Data do Agendamento no CASV:\s*(\d{1,2})\s+([A-Za-zçÇ]+),?\s+(\d{4}),?\s+(\d{2}:\d{2})/i;
     const casvMatch = pdfText.match(casvRegex);
     if (casvMatch) {
         const dia = casvMatch[1].padStart(2, '0');
@@ -165,7 +165,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
     }
 
     // Entrevista
-    const entrevistaRegex = /Data da entrevista no Consulado:\s*(\d{1,2})\s+([A-Za-z]+),\s+(\d{4}),\s+(\d{2}:\d{2})/i;
+    const entrevistaRegex = /Data da entrevista no Consulado:\s*(\d{1,2})\s+([A-Za-zçÇ]+),?\s+(\d{4}),?\s+(\d{2}:\d{2})/i;
     const entrevistaMatch = pdfText.match(entrevistaRegex);
     if (entrevistaMatch) {
         const dia = entrevistaMatch[1].padStart(2, '0');
