@@ -42,32 +42,28 @@ function mapAtividadeToText(atividade) {
 }
 
 // ============================================================
-// FUNÇÃO DE EXTRAÇÃO SIMPLIFICADA (RESTAURADA)
+// FUNÇÃO DE EXTRAÇÃO
 // ============================================================
 function extractAgendamentoDetailsFromText(pdfText) {
     const agendamentos = [];
     const nomes = [];
-    let match; // Declarado no escopo da função
+    let match;
 
     console.log('🔍 Extraindo dados do PDF...');
 
     // ============================================================
-    // 1. EXTRAIR NOMES - PRIORIDADE: "Nome do Solicitante"
+    // 1. EXTRAIR NOMES
     // ============================================================
     console.log('🔍 Buscando nomes baseados no padrão da tabela...');
     
-        // Pega sequências de letras maiúsculas que antecedem um passaporte (2 letras + 6 números)
     const regexNomesTabela = /([A-ZÀ-Ú][A-ZÀ-Ú\s]{10,}?)(?=\s+[A-Z]{2}\d{6})/g;
     let matchNome;
     
     while ((matchNome = regexNomesTabela.exec(pdfText)) !== null) {
         let nomeLimpo = matchNome[1].trim().replace(/\s+/g, ' ');
         
-        // 🆕 Filtro de segurança: Ignora frases de instrução que o robô confunde com nomes
         const palavrasProibidas = ['FOTO', 'PRECISAM', 'TRAZER', 'NORMAS', 'IMPRESSA', 'ACORDO', 'ACIMA', 'MENORES', 'ANOS'];
         const isInstrucao = palavrasProibidas.some(p => nomeLimpo.toUpperCase().includes(p));
-        
-        // 🆕 Nomes muito longos (mais de 60 caracteres) geralmente são frases, não nomes
         const isMuitoLongo = nomeLimpo.length > 60;
 
         if (nomeLimpo && nomeLimpo.length > 5 && !isInstrucao && !isMuitoLongo) {
@@ -78,7 +74,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
         }
     }
 
-    // Fallback caso a regex não encontre (ex: PDFs de solicitante único)
+    // Fallback caso a regex não encontre
     if (nomes.length === 0) {
         const linhas = pdfText.split(/[\r\n]+/);
         for (let i = 0; i < linhas.length; i++) {
@@ -145,12 +141,12 @@ function extractAgendamentoDetailsFromText(pdfText) {
         }
     }
 
-        if (nomes.length === 0) {
+    if (nomes.length === 0) {
         console.log('❌ Nenhum nome encontrado!');
         return agendamentos;
     }
 
-    // 🆕 FILTRO GLOBAL: Remove qualquer frase de instrução antes de consolidar os nomes
+    // Filtro Global
     const nomesFiltrados = nomes.filter(nome => {
         const nomeUpper = nome.toUpperCase();
         const palavrasProibidas = [
@@ -159,7 +155,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
             'INSTRUÇÕES', 'DEPARTAMENTO', 'SOLICITANTE'
         ];
         const isInstrucao = palavrasProibidas.some(p => nomeUpper.includes(p));
-        return !isInstrucao && nome.length < 60; // Nomes reais não passam de 60 caracteres
+        return !isInstrucao && nome.length < 60;
     });
 
     if (nomesFiltrados.length === 0) {
@@ -168,18 +164,15 @@ function extractAgendamentoDetailsFromText(pdfText) {
     }
 
     const nomesUnicos = [...new Set(nomesFiltrados)];
-
-    const nomesUnicos = [...new Set(nomes)];
     console.log(`📋 ${nomesUnicos.length} nomes encontrados:`);
     nomesUnicos.forEach((n, i) => console.log(`   ${i+1}. ${n}`));
 
     // ============================================================
-    // 2. EXTRAIR DATAS - CASV E ENTREVISTA
+    // 2. EXTRAIR DATAS
     // ============================================================
     let casvData = null, casvHora = null, casvLocal = null;
     let entrevistaData = null, entrevistaHora = null, entrevistaLocal = null;
 
-    // CASV
     const casvRegex = /Data do Agendamento no CASV:\s*(\d{1,2})\s+([A-Za-zçÇ]+),?\s+(\d{4}),?\s+(\d{2}:\d{2})/i;
     const casvMatch = pdfText.match(casvRegex);
     if (casvMatch) {
@@ -193,7 +186,6 @@ function extractAgendamentoDetailsFromText(pdfText) {
         }
     }
 
-    // Entrevista
     const entrevistaRegex = /Data da entrevista no Consulado:\s*(\d{1,2})\s+([A-Za-zçÇ]+),?\s+(\d{4}),?\s+(\d{2}:\d{2})/i;
     const entrevistaMatch = pdfText.match(entrevistaRegex);
     if (entrevistaMatch) {
@@ -207,7 +199,6 @@ function extractAgendamentoDetailsFromText(pdfText) {
         }
     }
 
-    // Local CASV
     const localCasvRegex = /Local do CASV:\s*([^\n]+)/i;
     const localCasvMatch = pdfText.match(localCasvRegex);
     if (localCasvMatch) {
@@ -215,7 +206,6 @@ function extractAgendamentoDetailsFromText(pdfText) {
         console.log(`✅ Local CASV: ${casvLocal}`);
     }
 
-    // Local Entrevista
     const localEntrevistaRegex = /Local da Entrevista:\s*([^\n]+)/i;
     const localEntrevistaMatch = pdfText.match(localEntrevistaRegex);
     if (localEntrevistaMatch) {
@@ -223,11 +213,9 @@ function extractAgendamentoDetailsFromText(pdfText) {
         console.log(`✅ Local ENTREVISTA: ${entrevistaLocal}`);
     }
 
-    // Fallback de local
     if (!casvLocal) casvLocal = 'Consulado Americano - Rio de Janeiro';
     if (!entrevistaLocal) entrevistaLocal = 'Consulado Americano - Rio de Janeiro';
 
-    // Fallback de datas
     if (!casvData && !entrevistaData) {
         console.log('🔍 Tentando formato alternativo de datas...');
         const dataAltRegex = /(\d{1,2})\s+([A-Za-z]+),\s+(\d{4})/g;
@@ -266,7 +254,7 @@ function extractAgendamentoDetailsFromText(pdfText) {
     }
 
     // ============================================================
-    // 3. CRIAR AGENDAMENTOS PARA CADA NOME
+    // 3. CRIAR AGENDAMENTOS
     // ============================================================
     for (const nome of nomesUnicos) {
         if (casvData && casvHora) {
@@ -318,11 +306,8 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             return { success: false, message: 'Nenhum agendamento encontrado no PDF.' };
         }
 
-        const agendamentosSalvos = []; // Inicializado corretamente
+        const agendamentosSalvos = [];
 
-        // ============================================================
-        // COLETA TODOS OS MEMBROS ÚNICOS
-        // ============================================================
         const membrosSet = new Set();
         const todosMembros = [];
 
@@ -336,9 +321,6 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         console.log(`👨‍👩‍👧‍👦 Membros encontrados: ${todosMembros.length}`);
         todosMembros.forEach((m, i) => console.log(`   ${i+1}. ${m}`));
 
-        // ============================================================
-        // DADOS EXTRAÍDOS DIRETOS
-        // ============================================================
         const primeiroAgendamento = agendamentosExtraidos[0];
         const nomeDoCliente = primeiroAgendamento?.nomeCliente || 'Cliente';
 
@@ -365,9 +347,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
         console.log(`   ENTREVISTA: ${dadosExtraidos.entrevista?.data || 'N/A'} ${dadosExtraidos.entrevista?.hora || 'N/A'}`);
         console.log(`   MEMBROS: ${todosMembros.join(', ')}`);
 
-        // ============================================================
-        // BUSCAR OU CRIAR CLIENTE (NÃO sobrescreve se já existe)
-        // ============================================================
+        // Buscar ou criar cliente
         let cliente = null;
         let clienteError = null;
 
@@ -410,9 +390,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
 
         const clienteId = cliente.id;
 
-        // ============================================================
-        // SALVAR AGENDAMENTOS
-        // ============================================================
+        // Salvar agendamentos
         for (const agendamentoData of agendamentosExtraidos) {
             const { nomeCliente, atividade, dataCompromisso, horaCompromisso, localCompromisso } = agendamentoData;
 
@@ -421,7 +399,6 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
                 continue;
             }
 
-            // 🆕 Tenta encontrar o ID do membro da família pelo primeiro nome (evita erro de acentos)
             let idParaSalvar = clienteId;
             
             if (nomeCliente && typeof nomeCliente === 'string' && nomeCliente.trim().length > 3) {
@@ -448,7 +425,6 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             const localTexto = mapLocalToText(localCompromisso);
             const atividadeTexto = mapAtividadeToText(atividade);
 
-            // Verificar duplicata
             const { data: existentes } = await supabase
                 .from('agendamentos')
                 .select('id')
@@ -490,9 +466,7 @@ async function extractAndSavePdfAgendamentos(pdfBuffer, telefoneCliente, options
             console.log(`✅ Agendamento salvo: ${salvo.id}`);
         }
 
-        // ============================================================
-        // ENVIAR WHATSAPP (Apenas para o telefone principal)
-        // ============================================================
+        // Enviar WhatsApp
         if (agendamentosSalvos.length > 0 && enviarWhatsApp) {
             try {
                 const mensagem = gerarMensagemDireta(dadosExtraidos, nomeDoCliente, todosMembros);
@@ -566,7 +540,7 @@ function gerarMensagemDireta(dados, nomeCliente, todosMembros = []) {
     mensagem += `⚠️ *IMPORTANTE:*\n`;
     mensagem += `• Leve a *CONFIRMATION IMPRESSA*\n`;
     mensagem += `• Leve seu *PASSAPORTE(S)*\n`;
-    mensagem += `• Chegue com 30 minutos de antecedência\n\n`;
+    mensagem += `• Chegue com 30 minutos de antecedência\n`;
     mensagem += `• *Menores de 6 anos:* Providenciar foto 5x7 impressa da criança.\n\n`;
     mensagem += `📎 O PDF oficial foi enviado para seu e-mail.\n\n`;
     mensagem += `📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)\n\n`;
