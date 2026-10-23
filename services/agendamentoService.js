@@ -56,15 +56,25 @@ function extractAgendamentoDetailsFromText(pdfText) {
     // ============================================================
     console.log('🔍 Buscando nomes baseados no padrão da tabela...');
     
-    // Pega sequências de letras maiúsculas que antecedem um passaporte (2 letras + 6 números)
+        // Pega sequências de letras maiúsculas que antecedem um passaporte (2 letras + 6 números)
     const regexNomesTabela = /([A-ZÀ-Ú][A-ZÀ-Ú\s]{10,}?)(?=\s+[A-Z]{2}\d{6})/g;
     let matchNome;
     
     while ((matchNome = regexNomesTabela.exec(pdfText)) !== null) {
         let nomeLimpo = matchNome[1].trim().replace(/\s+/g, ' ');
-        if (nomeLimpo && nomeLimpo.length > 5) {
+        
+        // 🆕 Filtro de segurança: Ignora frases de instrução que o robô confunde com nomes
+        const palavrasProibidas = ['FOTO', 'PRECISAM', 'TRAZER', 'NORMAS', 'IMPRESSA', 'ACORDO', 'ACIMA', 'MENORES', 'ANOS'];
+        const isInstrucao = palavrasProibidas.some(p => nomeLimpo.toUpperCase().includes(p));
+        
+        // 🆕 Nomes muito longos (mais de 60 caracteres) geralmente são frases, não nomes
+        const isMuitoLongo = nomeLimpo.length > 60;
+
+        if (nomeLimpo && nomeLimpo.length > 5 && !isInstrucao && !isMuitoLongo) {
             nomes.push(nomeLimpo);
             console.log(`✅ Nome encontrado: ${nomeLimpo}`);
+        } else if (isInstrucao || isMuitoLongo) {
+            console.log(`⏭️ Frase de instrução ignorada: "${nomeLimpo.substring(0, 30)}..."`);
         }
     }
 
@@ -538,6 +548,7 @@ function gerarMensagemDireta(dados, nomeCliente, todosMembros = []) {
     mensagem += `• Leve a *CONFIRMATION IMPRESSA*\n`;
     mensagem += `• Leve seu *PASSAPORTE(S)*\n`;
     mensagem += `• Chegue com 30 minutos de antecedência\n\n`;
+    mensagem += `• *Menores de 6 anos:* Providenciar foto 5x7 impressa da criança.\n\n`;
     mensagem += `📎 O PDF oficial foi enviado para seu e-mail.\n\n`;
     mensagem += `📱 Dúvidas? [Fale com nosso especialista](https://wa.me/5521974601812)\n\n`;
     mensagem += `🌟 *Boa sorte! Estamos com você!* ✈️`;
