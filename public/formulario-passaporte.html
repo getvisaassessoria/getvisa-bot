@@ -606,8 +606,14 @@ async function enviarFormulario(ev) {
     payload.phone = payload.phone.replace(/\D/g, '');
   }
 
-  payload.modo = modoAtual;
-  if (modoAtual === 'familiar' && titularId) payload.titular_id = titularId;
+    payload.modo = modoAtual;
+  
+  // 🆕 Se for modo familiar e NÃO tiver titular_id, é o cadastro do titular (não envia o campo)
+  if (modoAtual === 'familiar') {
+      if (titularId) {
+          payload.titular_id = titularId;
+      }
+  }
 
   btn.disabled = true;
   btn.textContent = 'Enviando...';

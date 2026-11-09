@@ -4274,38 +4274,38 @@ app.post('/api/submit-passaporte', async (req, res) => {
         let telefoneVinculacao = null;
         let titularId = null;
 
-        if (modo === 'familiar') {
+                if (modo === 'familiar') {
+            // 🆕 Se NÃO tem titular_id, é o cadastro do Titular principal (não é dependente)
             if (!dados.titular_id) {
-                return res.status(400).json({ ok: false, erro: 'titular_id é obrigatório no modo familiar.' });
+                titularId = null;
+                telefoneVinculacao = telefoneRealVal;
+            } else {
+                // Se tem titular_id, é um dependente
+                const { data: titular, error: errTit } = await supabase
+                    .from('clientes')
+                    .select('id, telefone, telefone_vinculacao')
+                    .eq('id', dados.titular_id)
+                    .maybeSingle();
+
+                if (errTit) throw errTit;
+                if (!titular) {
+                    return res.status(400).json({ ok: false, erro: 'Titular não encontrado.' });
+                }
+
+                titularId = titular.id;
+                const base = (titular.telefone_vinculacao || titular.telefone || '')
+                    .replace(/-\d+$/, '').replace(/\D/g, '');
+
+                if (!base) {
+                    return res.status(400).json({ ok: false, erro: 'Titular sem telefone válido.' });
+                }
+
+                const sufixo = await proximoSufixoFamiliar(base);
+                telefoneVinculacao = `${base}-${sufixo}`;
+                telefoneRealVal = telefoneVinculacao;
             }
-
-            const { data: titular, error: errTit } = await supabase
-                .from('clientes')
-                .select('id, telefone, telefone_vinculacao')
-                .eq('id', dados.titular_id)
-                .maybeSingle();
-
-            if (errTit) throw errTit;
-            if (!titular) {
-                return res.status(400).json({ ok: false, erro: 'Titular não encontrado.' });
-            }
-
-            titularId = titular.id;
-            const base = (titular.telefone_vinculacao || titular.telefone || '')
-                .replace(/-\d+$/, '').replace(/\D/g, '');
-
-            if (!base) {
-                return res.status(400).json({ ok: false, erro: 'Titular sem telefone válido.' });
-            }
-
-            const sufixo = await proximoSufixoFamiliar(base);
-            telefoneVinculacao = `${base}-${sufixo}`;
-
-            // 🆕 Para familiar: o telefone que vai em clientes é o COM sufixo
-            // (o real fica no dados_json pra PF)
-            telefoneRealVal = telefoneVinculacao;
         } else {
-            // 🆕 Modo único: vinculação = próprio telefone (cliente é titular de si mesmo)
+            // Modo único
             telefoneVinculacao = telefoneRealVal;
         }
 
