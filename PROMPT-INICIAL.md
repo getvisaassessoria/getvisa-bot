@@ -1,8 +1,8 @@
 # 🚀 PROMPT INICIAL — GetVisa Assessoria
 
 > **Documento mestre.** Cola este arquivo inteiro (ou anexa) ao começar novo chat.
-> **Última atualização:** 21/10/2026
-> **Versão do documento:** 6.0 (Consolidado com Histórico Completo)
+> **Última atualização:** 09/11/2026
+> **Versão do documento:** 6.1 (Consolidado com Histórico Completo)
 
 ---
 
@@ -15,7 +15,7 @@ Sistema de assessoria para vistos americanos. **Em produção desde 14/09/2026**
 - Banco: Supabase (PostgreSQL)
 - Deploy: Railway (auto-deploy via `git push`)
 - WhatsApp: Z-API (instância `3F1D4E0F2AD0539F0C52B20DE66F3711`)
-- Email: Resend (agora com envio de PDFs via `pdfkit`)
+- Email: Resend (com envio de PDFs via `pdfkit`)
 - Frontend: HTML/CSS/JS vanilla (sem framework)
 
 **Acessos:**
@@ -32,6 +32,22 @@ Sistema de assessoria para vistos americanos. **Em produção desde 14/09/2026**
 **Números importantes:**
 - WhatsApp Business (bot): `21974601812`
 - WhatsApp equipe/admin: `5521974601812`
+
+---
+
+## 🆕 NOVIDADES v6.1 (Sessões 09/11/2026)
+
+### 1. Correção no Fluxo Familiar de Passaporte (Titular)
+- **Problema:** Ao escolher "Preenchimento familiar" no formulário de passaporte, o sistema exigia o `titular_id` mesmo quando era o cadastro do titular principal (a primeira pessoa da família). Isso impedia a cliente de concluir o formulário.
+- **Solução (Backend):** A rota `/api/submit-passaporte` agora aceita o modo `familiar` sem `titular_id` quando é o titular principal. Nesse caso, ele é cadastrado como se fosse modo único, mas mantendo a estrutura de vínculo para futuros dependentes.
+- **Solução (Frontend):** A função `enviarFormulario` agora só envia o `titular_id` se ele existir (ou seja, se for um dependente). Para o titular, o campo é omitido.
+
+### 2. Registro de Pendência: Chave do Resend no Staging
+- **Problema:** No ambiente de Staging, a variável `RESEND_API_KEY` está inválida ou não configurada. Isso faz com que o envio de e-mail do formulário de passaporte falhe silenciosamente (`401 Unauthorized`), exibindo a mensagem de sucesso mesmo sem enviar.
+- **Solução (aplicada):** Em produção, a chave está correta e o e-mail chega normalmente. Para o Staging, é recomendado configurar a mesma chave válida de produção nas variáveis de ambiente do Railway Staging.
+
+### 3. Vínculo Familiar de Passaporte (Validação)
+- **O que foi testado e aprovado:** O fluxo de cadastro de titular e dependente no formulário de passaporte agora funciona corretamente. O titular é salvo com `cliente_titular_id = null` e o dependente com o sufixo (`-01`) e o `cliente_titular_id` apontando para o titular.
 
 ---
 
@@ -196,21 +212,24 @@ Sistema de assessoria para vistos americanos. **Em produção desde 14/09/2026**
 
 ### 6. Formulário de Passaporte (`/formulario-passaporte`)
 - Modo único ou familiar (base do layout da Tela 0 do DS-160).
+- **Titular e dependentes** com vinculação via `cliente_titular_id`.
 - Familiar com sufixo (`-01`, `-02`).
 - **Alerta de CPF divergente.**
-- **Novo:** Gera PDF completo e envia para equipe e cliente.
+- **Gera PDF completo e envia para equipe e cliente.**
+- **Correção (v6.1):** O titular não exige mais `titular_id` (apenas os dependentes).
 
 ### 7. Upload de PDF de Agendamento (`/upload-casv-pdf`)
 - Extrai CASV + Entrevista.
 - **⚠️ NÃO sobrescreve cliente existente.**
 - Trava de duplicidade (não envia WhatsApp/e-mail duas vezes).
 - Salva agendamentos para todos os familiares listados no PDF.
+- **Correção (v6.1):** Filtro global de palavras proibidas para evitar nomes "fantasmas".
 
 ### 8. Cron Job de Lembretes
 - **Horário:** Roda todos os dias às **07:00 da manhã** (horário de Brasília).
 - **Antecedência:** Busca compromissos para **D-1 (amanhã)** e **D-2 (depois de amanhã)**.
-- **Inteligência:** Adapta o checklist dependendo do tipo de agendamento (Treinamento pede local silencioso, CASV pede passaporte, etc).
-- **Segurança:** Respeita a flag `silenciar_bot`, ignora `contato_pessoal` e tem anti-spam em memória (`lembretesEnviadosHoje`).
+- **Inteligência:** Adapta o checklist dependendo do tipo de agendamento.
+- **Segurança:** Respeita a flag `silenciar_bot`, ignora `contato_pessoal` e tem anti-spam em memória.
 
 ---
 
@@ -312,9 +331,9 @@ Status: `novo` | `em_analise` | `enviado_pf` | `concluido` | `cancelado`.
 - Extração de nomes via `split` por linha e busca de familiares pelo primeiro nome.
 
 ### Vinculação familiar (Passaporte)
-- Titular: `telefone` = `21991828052`
-- Familiar: `telefone` = `21991828052-01`
-- **⚠️ `submit-passaporte` busca só por `telefone`** (não `telefone + cpf_ultimos4`)
+- **Titular:** `telefone` = `21991828052`, `cliente_titular_id` = null
+- **Familiar:** `telefone` = `21991828052-01`, `cliente_titular_id` = titular
+- **⚠️ (Correção v6.1):** O titular não exige `titular_id`. Apenas dependentes.
 
 ### CPF divergente
 - **NÃO atualiza** automaticamente
@@ -398,6 +417,9 @@ Status: `novo` | `em_analise` | `enviado_pf` | `concluido` | `cancelado`.
 | Railway falhando build (apt-get libatomic1) | Criação do `Dockerfile` na raiz | 20/10 |
 | Cliente não recebia e-mail de passaporte | Adicionado envio para o cliente + PDF via `pdfkit` | 20/10 |
 | Lembrete do cron não achava as datas | Bug de fuso horário (JS UTC vs Brasil) | 20/10 |
+| **Titular no fluxo familiar exigia `titular_id`** | **Permitir cadastro do titular sem `titular_id`** | **09/11** |
+| **Chave do Resend inválida no Staging** | **Registrado para configurar a mesma de produção** | **09/11** |
+| **Extração de nomes pegava frases de instrução** | **Filtro global de palavras proibidas** | **09/11** |
 
 ---
 
@@ -455,31 +477,32 @@ Define a imagem `node:24` para evitar falhas de build no Railway.
 ## 📌 PENDÊNCIAS PRIORIZADAS
 
 ### 🔴 Alta
-1. **Ajustar extração de "Membros da Família"** no PDF (está pegando frases de instrução como "precisam trazer uma foto...").
+1. **Ajustar extração de "Membros da Família"** no PDF (está pegando frases de instrução).
 2. **Reforçar Watchdog** — e-mail além do WhatsApp (quando Z-API desconectar).
 3. **CPF divergente do Moisés** (`2312` vs `0749`) — investigar.
 4. **Graceful shutdown no Railway**.
 5. **Recuperação de forms abandonados**.
 6. **CPF da Maruzza** — pedir e atualizar (hoje tá `000.000.000-00`).
+7. **Configurar `RESEND_API_KEY` no Staging** (para testes de e-mail).
 
 ### 🟡 Média
-7. **Limpar duplicatas** na tabela `agendamentos` geradas por uploads antigos no painel.
-8. **Ordenar painel por `updated_at`**.
-9. **Validação de telefone** (< 10 dígitos).
-10. **Contador "Formulários Enviados"** (13 vs 16).
-11. **`RESEND_API_KEY` local** (está inválido no `.env` local, funciona no Railway).
-12. **UI pra `silenciar_bot`** (já temos checkbox, mas pode ter uma tela dedicada).
-13. **Herança de campos no formulário familiar** — testar em produção.
-14. **Limpeza de arquivos `admin.html.old`** e `.backup`.
+8. **Limpar duplicatas** na tabela `agendamentos` geradas por uploads antigos no painel.
+9. **Ordenar painel por `updated_at`**.
+10. **Validação de telefone** (< 10 dígitos).
+11. **Contador "Formulários Enviados"** (13 vs 16).
+12. **`RESEND_API_KEY` local** (está inválido no `.env` local, funciona no Railway).
+13. **UI pra `silenciar_bot`** (já temos checkbox, mas pode ter uma tela dedicada).
+14. **Herança de campos no formulário familiar** — testar em produção.
+15. **Limpeza de arquivos `admin.html.old`** e `.backup`.
 
 ### 🟢 Baixa
-15. **Fase 4 — Auto-serviço**.
-16. **Google Calendar**.
-17. **Bloquear bots varredores**.
-18. **Hook de pré-commit** (bloquear commit em `main`).
+16. **Fase 4 — Auto-serviço**.
+17. **Google Calendar**.
+18. **Bloquear bots varredores**.
+19. **Hook de pré-commit** (bloquear commit em `main`).
 
 ### ⚠️ Revertida
-19. **promo50**.
+20. **promo50**.
 
 ---
 
@@ -497,6 +520,8 @@ Define a imagem `node:24` para evitar falhas de build no Railway.
 10. **Debounce no WhatsApp:** O Z-API manda uma requisição por mensagem. O debounce agrupa as mensagens picadas e evita spam de respostas.
 11. **Z-API pode desconectar silenciosamente** (17/10) — o Watchdog avisa, mas pode passar batido.
 12. **Railway e Nixpacks:** Se o `apt-get` falhar, a solução definitiva é criar um `Dockerfile` na raiz com a imagem do Node.
+13. **Fluxo familiar de passaporte:** O titular não precisa de `titular_id`. Apenas os dependentes. (Corrigido em 09/11).
+14. **Resend no Staging:** A chave do Resend no Staging está inválida. Isso não afeta produção, mas impede testes de e-mail no staging. (Registrado em 09/11).
 
 ---
 
@@ -517,12 +542,12 @@ Olá! Preciso continuar um trabalho no sistema GetVisa Assessoria (assessoria de
 - Estamos EM PRODUÇÃO (clientes reais usando)
 
 **DOCUMENTAÇÃO COMPLETA:**
-Anexei o arquivo PROMPT-INICIAL.md (v6.0).
+Anexei o arquivo PROMPT-INICIAL.md (v6.1).
 
 **FEATURES ATIVAS:**
 1. Bot WhatsApp (triagem + menus + filtros + follow-up + silenciar_bot + debounce + inteligência de palavras)
 2. Formulário DS-160 (Tela 0 + 12 passos) + bloqueio reenvio + limite de 3 + PDF completo + modelo familiar + herança de campos
-3. Formulário de Passaporte (modo único/familiar + alerta CPF divergente + geração de PDF e envio por e-mail)
+3. Formulário de Passaporte (modo único/familiar + alerta CPF divergente + geração de PDF e envio por e-mail + correção do titular sem titular_id)
 4. Portal cliente /meu-processo (login por CPF + DOB)
 5. Painel admin (clientes, reenvios, solicitações, upload CASV com filtros e extração de família)
 6. Watchdog (monitor Z-API + Supabase)
@@ -551,6 +576,7 @@ Anexei o arquivo PROMPT-INICIAL.md (v6.0).
 2. Reforçar Watchdog (e-mail além do WhatsApp).
 3. Graceful shutdown Railway.
 4. Recuperação de formulários abandonados.
+5. Configurar `RESEND_API_KEY` no Staging.
 
 **O QUE PRECISO AGORA:**
 [Cole aqui o que você precisa]
